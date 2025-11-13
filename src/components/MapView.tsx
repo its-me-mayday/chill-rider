@@ -38,6 +38,8 @@ import {
         ? "map-glow z-10 inline-block overflow-hidden rounded-2xl border border-red-500/60 bg-slate-950"
         : "map-glow z-10 inline-block overflow-hidden rounded-2xl border border-slate-400/40 bg-slate-900";
   
+    const buildingSprite = buildingSpriteForTheme(theme);
+  
     return (
       <div
         className={frameClass}
@@ -56,6 +58,7 @@ import {
               const isCoin = coins.some(
                 (c) => c.x === x && c.y === y
               );
+              const isBuilding = tile === "building";
   
               return (
                 <div
@@ -64,6 +67,21 @@ import {
                   style={{ width: tileSize, height: tileSize }}
                 >
                   <div className={tileToClass(tile, theme)} />
+  
+                  {isBuilding && (
+                    <div className="absolute inset-[10%] flex items-center justify-center">
+                      <img
+                        src={buildingSprite}
+                        alt="building"
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          imageRendering: "pixelated",
+                        }}
+                      />
+                    </div>
+                  )}
+  
                   {isCoin && (
                     <div className="absolute inset-[22%] flex items-center justify-center">
                       <CoinSprite size={tileSize * 0.5} />
@@ -92,6 +110,11 @@ import {
     );
   }
   
+  function buildingSpriteForTheme(theme: Theme): string {
+    const prefix = theme === "hawkins" ? "hawkins" : "chill";
+    return `/chill-rider/tiles/${prefix}-building.png`;
+  }
+  
   function tileToClass(tile: TileType, theme: Theme): string {
     const base = "h-full w-full";
   
@@ -104,7 +127,7 @@ import {
         case "tree":
           return `${base} bg-emerald-900`;
         case "building":
-          return `${base} bg-red-900`;
+          return `${base} bg-gradient-to-b from-emerald-900 to-emerald-950`;
         case "slow":
           return `${base} bg-gradient-to-b from-fuchsia-950 to-red-900`;
         case "coffee":
@@ -122,7 +145,7 @@ import {
       case "tree":
         return `${base} bg-emerald-600`;
       case "building":
-        return `${base} bg-slate-500/90`;
+        return `${base} bg-gradient-to-b from-emerald-300 to-emerald-400`;
       case "slow":
         return `${base} bg-gradient-to-b from-amber-100 to-amber-200`;
       case "coffee":
