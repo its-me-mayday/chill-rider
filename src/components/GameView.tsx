@@ -10,7 +10,26 @@ import { GoalSprite } from "./GoalSprite";
 export function GameView() {
   const { game, move, newMap } = useGame();
 
-  const tileSize = 40;
+  const tilesX = game.options.width;
+  const tilesY = game.options.height;
+
+  const viewportWidth =
+    typeof window !== "undefined" ? window.innerWidth : 1024;
+  const viewportHeight =
+    typeof window !== "undefined" ? window.innerHeight : 768;
+
+  const maxMapWidth = viewportWidth - 80;
+  const maxMapHeight = viewportHeight - 200;
+
+  const rawTileSize = Math.min(
+    maxMapWidth / tilesX,
+    maxMapHeight / tilesY
+  );
+
+  const tileSize = Math.max(16, Math.floor(rawTileSize));
+
+  const mapPixelWidth = tilesX * tileSize;
+  const mapPixelHeight = tilesY * tileSize;
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -25,21 +44,31 @@ export function GameView() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-slate-900 px-4 text-slate-100">
-      <div className="mb-4 flex w-full max-w-md items-center justify-between gap-4 rounded-lg bg-slate-800/80 px-4 py-2 shadow-lg">
+      <div className="mb-4 flex w-full max-w-3xl items-center justify-between gap-4 rounded-lg bg-slate-800/80 px-4 py-2 shadow-lg">
         <div>
-          <h1 className="text-xl font-bold tracking-[0.25em]">
-            RIDER ROGUE
+          <h1 className="text-2xl font-bold tracking-[0.3em]">
+            CHILL RIDER
           </h1>
           <p className="text-xs text-slate-400">
-            Use arrows or WASD to move.
+            Use arrows or WASD to move across the city.
           </p>
         </div>
-        <div className="text-right">
-          <div className="text-[0.65rem] uppercase text-slate-400">
-            Distance
+        <div className="flex gap-6 text-right text-sm">
+          <div>
+            <div className="text-[0.65rem] uppercase text-slate-400">
+              Distance
+            </div>
+            <div className="text-lg font-semibold text-emerald-400">
+              {game.distance}
+            </div>
           </div>
-          <div className="text-lg font-semibold text-emerald-400">
-            {game.distance}
+          <div>
+            <div className="text-[0.65rem] uppercase text-slate-400">
+              Deliveries
+            </div>
+            <div className="text-lg font-semibold text-sky-400">
+              {game.deliveries}
+            </div>
           </div>
         </div>
       </div>
@@ -47,8 +76,8 @@ export function GameView() {
       <div
         className="inline-block border border-slate-700 bg-slate-800 shadow-xl"
         style={{
-          width: game.options.width * tileSize,
-          height: game.options.height * tileSize,
+          width: mapPixelWidth,
+          height: mapPixelHeight,
         }}
       >
         {game.map.map((row, y) => (
@@ -70,13 +99,13 @@ export function GameView() {
                 >
                   <div className={tileToClass(tile)} />
                   {isGoal && (
-                    <div className="absolute inset-2 flex items-center justify-center">
-                      <GoalSprite />
+                    <div className="absolute inset-[15%] flex items-center justify-center">
+                      <GoalSprite size={tileSize * 0.6} />
                     </div>
                   )}
                   {isRider && (
-                    <div className="absolute inset-1 flex items-center justify-center">
-                      <RiderSprite />
+                    <div className="absolute inset-[10%] flex items-center justify-center">
+                      <RiderSprite size={tileSize * 0.7} />
                     </div>
                   )}
                 </div>
@@ -96,7 +125,7 @@ export function GameView() {
       </div>
 
       <p className="mt-2 text-[0.7rem] text-slate-500">
-        Ride to the goal marker on the road.
+        Ride to the goal marker on the road and keep chilling through your deliveries.
       </p>
     </div>
   );

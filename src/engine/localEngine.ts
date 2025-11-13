@@ -19,6 +19,7 @@ export interface GameState {
   goalPosition: Position;
   options: GameOptions;
   distance: number;
+  deliveries: number;
 }
 
 export type Command =
@@ -41,6 +42,7 @@ export function createGame(options: GameOptions): GameState {
     goalPosition,
     options,
     distance: 0,
+    deliveries: 0,
   };
 }
 
@@ -59,7 +61,7 @@ export function applyCommand(
 }
 
 function moveRider(state: GameState, direction: Direction): GameState {
-  const { riderPosition, map } = state;
+  const { riderPosition, map, goalPosition } = state;
   const target = getNextPosition(riderPosition, direction);
 
   if (!isInsideMap(target, map)) return state;
@@ -67,10 +69,22 @@ function moveRider(state: GameState, direction: Direction): GameState {
   const tile = map[target.y][target.x];
   if (!isWalkable(tile)) return state;
 
-  return {
+  const next: GameState = {
     ...state,
     riderPosition: target,
+    distance: state.distance + 1,
   };
+
+  if (target.x === goalPosition.x && target.y === goalPosition.y) {
+    const newGoal = pickGoalPosition(map, target);
+    return {
+      ...next,
+      goalPosition: newGoal,
+      deliveries: state.deliveries + 1,
+    };
+  }
+
+  return next;
 }
 
 function regenerateMap(state: GameState): GameState {
@@ -89,6 +103,7 @@ function regenerateMap(state: GameState): GameState {
     riderPosition,
     goalPosition,
     distance: 0,
+    deliveries: 0,
   };
 }
 
