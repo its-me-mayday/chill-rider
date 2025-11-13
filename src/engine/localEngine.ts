@@ -21,6 +21,7 @@ export interface GameState {
   distance: number;
   deliveries: number;
   level: number;
+  facing: Direction;
 }
 
 export type Command =
@@ -46,6 +47,7 @@ export function createGame(options: GameOptions): GameState {
     distance: 0,
     deliveries: 0,
     level,
+    facing: "down",
   };
 }
 
@@ -67,10 +69,20 @@ function moveRider(state: GameState, direction: Direction): GameState {
   const { riderPosition, map, goalPosition } = state;
   const target = getNextPosition(riderPosition, direction);
 
-  if (!isInsideMap(target, map)) return state;
+  if (!isInsideMap(target, map)) {
+    return {
+      ...state,
+      facing: direction,
+    };
+  }
 
   const tile = map[target.y][target.x];
-  if (!isWalkable(tile)) return state;
+  if (!isWalkable(tile)) {
+    return {
+      ...state,
+      facing: direction,
+    };
+  }
 
   let nextDistance = state.distance + 1;
   let nextDeliveries = state.deliveries;
@@ -110,6 +122,7 @@ function moveRider(state: GameState, direction: Direction): GameState {
     distance: nextDistance,
     deliveries: nextDeliveries,
     level: nextLevel,
+    facing: direction,
   };
 }
 

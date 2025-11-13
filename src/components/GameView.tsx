@@ -156,7 +156,10 @@ export function GameView() {
                   )}
                   {isRider && (
                     <div className="absolute inset-[12%] flex items-center justify-center">
-                      <RiderSprite size={tileSize * 0.7} />
+                      <RiderSprite
+                        size={tileSize * 0.7}
+                        direction={game.facing}
+                      />
                     </div>
                   )}
                 </div>
