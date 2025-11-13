@@ -23,6 +23,7 @@ export function RiderSprite({ size = 28, direction }: RiderSpriteProps) {
       style={{
         width: size,
         height: size,
+        animation: "rider-bob 700ms ease-in-out infinite alternate",
       }}
     >
       <img

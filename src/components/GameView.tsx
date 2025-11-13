@@ -131,7 +131,7 @@ export function GameView() {
       </div>
 
       <div
-        className="z-10 inline-block rounded-2xl border border-slate-400/70 bg-slate-900 shadow-2xl"
+        className="map-glow z-10 inline-block overflow-hidden rounded-2xl border border-slate-400/40 bg-slate-900"
         style={{
           width: mapPixelWidth,
           height: mapPixelHeight,
@@ -177,13 +177,13 @@ export function GameView() {
 
       <div className="z-10 mt-4 flex gap-3">
         <button
-          className="rounded-full bg-emerald-500 px-5 py-2 text-sm font-semibold text-white shadow-md hover:bg-emerald-600"
+          className="rounded-full bg-emerald-500 px-5 py-2 text-sm font-semibold text-white shadow-md transition hover:bg-emerald-600 hover:shadow-lg"
           onClick={newMap}
         >
           New map
         </button>
         <button
-          className={`rounded-full px-5 py-2 text-sm font-semibold shadow-md ${
+          className={`rounded-full px-5 py-2 text-sm font-semibold shadow-md transition ${
             showHelp
               ? "bg-sky-600 text-white hover:bg-sky-700"
               : "bg-white/80 text-sky-700 hover:bg-white"
@@ -289,17 +289,17 @@ function keyToDirection(key: string): Direction | null {
 }
 
 function tileToClass(tile: TileType): string {
-  const base = "h-full w-full border border-slate-900/60";
+  const base = "h-full w-full";
   switch (tile) {
     case "road":
-      return `${base} bg-slate-200`;
+      return `${base} bg-gradient-to-b from-slate-100 to-slate-300`;
     case "grass":
-      return `${base} bg-emerald-200`;
+      return `${base} bg-gradient-to-b from-emerald-200 to-emerald-300`;
     case "tree":
-      return `${base} bg-emerald-500`;
+      return `${base} bg-emerald-600`;
     case "building":
-      return `${base} bg-slate-400/90`;
+      return `${base} bg-slate-500/90`;
     default:
-      return `${base} bg-slate-800`;
+      return `${base} bg-slate-900`;
   }
 }

@@ -12,3 +12,25 @@ body,
 body {
   overflow: hidden;
 }
+
+@keyframes rider-bob {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes map-glow {
+  0% {
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.8);
+  }
+  100% {
+    box-shadow: 0 22px 55px rgba(56, 189, 248, 0.45);
+  }
+}
+
+.map-glow {
+  animation: map-glow 3200ms ease-in-out infinite alternate;
+}
