@@ -33,6 +33,8 @@ export function GameView() {
 
   const [recentDelivery, setRecentDelivery] = useState(false);
   const [recentLevelUp, setRecentLevelUp] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+
   const prevDeliveriesRef = useRef(game.deliveries);
   const prevLevelRef = useRef(game.level);
 
@@ -62,6 +64,10 @@ export function GameView() {
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "h" || e.key === "H") {
+        setShowHelp((prev) => !prev);
+        return;
+      }
       const direction = keyToDirection(e.key);
       if (!direction) return;
       move(direction);
@@ -176,7 +182,81 @@ export function GameView() {
         >
           New map
         </button>
+        <button
+          className={`rounded-full px-5 py-2 text-sm font-semibold shadow-md ${
+            showHelp
+              ? "bg-sky-600 text-white hover:bg-sky-700"
+              : "bg-white/80 text-sky-700 hover:bg-white"
+          }`}
+          onClick={() => setShowHelp((prev) => !prev)}
+        >
+          Help (H)
+        </button>
       </div>
+
+      {showHelp && (
+        <div className="z-20 mt-3 w-full max-w-xl rounded-2xl border border-slate-300/70 bg-white/90 px-4 py-3 text-xs text-slate-700 shadow-lg backdrop-blur">
+          <div className="mb-1 flex items-center justify-between">
+            <span className="font-semibold tracking-[0.18em] uppercase text-slate-500">
+              Controls
+            </span>
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[0.65rem]">
+              Press H to hide
+            </span>
+          </div>
+          <div className="mb-2 flex flex-wrap gap-4">
+            <div className="flex items-center gap-2">
+              <div className="flex gap-1">
+                <span className="rounded-md bg-slate-900 px-2 py-1 text-[0.7rem] font-semibold text-slate-50">
+                  ↑
+                </span>
+                <span className="rounded-md bg-slate-900 px-2 py-1 text-[0.7rem] font-semibold text-slate-50">
+                  ↓
+                </span>
+                <span className="rounded-md bg-slate-900 px-2 py-1 text-[0.7rem] font-semibold text-slate-50">
+                  ←
+                </span>
+                <span className="rounded-md bg-slate-900 px-2 py-1 text-[0.7rem] font-semibold text-slate-50">
+                  →
+                </span>
+              </div>
+              <span>Move around the city</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex gap-1">
+                <span className="rounded-md bg-slate-900 px-2 py-1 text-[0.7rem] font-semibold text-slate-50">
+                  W
+                </span>
+                <span className="rounded-md bg-slate-900 px-2 py-1 text-[0.7rem] font-semibold text-slate-50">
+                  A
+                </span>
+                <span className="rounded-md bg-slate-900 px-2 py-1 text-[0.7rem] font-semibold text-slate-50">
+                  S
+                </span>
+                <span className="rounded-md bg-slate-900 px-2 py-1 text-[0.7rem] font-semibold text-slate-50">
+                  D
+                </span>
+              </div>
+              <span>Alternative movement keys</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="rounded-md bg-slate-900 px-2 py-1 text-[0.7rem] font-semibold text-slate-50">
+                H
+              </span>
+              <span>Toggle this help panel</span>
+            </div>
+          </div>
+          <div className="mt-1 grid gap-1 text-[0.7rem] text-slate-600">
+            <span>
+              Goal: ride to the glowing delivery marker on the road.
+            </span>
+            <span>
+              Every 5 deliveries you level up and the city becomes denser,
+              but still chill.
+            </span>
+          </div>
+        </div>
+      )}
 
       <p className="z-10 mt-2 text-[0.7rem] text-slate-700">
         Ride to the goal marker, stack deliveries, and climb the chill levels.
