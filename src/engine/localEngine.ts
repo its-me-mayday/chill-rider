@@ -16,6 +16,7 @@ export interface GameOptions {
 export interface GameState {
   map: TileType[][];
   riderPosition: Position;
+  goalPosition: Position;
   options: GameOptions;
   distance: number;
 }
@@ -32,9 +33,12 @@ export function createGame(options: GameOptions): GameState {
     y: Math.floor(options.height / 2),
   };
 
+  const goalPosition = pickGoalPosition(map, riderPosition);
+
   return {
     map,
     riderPosition,
+    goalPosition,
     options,
     distance: 0,
   };
@@ -66,7 +70,6 @@ function moveRider(state: GameState, direction: Direction): GameState {
   return {
     ...state,
     riderPosition: target,
-    distance: state.distance + 1,
   };
 }
 
@@ -78,10 +81,13 @@ function regenerateMap(state: GameState): GameState {
     y: Math.floor(state.options.height / 2),
   };
 
+  const goalPosition = pickGoalPosition(map, riderPosition);
+
   return {
     ...state,
     map,
     riderPosition,
+    goalPosition,
     distance: 0,
   };
 }
@@ -157,6 +163,28 @@ function generateMap(options: GameOptions): TileType[][] {
   }
 
   return rows;
+}
+
+function pickGoalPosition(
+  map: TileType[][],
+  riderPosition: Position
+): Position {
+  const candidates: Position[] = [];
+
+  for (let y = 0; y < map.length; y++) {
+    for (let x = 0; x < map[0].length; x++) {
+      if (map[y][x] !== "road") continue;
+      if (x === riderPosition.x && y === riderPosition.y) continue;
+      candidates.push({ x, y });
+    }
+  }
+
+  if (candidates.length === 0) {
+    return riderPosition;
+  }
+
+  const index = Math.floor(Math.random() * candidates.length);
+  return candidates[index];
 }
 
 function getNextPosition(pos: Position, dir: Direction): Position {

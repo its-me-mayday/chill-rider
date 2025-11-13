@@ -5,11 +5,12 @@ import {
 } from "../engine/localEngine";
 import { useGame } from "../hooks/useGame";
 import { RiderSprite } from "./RiderSprite";
+import { GoalSprite } from "./GoalSprite";
 
 export function GameView() {
   const { game, move, newMap } = useGame();
 
-  const tileSize = 32;
+  const tileSize = 40;
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -57,6 +58,10 @@ export function GameView() {
                 game.riderPosition.x === x &&
                 game.riderPosition.y === y;
 
+              const isGoal =
+                game.goalPosition.x === x &&
+                game.goalPosition.y === y;
+
               return (
                 <div
                   key={x}
@@ -64,6 +69,11 @@ export function GameView() {
                   style={{ width: tileSize, height: tileSize }}
                 >
                   <div className={tileToClass(tile)} />
+                  {isGoal && (
+                    <div className="absolute inset-2 flex items-center justify-center">
+                      <GoalSprite />
+                    </div>
+                  )}
                   {isRider && (
                     <div className="absolute inset-1 flex items-center justify-center">
                       <RiderSprite />
@@ -86,7 +96,7 @@ export function GameView() {
       </div>
 
       <p className="mt-2 text-[0.7rem] text-slate-500">
-        Every valid step increases the distance.
+        Ride to the goal marker on the road.
       </p>
     </div>
   );
