@@ -9,6 +9,7 @@ import { PauseOverlay } from "./PauseOverlay";
 
 type UiPhase = "intro" | "playing" | "paused";
 export type Skin = "rider" | "dustin";
+export type Theme = "chill" | "hawkins";
 
 export function GameView() {
   const { game, move, newMap } = useGame();
@@ -41,6 +42,19 @@ export function GameView() {
 
   const prevDeliveriesRef = useRef(game.deliveries);
   const prevLevelRef = useRef(game.level);
+
+  const theme: Theme =
+    selectedSkin === "dustin" ? "hawkins" : "chill";
+
+  const rootClass =
+    theme === "hawkins"
+      ? "relative flex h-screen w-screen flex-col items-center justify-center bg-gradient-to-b from-slate-900 via-black to-slate-950 text-slate-100"
+      : "relative flex h-screen w-screen flex-col items-center justify-center bg-gradient-to-b from-sky-100 via-sky-200 to-emerald-200 text-slate-900";
+
+  const bottomGlowClass =
+    theme === "hawkins"
+      ? "absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-red-900/90 via-red-900/0 to-transparent"
+      : "absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-emerald-300/90 via-emerald-200/0 to-transparent";
 
   useEffect(() => {
     if (game.deliveries > prevDeliveriesRef.current) {
@@ -116,8 +130,8 @@ export function GameView() {
   const isPaused = uiPhase === "paused";
 
   return (
-    <div className="relative flex h-screen w-screen flex-col items-center justify-center bg-gradient-to-b from-sky-100 via-sky-200 to-emerald-200 text-slate-900">
-      <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-emerald-300/90 via-emerald-200/0 to-transparent" />
+    <div className={rootClass}>
+      <div className={bottomGlowClass} />
 
       {recentDelivery && uiPhase === "playing" && (
         <div className="pointer-events-none fixed top-6 right-6 z-30 rounded-xl bg-white/90 px-4 py-2 text-sm font-semibold text-emerald-700 shadow-lg backdrop-blur">
@@ -136,6 +150,7 @@ export function GameView() {
         distance={game.distance}
         deliveries={game.deliveries}
         coins={game.coinsCollected}
+        theme={theme}
       />
 
       <MapView
@@ -148,6 +163,7 @@ export function GameView() {
         tileSize={tileSize}
         width={mapPixelWidth}
         height={mapPixelHeight}
+        theme={theme}
       />
 
       <div className="z-10 mt-4 flex gap-3">

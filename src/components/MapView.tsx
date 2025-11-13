@@ -6,7 +6,7 @@ import {
   import { RiderSprite } from "./RiderSprite";
   import { GoalSprite } from "./GoalSprite";
   import { CoinSprite } from "./CoinSprite";
-  import type { Skin } from "./GameView";
+  import type { Skin, Theme } from "./GameView";
   
   type MapViewProps = {
     map: TileType[][];
@@ -18,6 +18,7 @@ import {
     tileSize: number;
     width: number;
     height: number;
+    theme: Theme;
   };
   
   export function MapView({
@@ -30,10 +31,16 @@ import {
     tileSize,
     width,
     height,
+    theme,
   }: MapViewProps) {
+    const frameClass =
+      theme === "hawkins"
+        ? "map-glow z-10 inline-block overflow-hidden rounded-2xl border border-red-500/60 bg-slate-950"
+        : "map-glow z-10 inline-block overflow-hidden rounded-2xl border border-slate-400/40 bg-slate-900";
+  
     return (
       <div
-        className="map-glow z-10 inline-block overflow-hidden rounded-2xl border border-slate-400/40 bg-slate-900"
+        className={frameClass}
         style={{
           width,
           height,
@@ -56,7 +63,7 @@ import {
                   className="relative"
                   style={{ width: tileSize, height: tileSize }}
                 >
-                  <div className={tileToClass(tile)} />
+                  <div className={tileToClass(tile, theme)} />
                   {isCoin && (
                     <div className="absolute inset-[22%] flex items-center justify-center">
                       <CoinSprite size={tileSize * 0.5} />
@@ -85,8 +92,26 @@ import {
     );
   }
   
-  function tileToClass(tile: TileType): string {
+  function tileToClass(tile: TileType, theme: Theme): string {
     const base = "h-full w-full";
+  
+    if (theme === "hawkins") {
+      switch (tile) {
+        case "road":
+          return `${base} bg-gradient-to-b from-slate-900 to-slate-800`;
+        case "grass":
+          return `${base} bg-gradient-to-b from-emerald-950 to-emerald-800`;
+        case "tree":
+          return `${base} bg-emerald-900`;
+        case "building":
+          return `${base} bg-red-900`;
+        case "slow":
+          return `${base} bg-gradient-to-b from-fuchsia-950 to-red-900`;
+        default:
+          return `${base} bg-black`;
+      }
+    }
+  
     switch (tile) {
       case "road":
         return `${base} bg-gradient-to-b from-slate-100 to-slate-300`;
