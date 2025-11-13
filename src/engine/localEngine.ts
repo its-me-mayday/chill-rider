@@ -5,7 +5,8 @@ export type TileType =
   | "building"
   | "slow"
   | "coffee"
-  | "void";
+  | "void"
+  | "shop";
 
 export interface Position {
   x: number;

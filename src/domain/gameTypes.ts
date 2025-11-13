@@ -1,8 +1,8 @@
 export type TileType = "road" | "grass" | "tree" | "building" | "void";
 
 export interface Position {
-  x: number; // colonna
-  y: number; // riga
+  x: number; 
+  y: number; 
 }
 
 export type Direction = "up" | "down" | "left" | "right";
