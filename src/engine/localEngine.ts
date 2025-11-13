@@ -1,4 +1,10 @@
-export type TileType = "road" | "grass" | "tree" | "building" | "void";
+export type TileType =
+  | "road"
+  | "grass"
+  | "tree"
+  | "building"
+  | "slow"
+  | "void";
 
 export interface Position {
   x: number;
@@ -89,7 +95,9 @@ function moveRider(state: GameState, direction: Direction): GameState {
     };
   }
 
-  let nextDistance = state.distance + 1;
+  const stepCost = tile === "slow" ? 2 : 1;
+
+  let nextDistance = state.distance + stepCost;
   let nextDeliveries = state.deliveries;
   let nextLevel = state.level;
   let nextMap = map;
@@ -243,6 +251,22 @@ function generateMap(options: GameOptions, level: number): TileType[][] {
     }
   }
 
+  const slowBase = 0.06;
+  const slowPerLevel = 0.02;
+  const slowChance = Math.min(
+    slowBase + Math.max(level - 1, 0) * slowPerLevel,
+    0.18
+  );
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (rows[y][x] !== "grass") continue;
+      if (rng() < slowChance) {
+        rows[y][x] = "slow";
+      }
+    }
+  }
+
   return rows;
 }
 
@@ -327,7 +351,7 @@ function isInsideMap(pos: Position, map: TileType[][]): boolean {
 }
 
 function isWalkable(tile: TileType): boolean {
-  return tile === "road" || tile === "grass";
+  return tile === "road" || tile === "grass" || tile === "slow";
 }
 
 function createRng(seed: number): () => number {
