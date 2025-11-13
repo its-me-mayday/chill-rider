@@ -6,8 +6,10 @@ import {
 import { useGame } from "../hooks/useGame";
 import { RiderSprite } from "./RiderSprite";
 import { GoalSprite } from "./GoalSprite";
+import { CoinSprite } from "./CoinSprite";
 
 type UiPhase = "intro" | "playing" | "paused";
+type Skin = "rider" | "dustin";
 
 export function GameView() {
   const { game, move, newMap } = useGame();
@@ -37,6 +39,7 @@ export function GameView() {
   const [recentLevelUp, setRecentLevelUp] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [uiPhase, setUiPhase] = useState<UiPhase>("intro");
+  const [selectedSkin, setSelectedSkin] = useState<Skin>("rider");
 
   const prevDeliveriesRef = useRef(game.deliveries);
   const prevLevelRef = useRef(game.level);
@@ -164,6 +167,14 @@ export function GameView() {
               {game.deliveries}
             </div>
           </div>
+          <div>
+            <div className="text-[0.65rem] uppercase text-slate-500">
+              Coins
+            </div>
+            <div className="text-lg font-semibold text-amber-500">
+              {game.coinsCollected}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -185,6 +196,10 @@ export function GameView() {
                 game.goalPosition.x === x &&
                 game.goalPosition.y === y;
 
+              const isCoin = game.coins.some(
+                (c) => c.x === x && c.y === y
+              );
+
               return (
                 <div
                   key={x}
@@ -192,6 +207,11 @@ export function GameView() {
                   style={{ width: tileSize, height: tileSize }}
                 >
                   <div className={tileToClass(tile)} />
+                  {isCoin && (
+                    <div className="absolute inset-[22%] flex items-center justify-center">
+                      <CoinSprite size={tileSize * 0.5} />
+                    </div>
+                  )}
                   {isGoal && (
                     <div className="absolute inset-[18%] flex items-center justify-center">
                       <GoalSprite size={tileSize * 0.6} />
@@ -202,6 +222,7 @@ export function GameView() {
                       <RiderSprite
                         size={tileSize * 0.7}
                         direction={game.facing}
+                        skin={selectedSkin}
                       />
                     </div>
                   )}
@@ -290,7 +311,7 @@ export function GameView() {
               <span className="rounded-md bg-slate-900 px-2 py-1 text-[0.7rem] font-semibold text-slate-50">
                 Enter
               </span>
-              <span>Start a new chill ride</span>
+              <span>Start your ride</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="rounded-md bg-slate-900 px-2 py-1 text-[0.7rem] font-semibold text-slate-50">
@@ -304,8 +325,10 @@ export function GameView() {
               Goal: ride to the glowing delivery marker on the road.
             </span>
             <span>
-              Every 5 deliveries you level up and the city becomes denser,
-              but still chill.
+              Collect bouncing coins on the road to increase your coin score.
+            </span>
+            <span>
+              Every 5 deliveries you level up and the city becomes denser, but still chill.
             </span>
           </div>
         </div>
@@ -317,13 +340,63 @@ export function GameView() {
             <h2 className="mb-1 text-center text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
               Welcome to
             </h2>
-            <h1 className="mb-4 text-center text-2xl font-extrabold tracking-[0.35em] text-slate-900">
+            <h1 className="mb-3 text-center text-2xl font-extrabold tracking-[0.35em] text-slate-900">
               CHILL RIDER
             </h1>
             <p className="mb-4 text-center text-xs text-slate-600">
-              Ride across a pastel city, complete easy-going deliveries,
-              and slowly climb the chill levels. No rush, no stress.
+              Ride across a pastel city, collect cozy coins, complete easy-going deliveries, and slowly climb the chill levels.
             </p>
+
+            <div className="mb-4">
+              <p className="mb-2 text-center text-[0.75rem] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Choose your rider
+              </p>
+              <div className="flex justify-center gap-3">
+                <button
+                  onClick={() => setSelectedSkin("rider")}
+                  className={`flex w-32 flex-col items-center gap-1 rounded-2xl border px-3 py-2 text-[0.7rem] shadow-sm ${
+                    selectedSkin === "rider"
+                      ? "border-emerald-500 bg-emerald-50"
+                      : "border-slate-200 bg-white hover:bg-slate-50"
+                  }`}
+                >
+                  <div className="flex h-10 items-center justify-center">
+                    <img
+                      src="/chill-rider/sprites/rider-d.png"
+                      alt="Classic rider"
+                      className="h-8 w-8"
+                      style={{ imageRendering: "pixelated" }}
+                    />
+                  </div>
+                  <span className="font-semibold">Classic rider</span>
+                  <span className="text-[0.65rem] text-slate-500">
+                    Chill city courier
+                  </span>
+                </button>
+                <button
+                  onClick={() => setSelectedSkin("dustin")}
+                  className={`flex w-32 flex-col items-center gap-1 rounded-2xl border px-3 py-2 text-[0.7rem] shadow-sm ${
+                    selectedSkin === "dustin"
+                      ? "border-sky-500 bg-sky-50"
+                      : "border-slate-200 bg-white hover:bg-slate-50"
+                  }`}
+                >
+                  <div className="flex h-10 items-center justify-center">
+                    <img
+                      src="/chill-rider/sprites/dustin-d.png"
+                      alt="Dustin"
+                      className="h-8 w-8"
+                      style={{ imageRendering: "pixelated" }}
+                    />
+                  </div>
+                  <span className="font-semibold">Dustin</span>
+                  <span className="text-[0.65rem] text-slate-500">
+                    Hawkins bike kid
+                  </span>
+                </button>
+              </div>
+            </div>
+
             <div className="mb-4 flex flex-col items-center gap-2 text-[0.75rem] text-slate-600">
               <div className="flex items-center gap-2">
                 <span className="rounded-md bg-slate-900 px-2 py-1 text-[0.7rem] font-semibold text-slate-50">
@@ -382,7 +455,7 @@ export function GameView() {
             <h1 className="mb-4 text-center text-xl font-extrabold tracking-[0.25em] text-slate-900">
               CHILL BREAK
             </h1>
-            <div className="mb-4 grid grid-cols-3 gap-3 text-center text-xs">
+            <div className="mb-4 grid grid-cols-4 gap-3 text-center text-xs">
               <div>
                 <div className="text-[0.65rem] uppercase text-slate-500">
                   Level
@@ -407,10 +480,17 @@ export function GameView() {
                   {game.deliveries}
                 </div>
               </div>
+              <div>
+                <div className="text-[0.65rem] uppercase text-slate-500">
+                  Coins
+                </div>
+                <div className="text-lg font-semibold text-amber-500">
+                  {game.coinsCollected}
+                </div>
+              </div>
             </div>
             <p className="mb-4 text-center text-[0.75rem] text-slate-600">
-              Take a breath, then jump back in when you are ready. Or end
-              this ride and start a fresh chill session.
+              Take a breath, then jump back in when you are ready. Or end this ride and start a fresh chill session.
             </p>
             <div className="flex justify-center gap-3">
               <button
@@ -431,7 +511,7 @@ export function GameView() {
       )}
 
       <p className="z-10 mt-2 text-[0.7rem] text-slate-700">
-        Ride to the goal marker, stack deliveries, and climb the chill levels.
+        Ride to the goal marker, collect coins, and climb the chill levels.
       </p>
     </div>
   );

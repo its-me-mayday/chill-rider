@@ -1,18 +1,27 @@
 import { type Direction } from "../engine/localEngine";
 
+type Skin = "rider" | "dustin";
+
 type RiderSpriteProps = {
   size?: number;
   direction: Direction;
+  skin: Skin;
 };
 
-export function RiderSprite({ size = 28, direction }: RiderSpriteProps) {
+export function RiderSprite({
+  size = 28,
+  direction,
+  skin,
+}: RiderSpriteProps) {
   const padding = Math.max(2, Math.floor(size * 0.08));
 
+  const prefix = skin === "dustin" ? "dustin" : "rider";
+
   const spriteByDirection: Record<Direction, string> = {
-    up: "/chill-rider/sprites/rider-u.png",
-    down: "/chill-rider/sprites/rider-d.png",
-    left: "/chill-rider/sprites/rider-l.png",
-    right: "/chill-rider/sprites/rider-r.png",
+    up: `/chill-rider/sprites/${prefix}-u.png`,
+    down: `/chill-rider/sprites/${prefix}-d.png`,
+    left: `/chill-rider/sprites/${prefix}-l.png`,
+    right: `/chill-rider/sprites/${prefix}-r.png`,
   };
 
   const src = spriteByDirection[direction];

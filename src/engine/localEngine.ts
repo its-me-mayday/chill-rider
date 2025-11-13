@@ -22,6 +22,8 @@ export interface GameState {
   deliveries: number;
   level: number;
   facing: Direction;
+  coins: Position[];
+  coinsCollected: number;
 }
 
 export type Command =
@@ -38,6 +40,7 @@ export function createGame(options: GameOptions): GameState {
   };
 
   const goalPosition = pickGoalPosition(map, riderPosition);
+  const coins = generateCoins(map, level, options.seed);
 
   return {
     map,
@@ -48,6 +51,8 @@ export function createGame(options: GameOptions): GameState {
     deliveries: 0,
     level,
     facing: "down",
+    coins,
+    coinsCollected: 0,
   };
 }
 
@@ -90,6 +95,18 @@ function moveRider(state: GameState, direction: Direction): GameState {
   let nextMap = map;
   let nextRiderPosition = target;
   let nextGoalPosition = goalPosition;
+  let nextCoins = state.coins;
+  let nextCoinsCollected = state.coinsCollected;
+
+  const coinIndex = state.coins.findIndex(
+    (c) => c.x === target.x && c.y === target.y
+  );
+  if (coinIndex !== -1) {
+    const updatedCoins = [...state.coins];
+    updatedCoins.splice(coinIndex, 1);
+    nextCoins = updatedCoins;
+    nextCoinsCollected = state.coinsCollected + 1;
+  }
 
   const reachedGoal =
     target.x === goalPosition.x && target.y === goalPosition.y;
@@ -109,6 +126,7 @@ function moveRider(state: GameState, direction: Direction): GameState {
 
       nextGoalPosition = pickGoalPosition(nextMap, nextRiderPosition);
       nextDistance = 0;
+      nextCoins = generateCoins(nextMap, nextLevel, state.options.seed);
     } else {
       nextGoalPosition = pickGoalPosition(map, target);
     }
@@ -123,6 +141,8 @@ function moveRider(state: GameState, direction: Direction): GameState {
     deliveries: nextDeliveries,
     level: nextLevel,
     facing: direction,
+    coins: nextCoins,
+    coinsCollected: nextCoinsCollected,
   };
 }
 
@@ -135,6 +155,7 @@ function regenerateMap(state: GameState): GameState {
   };
 
   const goalPosition = pickGoalPosition(map, riderPosition);
+  const coins = generateCoins(map, state.level, state.options.seed);
 
   return {
     ...state,
@@ -143,6 +164,7 @@ function regenerateMap(state: GameState): GameState {
     goalPosition,
     distance: 0,
     deliveries: 0,
+    coins,
   };
 }
 
@@ -222,6 +244,42 @@ function generateMap(options: GameOptions, level: number): TileType[][] {
   }
 
   return rows;
+}
+
+function generateCoins(
+  map: TileType[][],
+  level: number,
+  seed?: number
+): Position[] {
+  const rng = createRng((seed ?? Date.now()) + level * 4243 + 99);
+  const roads: Position[] = [];
+
+  for (let y = 0; y < map.length; y++) {
+    for (let x = 0; x < map[0].length; x++) {
+      if (map[y][x] === "road") {
+        roads.push({ x, y });
+      }
+    }
+  }
+
+  if (roads.length === 0) {
+    return [];
+  }
+
+  const baseCoins = 4;
+  const targetCount = baseCoins + Math.max(level - 1, 0);
+  const coinsCount = Math.min(targetCount, roads.length);
+
+  const coins: Position[] = [];
+  while (coins.length < coinsCount) {
+    const idx = Math.floor(rng() * roads.length);
+    const candidate = roads[idx];
+    if (!coins.some((c) => c.x === candidate.x && c.y === candidate.y)) {
+      coins.push(candidate);
+    }
+  }
+
+  return coins;
 }
 
 function pickGoalPosition(
