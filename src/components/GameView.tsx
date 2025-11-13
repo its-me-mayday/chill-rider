@@ -7,6 +7,8 @@ import { useGame } from "../hooks/useGame";
 import { RiderSprite } from "./RiderSprite";
 import { GoalSprite } from "./GoalSprite";
 
+type UiPhase = "intro" | "playing" | "paused";
+
 export function GameView() {
   const { game, move, newMap } = useGame();
 
@@ -34,6 +36,7 @@ export function GameView() {
   const [recentDelivery, setRecentDelivery] = useState(false);
   const [recentLevelUp, setRecentLevelUp] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [uiPhase, setUiPhase] = useState<UiPhase>("intro");
 
   const prevDeliveriesRef = useRef(game.deliveries);
   const prevLevelRef = useRef(game.level);
@@ -68,26 +71,60 @@ export function GameView() {
         setShowHelp((prev) => !prev);
         return;
       }
+
+      if (e.key === "Enter" || e.key === " ") {
+        if (uiPhase === "intro") {
+          setUiPhase("playing");
+        }
+        return;
+      }
+
+      if (e.key === "p" || e.key === "P" || e.key === "Escape") {
+        if (uiPhase === "playing") {
+          setUiPhase("paused");
+        } else if (uiPhase === "paused") {
+          setUiPhase("playing");
+        }
+        return;
+      }
+
       const direction = keyToDirection(e.key);
       if (!direction) return;
+      if (uiPhase !== "playing") return;
       move(direction);
     }
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [move]);
+  }, [move, uiPhase]);
+
+  function handleStartRide() {
+    setUiPhase("playing");
+  }
+
+  function handlePauseToggle() {
+    setUiPhase((prev) => (prev === "paused" ? "playing" : "paused"));
+  }
+
+  function handleEndRun() {
+    newMap();
+    setUiPhase("intro");
+  }
+
+  const isIntro = uiPhase === "intro";
+  const isPaused = uiPhase === "paused";
 
   return (
     <div className="relative flex h-screen w-screen flex-col items-center justify-center bg-gradient-to-b from-sky-100 via-sky-200 to-emerald-200 text-slate-900">
       <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-emerald-300/90 via-emerald-200/0 to-transparent" />
 
-      {recentDelivery && (
+      {recentDelivery && uiPhase === "playing" && (
         <div className="pointer-events-none fixed top-6 right-6 z-30 rounded-xl bg-white/90 px-4 py-2 text-sm font-semibold text-emerald-700 shadow-lg backdrop-blur">
           Delivery completed!
         </div>
       )}
 
-      {recentLevelUp && (
+      {recentLevelUp && uiPhase === "playing" && (
         <div className="pointer-events-none fixed top-16 right-6 z-30 rounded-xl bg-sky-500/95 px-4 py-2 text-sm font-semibold text-white shadow-lg backdrop-blur">
           Level up!
         </div>
@@ -192,6 +229,16 @@ export function GameView() {
         >
           Help (H)
         </button>
+        <button
+          className={`rounded-full px-5 py-2 text-sm font-semibold shadow-md transition ${
+            isPaused
+              ? "bg-emerald-600 text-white hover:bg-emerald-700"
+              : "bg-slate-900/80 text-slate-50 hover:bg-slate-900"
+          }`}
+          onClick={handlePauseToggle}
+        >
+          {isPaused ? "Resume (P)" : "Pause (P)"}
+        </button>
       </div>
 
       {showHelp && (
@@ -241,9 +288,15 @@ export function GameView() {
             </div>
             <div className="flex items-center gap-2">
               <span className="rounded-md bg-slate-900 px-2 py-1 text-[0.7rem] font-semibold text-slate-50">
-                H
+                Enter
               </span>
-              <span>Toggle this help panel</span>
+              <span>Start a new chill ride</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="rounded-md bg-slate-900 px-2 py-1 text-[0.7rem] font-semibold text-slate-50">
+                P
+              </span>
+              <span>Pause or resume the ride</span>
             </div>
           </div>
           <div className="mt-1 grid gap-1 text-[0.7rem] text-slate-600">
@@ -254,6 +307,125 @@ export function GameView() {
               Every 5 deliveries you level up and the city becomes denser,
               but still chill.
             </span>
+          </div>
+        </div>
+      )}
+
+      {isIntro && (
+        <div className="pointer-events-auto absolute inset-0 z-30 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl border border-slate-300/70 bg-white/95 px-6 py-6 text-sm text-slate-800 shadow-2xl">
+            <h2 className="mb-1 text-center text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              Welcome to
+            </h2>
+            <h1 className="mb-4 text-center text-2xl font-extrabold tracking-[0.35em] text-slate-900">
+              CHILL RIDER
+            </h1>
+            <p className="mb-4 text-center text-xs text-slate-600">
+              Ride across a pastel city, complete easy-going deliveries,
+              and slowly climb the chill levels. No rush, no stress.
+            </p>
+            <div className="mb-4 flex flex-col items-center gap-2 text-[0.75rem] text-slate-600">
+              <div className="flex items-center gap-2">
+                <span className="rounded-md bg-slate-900 px-2 py-1 text-[0.7rem] font-semibold text-slate-50">
+                  Enter
+                </span>
+                <span>Start your ride</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex gap-1">
+                  <span className="rounded-md bg-slate-900 px-2 py-1 text-[0.7rem] font-semibold text-slate-50">
+                    ↑
+                  </span>
+                  <span className="rounded-md bg-slate-900 px-2 py-1 text-[0.7rem] font-semibold text-slate-50">
+                    ↓
+                  </span>
+                  <span className="rounded-md bg-slate-900 px-2 py-1 text-[0.7rem] font-semibold text-slate-50">
+                    ←
+                  </span>
+                  <span className="rounded-md bg-slate-900 px-2 py-1 text-[0.7rem] font-semibold text-slate-50">
+                    →
+                  </span>
+                </div>
+                <span>Move your rider</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="rounded-md bg-slate-900 px-2 py-1 text-[0.7rem] font-semibold text-slate-50">
+                  P
+                </span>
+                <span>Pause the session</span>
+              </div>
+            </div>
+            <div className="flex justify-center gap-3">
+              <button
+                className="rounded-full bg-emerald-500 px-5 py-2 text-xs font-semibold text-white shadow-md transition hover:bg-emerald-600"
+                onClick={handleStartRide}
+              >
+                Start ride
+              </button>
+              <button
+                className="rounded-full bg-white px-4 py-2 text-[0.7rem] font-semibold text-sky-700 shadow-sm hover:bg-slate-50"
+                onClick={() => setShowHelp(true)}
+              >
+                View controls
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isPaused && (
+        <div className="pointer-events-auto absolute inset-0 z-30 flex items-center justify-center bg-slate-900/45 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl border border-slate-300/70 bg-white/95 px-6 py-6 text-sm text-slate-800 shadow-2xl">
+            <h2 className="mb-1 text-center text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              Session paused
+            </h2>
+            <h1 className="mb-4 text-center text-xl font-extrabold tracking-[0.25em] text-slate-900">
+              CHILL BREAK
+            </h1>
+            <div className="mb-4 grid grid-cols-3 gap-3 text-center text-xs">
+              <div>
+                <div className="text-[0.65rem] uppercase text-slate-500">
+                  Level
+                </div>
+                <div className="text-lg font-semibold text-sky-600">
+                  {game.level}
+                </div>
+              </div>
+              <div>
+                <div className="text-[0.65rem] uppercase text-slate-500">
+                  Distance
+                </div>
+                <div className="text-lg font-semibold text-emerald-500">
+                  {game.distance}
+                </div>
+              </div>
+              <div>
+                <div className="text-[0.65rem] uppercase text-slate-500">
+                  Deliveries
+                </div>
+                <div className="text-lg font-semibold text-sky-500">
+                  {game.deliveries}
+                </div>
+              </div>
+            </div>
+            <p className="mb-4 text-center text-[0.75rem] text-slate-600">
+              Take a breath, then jump back in when you are ready. Or end
+              this ride and start a fresh chill session.
+            </p>
+            <div className="flex justify-center gap-3">
+              <button
+                className="rounded-full bg-emerald-500 px-5 py-2 text-xs font-semibold text-white shadow-md transition hover:bg-emerald-600"
+                onClick={handlePauseToggle}
+              >
+                Resume ride
+              </button>
+              <button
+                className="rounded-full bg-white px-4 py-2 text-[0.7rem] font-semibold text-rose-600 shadow-sm hover:bg-rose-50"
+                onClick={handleEndRun}
+              >
+                End run
+              </button>
+            </div>
           </div>
         </div>
       )}
