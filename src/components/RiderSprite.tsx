@@ -5,7 +5,7 @@ type RiderSpriteProps = {
   export function RiderSprite({ size = 28 }: RiderSpriteProps) {
     return (
       <img
-        src="/sprites/rider-down.png"
+        src="/chill-rider/sprites/rider-l.png"
         alt="Rider"
         style={{
           width: size,

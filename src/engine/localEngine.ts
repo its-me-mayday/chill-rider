@@ -20,6 +20,7 @@ export interface GameState {
   options: GameOptions;
   distance: number;
   deliveries: number;
+  level: number;
 }
 
 export type Command =
@@ -27,7 +28,8 @@ export type Command =
   | { type: "REGENERATE_MAP" };
 
 export function createGame(options: GameOptions): GameState {
-  const map = generateMap(options);
+  const level = 1;
+  const map = generateMap(options, level);
 
   const riderPosition: Position = {
     x: Math.floor(options.width / 2),
@@ -43,6 +45,7 @@ export function createGame(options: GameOptions): GameState {
     options,
     distance: 0,
     deliveries: 0,
+    level,
   };
 }
 
@@ -69,26 +72,49 @@ function moveRider(state: GameState, direction: Direction): GameState {
   const tile = map[target.y][target.x];
   if (!isWalkable(tile)) return state;
 
-  const next: GameState = {
-    ...state,
-    riderPosition: target,
-    distance: state.distance + 1,
-  };
+  let nextDistance = state.distance + 1;
+  let nextDeliveries = state.deliveries;
+  let nextLevel = state.level;
+  let nextMap = map;
+  let nextRiderPosition = target;
+  let nextGoalPosition = goalPosition;
 
-  if (target.x === goalPosition.x && target.y === goalPosition.y) {
-    const newGoal = pickGoalPosition(map, target);
-    return {
-      ...next,
-      goalPosition: newGoal,
-      deliveries: state.deliveries + 1,
-    };
+  const reachedGoal =
+    target.x === goalPosition.x && target.y === goalPosition.y;
+
+  if (reachedGoal) {
+    nextDeliveries += 1;
+
+    const shouldLevelUp = nextDeliveries % 5 === 0;
+    if (shouldLevelUp) {
+      nextLevel = state.level + 1;
+      nextMap = generateMap(state.options, nextLevel);
+
+      nextRiderPosition = {
+        x: Math.floor(state.options.width / 2),
+        y: Math.floor(state.options.height / 2),
+      };
+
+      nextGoalPosition = pickGoalPosition(nextMap, nextRiderPosition);
+      nextDistance = 0;
+    } else {
+      nextGoalPosition = pickGoalPosition(map, target);
+    }
   }
 
-  return next;
+  return {
+    ...state,
+    map: nextMap,
+    riderPosition: nextRiderPosition,
+    goalPosition: nextGoalPosition,
+    distance: nextDistance,
+    deliveries: nextDeliveries,
+    level: nextLevel,
+  };
 }
 
 function regenerateMap(state: GameState): GameState {
-  const map = generateMap(state.options);
+  const map = generateMap(state.options, state.level);
 
   const riderPosition: Position = {
     x: Math.floor(state.options.width / 2),
@@ -107,9 +133,9 @@ function regenerateMap(state: GameState): GameState {
   };
 }
 
-function generateMap(options: GameOptions): TileType[][] {
+function generateMap(options: GameOptions, level: number): TileType[][] {
   const { width, height, seed } = options;
-  const rng = createRng(seed ?? Date.now());
+  const rng = createRng((seed ?? Date.now()) + level * 997);
 
   const rows: TileType[][] = [];
   for (let y = 0; y < height; y++) {
@@ -128,7 +154,10 @@ function generateMap(options: GameOptions): TileType[][] {
     }
   }
 
-  const verticalRoadCount = Math.max(1, Math.floor(width / 6));
+  const verticalRoadCount = Math.max(
+    1,
+    Math.floor(width / 6) + Math.floor((level - 1) / 2)
+  );
   for (let i = 0; i < verticalRoadCount; i++) {
     const x = Math.floor(((i + 1) * width) / (verticalRoadCount + 1));
     for (let y = 0; y < height; y++) {
@@ -139,10 +168,11 @@ function generateMap(options: GameOptions): TileType[][] {
     }
   }
 
+  const buildingChance = Math.min(0.25 + (level - 1) * 0.05, 0.5);
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       if (rows[y][x] !== "road") continue;
-      if (rng() < 0.25) {
+      if (rng() < buildingChance) {
         const dir = rng() < 0.5 ? -1 : 1;
         const by = y + dir;
         if (by >= 0 && by < height && rows[by][x] === "grass") {
@@ -162,10 +192,11 @@ function generateMap(options: GameOptions): TileType[][] {
     }
   }
 
+  const treeChance = Math.min(0.12 + (level - 1) * 0.03, 0.3);
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       if (rows[y][x] !== "grass") continue;
-      if (rng() < 0.12) {
+      if (rng() < treeChance) {
         rows[y][x] = "tree";
         if (rng() < 0.4 && x + 1 < width && rows[y][x + 1] === "grass") {
           rows[y][x + 1] = "tree";
