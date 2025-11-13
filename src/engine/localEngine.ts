@@ -5,8 +5,8 @@ export type TileType =
   | "building"
   | "slow"
   | "coffee"
-  | "void"
-  | "shop";
+  | "shop"
+  | "void";
 
 export interface Position {
   x: number;
@@ -302,6 +302,44 @@ function generateMap(options: GameOptions, level: number): TileType[][] {
     }
   }
 
+  const shopCandidates: Position[] = [];
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (rows[y][x] !== "grass") continue;
+
+      const nearRoad =
+        (y > 0 && rows[y - 1][x] === "road") ||
+        (y < height - 1 && rows[y + 1][x] === "road") ||
+        (x > 0 && rows[y][x - 1] === "road") ||
+        (x < width - 1 && rows[y][x + 1] === "road");
+
+      if (nearRoad) {
+        shopCandidates.push({ x, y });
+      }
+    }
+  }
+
+  if (shopCandidates.length > 0) {
+    const minShops = 1;
+    const maxShops = Math.min(
+      Math.max(2, 2 + Math.floor(level / 2)),
+      shopCandidates.length
+    );
+    const targetShops = Math.max(
+      minShops,
+      Math.min(maxShops, 1 + Math.floor(level / 2))
+    );
+
+    const chosen: Position[] = [];
+    while (chosen.length < targetShops && shopCandidates.length > 0) {
+      const idx = Math.floor(rng() * shopCandidates.length);
+      const candidate = shopCandidates[idx];
+      shopCandidates.splice(idx, 1);
+      rows[candidate.y][candidate.x] = "shop";
+      chosen.push(candidate);
+    }
+  }
+
   return rows;
 }
 
@@ -390,7 +428,8 @@ function isWalkable(tile: TileType): boolean {
     tile === "road" ||
     tile === "grass" ||
     tile === "slow" ||
-    tile === "coffee"
+    tile === "coffee" ||
+    tile === "shop"
   );
 }
 
