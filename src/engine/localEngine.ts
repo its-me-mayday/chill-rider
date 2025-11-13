@@ -4,6 +4,7 @@ export type TileType =
   | "tree"
   | "building"
   | "slow"
+  | "coffee"
   | "void";
 
 export interface Position {
@@ -103,7 +104,7 @@ function moveRider(state: GameState, direction: Direction): GameState {
   let nextMap = map;
   let nextRiderPosition = target;
   let nextGoalPosition = goalPosition;
-  let nextCoins = state.coins;
+  let nextCoinsPositions = state.coins;
   let nextCoinsCollected = state.coinsCollected;
 
   const coinIndex = state.coins.findIndex(
@@ -112,8 +113,13 @@ function moveRider(state: GameState, direction: Direction): GameState {
   if (coinIndex !== -1) {
     const updatedCoins = [...state.coins];
     updatedCoins.splice(coinIndex, 1);
-    nextCoins = updatedCoins;
+    nextCoinsPositions = updatedCoins;
     nextCoinsCollected = state.coinsCollected + 1;
+  }
+
+  if (tile === "coffee") {
+    nextDistance = Math.max(0, nextDistance - 4);
+    nextCoinsCollected = nextCoinsCollected + 2;
   }
 
   const reachedGoal =
@@ -134,7 +140,11 @@ function moveRider(state: GameState, direction: Direction): GameState {
 
       nextGoalPosition = pickGoalPosition(nextMap, nextRiderPosition);
       nextDistance = 0;
-      nextCoins = generateCoins(nextMap, nextLevel, state.options.seed);
+      nextCoinsPositions = generateCoins(
+        nextMap,
+        nextLevel,
+        state.options.seed
+      );
     } else {
       nextGoalPosition = pickGoalPosition(map, target);
     }
@@ -149,7 +159,7 @@ function moveRider(state: GameState, direction: Direction): GameState {
     deliveries: nextDeliveries,
     level: nextLevel,
     facing: direction,
-    coins: nextCoins,
+    coins: nextCoinsPositions,
     coinsCollected: nextCoinsCollected,
   };
 }
@@ -267,6 +277,30 @@ function generateMap(options: GameOptions, level: number): TileType[][] {
     }
   }
 
+  const coffeeBase = 0.03;
+  const coffeePerLevel = 0.01;
+  const coffeeChance = Math.min(
+    coffeeBase + Math.max(level - 1, 0) * coffeePerLevel,
+    0.1
+  );
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (rows[y][x] !== "grass") continue;
+      if (rng() >= coffeeChance) continue;
+
+      const nearRoad =
+        (y > 0 && rows[y - 1][x] === "road") ||
+        (y < height - 1 && rows[y + 1][x] === "road") ||
+        (x > 0 && rows[y][x - 1] === "road") ||
+        (x < width - 1 && rows[y][x + 1] === "road");
+
+      if (nearRoad) {
+        rows[y][x] = "coffee";
+      }
+    }
+  }
+
   return rows;
 }
 
@@ -351,7 +385,12 @@ function isInsideMap(pos: Position, map: TileType[][]): boolean {
 }
 
 function isWalkable(tile: TileType): boolean {
-  return tile === "road" || tile === "grass" || tile === "slow";
+  return (
+    tile === "road" ||
+    tile === "grass" ||
+    tile === "slow" ||
+    tile === "coffee"
+  );
 }
 
 function createRng(seed: number): () => number {

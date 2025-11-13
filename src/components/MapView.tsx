@@ -107,6 +107,8 @@ import {
           return `${base} bg-red-900`;
         case "slow":
           return `${base} bg-gradient-to-b from-fuchsia-950 to-red-900`;
+        case "coffee":
+          return `${base} bg-gradient-to-b from-amber-900 to-rose-800`;
         default:
           return `${base} bg-black`;
       }
@@ -123,6 +125,8 @@ import {
         return `${base} bg-slate-500/90`;
       case "slow":
         return `${base} bg-gradient-to-b from-amber-100 to-amber-200`;
+      case "coffee":
+        return `${base} bg-gradient-to-b from-amber-300 to-orange-400`;
       default:
         return `${base} bg-slate-900`;
     }
