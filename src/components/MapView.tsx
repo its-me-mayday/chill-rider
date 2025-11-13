@@ -39,6 +39,7 @@ import {
         : "map-glow z-10 inline-block overflow-hidden rounded-2xl border border-slate-400/40 bg-slate-900";
   
     const buildingSprite = buildingSpriteForTheme(theme);
+    const treeSprite = treeSpriteForTheme(theme);
   
     return (
       <div
@@ -59,6 +60,7 @@ import {
                 (c) => c.x === x && c.y === y
               );
               const isBuilding = tile === "building";
+              const isTree = tile === "tree";
   
               return (
                 <div
@@ -73,6 +75,20 @@ import {
                       <img
                         src={buildingSprite}
                         alt="building"
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          imageRendering: "pixelated",
+                        }}
+                      />
+                    </div>
+                  )}
+  
+                  {isTree && (
+                    <div className="absolute inset-[12%] flex items-center justify-center">
+                      <img
+                        src={treeSprite}
+                        alt="tree"
                         style={{
                           width: "100%",
                           height: "100%",
@@ -115,6 +131,11 @@ import {
     return `/chill-rider/tiles/${prefix}-building.png`;
   }
   
+  function treeSpriteForTheme(theme: Theme): string {
+    const prefix = theme === "hawkins" ? "hawkins" : "chill";
+    return `/chill-rider/tiles/${prefix}-tree.png`;
+  }
+  
   function tileToClass(tile: TileType, theme: Theme): string {
     const base = "h-full w-full";
   
@@ -125,7 +146,7 @@ import {
         case "grass":
           return `${base} bg-gradient-to-b from-emerald-950 to-emerald-800`;
         case "tree":
-          return `${base} bg-emerald-900`;
+          return `${base} bg-gradient-to-b from-emerald-900 to-emerald-950`;
         case "building":
           return `${base} bg-gradient-to-b from-emerald-900 to-emerald-950`;
         case "slow":
@@ -143,7 +164,7 @@ import {
       case "grass":
         return `${base} bg-gradient-to-b from-emerald-200 to-emerald-300`;
       case "tree":
-        return `${base} bg-emerald-600`;
+        return `${base} bg-gradient-to-b from-emerald-300 to-emerald-500`;
       case "building":
         return `${base} bg-gradient-to-b from-emerald-300 to-emerald-400`;
       case "slow":
