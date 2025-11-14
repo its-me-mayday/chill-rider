@@ -475,22 +475,12 @@ export function GameView() {
           <div className="mb-2 text-center text-[0.6rem] font-semibold uppercase tracking-[0.18em] text-slate-500">
             Session controls
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             <button
               className="rounded-full bg-emerald-500 px-3 py-1 font-semibold text-white shadow-sm transition hover:bg-emerald-600"
               onClick={handleNewMap}
             >
               New map
-            </button>
-            <button
-              className={`rounded-full px-3 py-1 font-semibold shadow-sm transition ${
-                isPaused
-                  ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                  : "bg-slate-900/80 text-slate-50 hover:bg-slate-900"
-              }`}
-              onClick={handlePauseToggle}
-            >
-              {isPaused ? "Resume (P)" : "Pause (P)"}
             </button>
             <button
               className={`rounded-full px-3 py-1 font-semibold shadow-sm transition ${
@@ -508,6 +498,9 @@ export function GameView() {
             >
               Settings ⚙️
             </button>
+          </div>
+          <div className="mt-1 text-center text-[0.6rem] text-slate-500">
+            Pause with <span className="font-semibold">P</span>
           </div>
         </div>
       </div>
