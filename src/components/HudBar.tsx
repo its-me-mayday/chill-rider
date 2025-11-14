@@ -37,7 +37,7 @@ export function HudBar({
         <div className="flex items-center gap-3">
           <h1 className={titleClass}>CHILL RIDER</h1>
           {helpVisible && (
-            <span className="rounded-full bg-sky-500/10 px-2.5 py-1 text-[0.6rem] font-semibold uppercase tracking-[0.16em] text-sky-600">
+            <span className="help-pill-pop rounded-full bg-sky-500/10 px-2.5 py-1 text-[0.6rem] font-semibold uppercase tracking-[0.16em] text-sky-600">
               Help mode
             </span>
           )}

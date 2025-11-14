@@ -34,3 +34,22 @@ body {
 .map-glow {
   animation: map-glow 3200ms ease-in-out infinite alternate;
 }
+
+@keyframes help-pill-pop {
+  0% {
+    transform: scale(0.7);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.help-pill-pop {
+  animation: help-pill-pop 220ms ease-out;
+}
