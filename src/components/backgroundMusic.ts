@@ -50,4 +50,9 @@ export const bgm = {
     stop(chillTrack);
     stop(hawkinsTrack);
   },
+  setVolume(volume: number) {
+    const v = Math.min(1, Math.max(0, volume));
+    if (chillTrack) chillTrack.volume = v;
+    if (hawkinsTrack) hawkinsTrack.volume = v;
+  },
 };

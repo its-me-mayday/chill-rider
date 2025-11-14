@@ -93,6 +93,8 @@ export function GameView() {
   );
   const [sfxEnabled, setSfxEnabled] = useState(true);
   const [musicEnabled, setMusicEnabled] = useState(true);
+  const [musicVolume, setMusicVolume] = useState(70);
+  const [showSettings, setShowSettings] = useState(false);
 
   const prevDeliveriesRef = useRef(game.deliveries);
   const prevLevelRef = useRef(game.level);
@@ -386,6 +388,11 @@ export function GameView() {
   }, [musicEnabled, theme]);
 
   useEffect(() => {
+    const normalized = musicVolume / 100;
+    bgm.setVolume(normalized);
+  }, [musicVolume]);
+
+  useEffect(() => {
     return () => {
       bgm.stop();
     };
@@ -452,7 +459,7 @@ export function GameView() {
         </div>
       )}
 
-      <div className="z-10 mb-2 flex w-full max-w-5xl items-start justifycenter gap-4">
+      <div className="z-10 mb-2 flex w-full max-w-5xl items-start justify-center gap-4">
         <HudBar
           level={game.level}
           distance={game.distance}
@@ -496,24 +503,10 @@ export function GameView() {
               Help (H)
             </button>
             <button
-              className={`rounded-full px-3 py-1 font-semibold shadow-sm transition ${
-                sfxEnabled
-                  ? "bg-amber-400 text-amber-950 hover:bg-amber-500"
-                  : "bg-slate-700 text-slate-100 hover:bg-slate-800"
-              }`}
-              onClick={() => setSfxEnabled((prev) => !prev)}
+              className="rounded-full bg-slate-200 px-3 py-1 font-semibold text-slate-800 shadow-sm transition hover:bg-slate-300"
+              onClick={() => setShowSettings((prev) => !prev)}
             >
-              {sfxEnabled ? "SFX: On" : "SFX: Off"}
-            </button>
-            <button
-              className={`col-span-2 rounded-full px-3 py-1 font-semibold shadow-sm transition ${
-                musicEnabled
-                  ? "bg-indigo-400 text-indigo-950 hover:bg-indigo-500"
-                  : "bg-slate-600 text-slate-100 hover:bg-slate-700"
-              }`}
-              onClick={() => setMusicEnabled((prev) => !prev)}
-            >
-              {musicEnabled ? "Music: On" : "Music: Off"}
+              Settings ⚙️
             </button>
           </div>
         </div>
@@ -572,10 +565,110 @@ export function GameView() {
         onBackToTitle={handleSummaryBackToTitle}
       />
 
+      <SettingsPanel
+        visible={showSettings}
+        sfxEnabled={sfxEnabled}
+        musicEnabled={musicEnabled}
+        musicVolume={musicVolume}
+        onToggleSfx={() => setSfxEnabled((prev) => !prev)}
+        onToggleMusic={() => setMusicEnabled((prev) => !prev)}
+        onChangeMusicVolume={setMusicVolume}
+        onClose={() => setShowSettings(false)}
+      />
+
       <p className="z-10 mt-2 text-[0.7rem] text-slate-700">
         Ride into a shop to grab a package, follow the matching colored
         building, deliver, earn coins and level up the city.
       </p>
+    </div>
+  );
+}
+
+type SettingsPanelProps = {
+  visible: boolean;
+  sfxEnabled: boolean;
+  musicEnabled: boolean;
+  musicVolume: number;
+  onToggleSfx: () => void;
+  onToggleMusic: () => void;
+  onChangeMusicVolume: (value: number) => void;
+  onClose: () => void;
+};
+
+function SettingsPanel({
+  visible,
+  sfxEnabled,
+  musicEnabled,
+  musicVolume,
+  onToggleSfx,
+  onToggleMusic,
+  onChangeMusicVolume,
+  onClose,
+}: SettingsPanelProps) {
+  if (!visible) return null;
+
+  return (
+    <div className="fixed top-24 right-6 z-40 w-72 rounded-2xl border border-slate-300/80 bg-white/95 px-4 py-4 text-xs text-slate-800 shadow-xl backdrop-blur-sm">
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-slate-500">
+          Settings
+        </h2>
+        <button
+          className="rounded-full bg-slate-100 px-2 py-0.5 text-[0.7rem] text-slate-500 hover:bg-slate-200"
+          onClick={onClose}
+        >
+          Close
+        </button>
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <span>SFX</span>
+          <button
+            className={`rounded-full px-3 py-1 text-[0.7rem] font-semibold shadow-sm transition ${
+              sfxEnabled
+                ? "bg-amber-400 text-amber-950 hover:bg-amber-500"
+                : "bg-slate-700 text-slate-100 hover:bg-slate-800"
+            }`}
+            onClick={onToggleSfx}
+          >
+            {sfxEnabled ? "On" : "Off"}
+          </button>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <span>Music</span>
+          <button
+            className={`rounded-full px-3 py-1 text-[0.7rem] font-semibold shadow-sm transition ${
+              musicEnabled
+                ? "bg-indigo-400 text-indigo-950 hover:bg-indigo-500"
+                : "bg-slate-700 text-slate-100 hover:bg-slate-800"
+            }`}
+            onClick={onToggleMusic}
+          >
+            {musicEnabled ? "On" : "Off"}
+          </button>
+        </div>
+
+        <div>
+          <div className="mb-1 flex items-center justify-between">
+            <span>Music volume</span>
+            <span className="text-[0.65rem] text-slate-500">
+              {musicVolume}%
+            </span>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={musicVolume}
+            onChange={(e) =>
+              onChangeMusicVolume(Number(e.target.value))
+            }
+            className="w-full accent-indigo-500"
+          />
+        </div>
+      </div>
     </div>
   );
 }
