@@ -1,3 +1,4 @@
+import { sfx } from "./soundEffects";
 import { useEffect, useRef, useState } from "react";
 import {
   type Direction,
@@ -209,21 +210,28 @@ export function GameView() {
     setHouses((prev) =>
       prev.filter((h) => h.packageId !== house.packageId)
     );
-
+  
     addCoins(DELIVERY_COIN_REWARD);
     completeDelivery();
+  
+    sfx.playDelivery();
   }
+  
 
   useEffect(() => {
     if (game.coinsCollected > prevCoinsRef.current) {
       const gained = game.coinsCollected - prevCoinsRef.current;
+  
       spawnRewardPopup(
         `+${gained} coin${gained > 1 ? "s" : ""}`,
         "coins"
       );
+  
+      sfx.playCoin();
     }
     prevCoinsRef.current = game.coinsCollected;
   }, [game.coinsCollected]);
+  
 
   useEffect(() => {
     if (game.deliveries > prevDeliveriesRef.current) {
@@ -264,21 +272,22 @@ export function GameView() {
   useEffect(() => {
     const prev = prevPositionRef.current;
     const current = game.riderPosition;
-
+  
     if (prev.x === current.x && prev.y === current.y) {
       return;
     }
-
+  
     const tile = game.map[current.y][current.x];
-
+  
     if (tile === "coffee") {
       spawnRewardPopup("Coffee break!", "coffee");
     }
-
+  
     if (tile === "shop") {
+      sfx.playShop();
       pickPackage(game);
     }
-
+  
     const house = houses.find(
       (h) =>
         h.position.x === current.x && h.position.y === current.y
@@ -286,9 +295,10 @@ export function GameView() {
     if (house) {
       deliverPackage(house);
     }
-
+  
     prevPositionRef.current = current;
   }, [game.riderPosition, game.map, houses]);
+  
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
