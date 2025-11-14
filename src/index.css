@@ -53,3 +53,18 @@ body {
 .help-pill-pop {
   animation: help-pill-pop 220ms ease-out;
 }
+
+@keyframes house-shimmer {
+  0% {
+    transform: translateY(0);
+    box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.0);
+  }
+  100% {
+    transform: translateY(-1px);
+    box-shadow: 0 0 18px 4px rgba(251, 191, 36, 0.9);
+  }
+}
+
+.house-target {
+  animation: house-shimmer 900ms ease-in-out infinite alternate;
+}

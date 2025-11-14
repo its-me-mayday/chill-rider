@@ -429,9 +429,11 @@ function isWalkable(tile: TileType): boolean {
     tile === "grass" ||
     tile === "slow" ||
     tile === "coffee" ||
-    tile === "shop"
+    tile === "shop" ||
+    tile === "building" // now buildings CAN be walked, if allowed dalla UI
   );
 }
+
 
 function createRng(seed: number): () => number {
   let state = seed % 2147483647;

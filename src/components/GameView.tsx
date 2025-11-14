@@ -1,18 +1,33 @@
 import { useEffect, useRef, useState } from "react";
-import { type Direction } from "../engine/localEngine";
+import {
+  type Direction,
+  type Position,
+  type TileType,
+  type GameState,
+} from "../engine/localEngine";
 import { useGame } from "../hooks/useGame";
 import { HudBar } from "./HudBar";
 import { MapView } from "./MapView";
 import { HelpPanel } from "./HelpPanel";
 import { IntroOverlay } from "./IntroOverlay";
 import { PauseOverlay } from "./PauseOverlay";
+import type { PackageItem, PackageColor } from "../types/Package";
 
 type UiPhase = "intro" | "playing" | "paused";
 export type Skin = "rider" | "dustin";
 export type Theme = "chill" | "hawkins";
 
+type HouseMarker = {
+  position: Position;
+  color: PackageColor;
+  packageId: string;
+};
+
+const DELIVERIES_PER_LEVEL = 5;
+const DELIVERY_COIN_REWARD = 3;
+
 export function GameView() {
-  const { game, move, newMap } = useGame();
+  const { game, move, newMap, addCoins } = useGame();
 
   const tilesX = game.options.width;
   const tilesY = game.options.height;
@@ -22,7 +37,7 @@ export function GameView() {
   const viewportHeight =
     typeof window !== "undefined" ? window.innerHeight : 768;
 
-  const maxMapWidth = viewportWidth - 80;
+  const maxMapWidth = viewportWidth - 200;
   const maxMapHeight = viewportHeight - 220;
 
   const rawTileSize = Math.min(
@@ -40,8 +55,15 @@ export function GameView() {
   const [uiPhase, setUiPhase] = useState<UiPhase>("intro");
   const [selectedSkin, setSelectedSkin] = useState<Skin>("rider");
 
+  const [inventory, setInventory] = useState<PackageItem[]>([]);
+  const [houses, setHouses] = useState<HouseMarker[]>([]);
+  const [packagesSpawnedThisLevel, setPackagesSpawnedThisLevel] =
+    useState(0);
+
   const prevDeliveriesRef = useRef(game.deliveries);
   const prevLevelRef = useRef(game.level);
+  const prevPositionRef = useRef<Position>(game.riderPosition);
+  const levelRef = useRef(game.level);
 
   const theme: Theme =
     selectedSkin === "dustin" ? "hawkins" : "chill";
@@ -55,6 +77,92 @@ export function GameView() {
     theme === "hawkins"
       ? "absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-red-900/90 via-red-900/0 to-transparent"
       : "absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-emerald-300/90 via-emerald-200/0 to-transparent";
+
+  const activePackage = inventory[0] ?? null;
+  const targetHouse = activePackage
+    ? houses.find((h) => h.packageId === activePackage.id)
+    : null;
+  const targetHousePosition = targetHouse ? targetHouse.position : null;
+
+  // ---------- houses & packages ----------
+
+  function findFreeBuildingPosition(
+    map: TileType[][],
+    currentHouses: HouseMarker[]
+  ): Position | null {
+    const candidates: Position[] = [];
+
+    for (let y = 0; y < map.length; y++) {
+      for (let x = 0; x < map[0].length; x++) {
+        if (map[y][x] !== "building") continue;
+
+        const alreadyUsed = currentHouses.some(
+          (h) => h.position.x === x && h.position.y === y
+        );
+        if (!alreadyUsed) {
+          candidates.push({ x, y });
+        }
+      }
+    }
+
+    if (!candidates.length) return null;
+
+    const idx = Math.floor(Math.random() * candidates.length);
+    return candidates[idx];
+  }
+
+  function pickPackage(currentGame: GameState) {
+    if (packagesSpawnedThisLevel >= DELIVERIES_PER_LEVEL) return;
+
+    // only one active delivery at a time
+    if (inventory.length > 0 || houses.length > 0) return;
+
+    const colors: PackageColor[] = [
+      "red",
+      "blue",
+      "green",
+      "yellow",
+      "purple",
+    ];
+    const color =
+      colors[Math.floor(Math.random() * colors.length)];
+
+    const position = findFreeBuildingPosition(currentGame.map, houses);
+    if (!position) {
+      return;
+    }
+
+    const pkg: PackageItem = {
+      id: crypto.randomUUID(),
+      color,
+    };
+
+    setInventory((prev) => [...prev, pkg]);
+    setHouses((prev) => [
+      ...prev,
+      { position, color: pkg.color, packageId: pkg.id },
+    ]);
+    setPackagesSpawnedThisLevel((count) => count + 1);
+  }
+
+  function deliverPackage(house: HouseMarker) {
+    // rimuovo sempre il pacco associato
+    setInventory((prev) =>
+      prev.filter((p) => p.id !== house.packageId)
+    );
+  
+    // e SEMPRE la house collegata a quel pacco
+    setHouses((prev) =>
+      prev.filter((h) => h.packageId !== house.packageId)
+    );
+  
+    addCoins(DELIVERY_COIN_REWARD);
+    setRecentDelivery(true);
+    setTimeout(() => setRecentDelivery(false), 900);
+  }
+  
+
+  // ---------- effects: deliveries / level up ----------
 
   useEffect(() => {
     if (game.deliveries > prevDeliveriesRef.current) {
@@ -81,14 +189,50 @@ export function GameView() {
   }, [game.level]);
 
   useEffect(() => {
+    if (game.level !== levelRef.current) {
+      levelRef.current = game.level;
+      setPackagesSpawnedThisLevel(0);
+      setHouses([]);
+      setInventory([]);
+    }
+  }, [game.level]);
+
+  // ---------- rider movement: shop + houses ----------
+
+  useEffect(() => {
+    const prev = prevPositionRef.current;
+    const current = game.riderPosition;
+
+    if (prev.x === current.x && prev.y === current.y) {
+      return;
+    }
+
+    const tile = game.map[current.y][current.x];
+
+    if (tile === "shop") {
+      pickPackage(game);
+    }
+
+    const house = houses.find(
+      (h) =>
+        h.position.x === current.x && h.position.y === current.y
+    );
+    if (house) {
+      deliverPackage(house);
+    }
+
+    prevPositionRef.current = current;
+  }, [game.riderPosition, game.map, houses]);
+
+  // ---------- keyboard ----------
+
+  useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "h" || e.key === "H") {
         setShowHelp((prev) => !prev);
         return;
       }
 
-      // When help is open, game is effectively paused:
-      // ignore all other keys.
       if (showHelp) {
         return;
       }
@@ -112,12 +256,39 @@ export function GameView() {
       const direction = keyToDirection(e.key);
       if (!direction) return;
       if (uiPhase !== "playing") return;
+
+      const nextPos = getNextPosition(game.riderPosition, direction);
+      if (!isInsideMap(nextPos, game.map)) {
+        return;
+      }
+
+      const tile = game.map[nextPos.y][nextPos.x];
+
+      if (tile === "building") {
+        const hasDeliveryHere = houses.some(
+          (h) =>
+            h.position.x === nextPos.x &&
+            h.position.y === nextPos.y
+        );
+
+        if (!hasDeliveryHere) {
+          return;
+        }
+      }
+
       move(direction);
     }
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [move, uiPhase, showHelp]);
+  }, [
+    move,
+    uiPhase,
+    showHelp,
+    game.riderPosition,
+    game.map,
+    houses,
+  ]);
 
   function handleStartRide() {
     setUiPhase("playing");
@@ -127,8 +298,15 @@ export function GameView() {
     setUiPhase((prev) => (prev === "paused" ? "playing" : "paused"));
   }
 
-  function handleEndRun() {
+  function handleNewMap() {
     newMap();
+    setInventory([]);
+    setHouses([]);
+    setPackagesSpawnedThisLevel(0);
+  }
+
+  function handleEndRun() {
+    handleNewMap();
     setUiPhase("intro");
   }
 
@@ -151,7 +329,7 @@ export function GameView() {
         </div>
       )}
 
-<HudBar
+      <HudBar
         level={game.level}
         distance={game.distance}
         deliveries={game.deliveries}
@@ -160,24 +338,65 @@ export function GameView() {
         helpVisible={showHelp}
       />
 
+      <div className="z-10 flex gap-4 items-start">
+        <MapView
+          map={game.map}
+          riderPosition={game.riderPosition}
+          goalPosition={game.goalPosition}
+          coins={game.coins}
+          facing={game.facing}
+          skin={selectedSkin}
+          tileSize={tileSize}
+          width={mapPixelWidth}
+          height={mapPixelHeight}
+          theme={theme}
+          houses={houses}
+          targetHousePosition={targetHousePosition}
+        />
 
-      <MapView
-        map={game.map}
-        riderPosition={game.riderPosition}
-        goalPosition={game.goalPosition}
-        coins={game.coins}
-        facing={game.facing}
-        skin={selectedSkin}
-        tileSize={tileSize}
-        width={mapPixelWidth}
-        height={mapPixelHeight}
-        theme={theme}
-      />
+        <div className="w-40 rounded-2xl border border-slate-700 bg-slate-900/80 p-3 text-xs text-slate-100 shadow-lg">
+          <div className="mb-2 text-center text-sm font-semibold tracking-[0.18em] uppercase text-slate-300">
+            Inventory
+          </div>
+          <div className="grid gap-2">
+            {Array.from({ length: 5 }).map((_, i) => {
+              const item = inventory[i];
+              return (
+                <div
+                  key={i}
+                  className="flex h-10 items-center justify-center rounded-lg bg-slate-800/70"
+                  style={{
+                    border: item
+                      ? "2px solid rgba(248, 250, 252, 0.95)"
+                      : "1px dashed rgba(148, 163, 184, 0.8)",
+                  }}
+                >
+                  {item ? (
+                    <div
+                      className="h-5 w-5 rounded-sm shadow"
+                      style={{
+                        backgroundColor: colorForPackage(
+                          item.color,
+                          theme
+                        ),
+                      }}
+                    />
+                  ) : (
+                    <span className="text-[0.65rem] text-slate-500">
+                      Empty
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
 
       <div className="z-10 mt-4 flex gap-3">
         <button
           className="rounded-full bg-emerald-500 px-5 py-2 text-sm font-semibold text-white shadow-md transition hover:bg-emerald-600 hover:shadow-lg"
-          onClick={newMap}
+          onClick={handleNewMap}
         >
           New map
         </button>
@@ -224,7 +443,9 @@ export function GameView() {
       />
 
       <p className="z-10 mt-2 text-[0.7rem] text-slate-700">
-        Ride to the goal marker, collect coins, and climb the chill levels.
+        Ride to the goal marker, collect coins, pick up packages in shops and
+        deliver them into colored buildings to earn extra coins and climb the
+        chill levels.
       </p>
     </div>
   );
@@ -251,4 +472,58 @@ function keyToDirection(key: string): Direction | null {
     default:
       return null;
   }
+}
+
+function colorForPackage(color: PackageColor, theme: Theme): string {
+  if (theme === "hawkins") {
+    switch (color) {
+      case "red":
+        return "#b91c1c";
+      case "blue":
+        return "#1d4ed8";
+      case "green":
+        return "#15803d";
+      case "yellow":
+        return "#ca8a04";
+      case "purple":
+        return "#6d28d9";
+    }
+  }
+
+  switch (color) {
+    case "red":
+      return "#f97373";
+    case "blue":
+      return "#60a5fa";
+    case "green":
+      return "#4ade80";
+    case "yellow":
+      return "#facc15";
+    case "purple":
+      return "#c4b5fd";
+  }
+
+  return "#ffffff";
+}
+
+function getNextPosition(pos: Position, dir: Direction): Position {
+  switch (dir) {
+    case "up":
+      return { x: pos.x, y: pos.y - 1 };
+    case "down":
+      return { x: pos.x, y: pos.y + 1 };
+    case "left":
+      return { x: pos.x - 1, y: pos.y };
+    case "right":
+      return { x: pos.x + 1, y: pos.y };
+  }
+}
+
+function isInsideMap(pos: Position, map: TileType[][]): boolean {
+  return (
+    pos.y >= 0 &&
+    pos.y < map.length &&
+    pos.x >= 0 &&
+    pos.x < map[0].length
+  );
 }

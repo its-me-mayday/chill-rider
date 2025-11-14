@@ -29,9 +29,18 @@ export function useGame(initialOptions: GameOptions = DEFAULT_OPTIONS) {
     );
   }, []);
 
+  const addCoins = useCallback((amount: number) => {
+    if (!amount) return;
+    setGame((prev) => ({
+      ...prev,
+      coinsCollected: Math.max(0, prev.coinsCollected + amount),
+    }));
+  }, []);
+
   return {
     game,
     move,
     newMap,
+    addCoins,
   };
 }

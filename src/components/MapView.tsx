@@ -7,6 +7,12 @@ import { RiderSprite } from "./RiderSprite";
 import { GoalSprite } from "./GoalSprite";
 import { CoinSprite } from "./CoinSprite";
 import type { Skin, Theme } from "./GameView";
+import type { PackageColor } from "../types/Package";
+
+type HouseMarker = {
+  position: Position;
+  color: PackageColor;
+};
 
 type MapViewProps = {
   map: TileType[][];
@@ -19,6 +25,8 @@ type MapViewProps = {
   width: number;
   height: number;
   theme: Theme;
+  houses: HouseMarker[];
+  targetHousePosition: Position | null;
 };
 
 export function MapView({
@@ -32,6 +40,8 @@ export function MapView({
   width,
   height,
   theme,
+  houses,
+  targetHousePosition,
 }: MapViewProps) {
   const frameClass =
     theme === "hawkins"
@@ -65,6 +75,17 @@ export function MapView({
             const isTree = tile === "tree";
             const isSlow = tile === "slow";
             const isShop = tile === "shop";
+
+            const house = houses.find(
+              (h) =>
+                h.position.x === x && h.position.y === y
+            );
+
+            const isTargetHouse =
+              !!house &&
+              !!targetHousePosition &&
+              house.position.x === targetHousePosition.x &&
+              house.position.y === targetHousePosition.y;
 
             return (
               <div
@@ -129,6 +150,24 @@ export function MapView({
                     />
                   </div>
                 )}
+
+{house && (
+                  <div className="absolute inset-[10%] flex items-center justify-center">
+                    <div
+                      className={
+                        "w-full h-full rounded-md border-2 border-white/80 shadow-[0_0_12px_rgba(255,255,255,0.8)]" +
+                        (isTargetHouse ? " house-target" : "")
+                      }
+                      style={{
+                        backgroundColor: colorForPackage(
+                          house.color,
+                          theme
+                        ),
+                      }}
+                    />
+                  </div>
+                )}
+
 
                 {isCoin && (
                   <div className="absolute inset-[22%] flex items-center justify-center">
@@ -222,4 +261,36 @@ function tileToClass(tile: TileType, theme: Theme): string {
     default:
       return `${base} bg-slate-900`;
   }
+}
+
+function colorForPackage(color: PackageColor, theme: Theme): string {
+  if (theme === "hawkins") {
+    switch (color) {
+      case "red":
+        return "#b91c1c";
+      case "blue":
+        return "#1d4ed8";
+      case "green":
+        return "#15803d";
+      case "yellow":
+        return "#ca8a04";
+      case "purple":
+        return "#6d28d9";
+    }
+  }
+
+  switch (color) {
+    case "red":
+      return "#f97373";
+    case "blue":
+      return "#60a5fa";
+    case "green":
+      return "#4ade80";
+    case "yellow":
+      return "#facc15";
+    case "purple":
+      return "#c4b5fd";
+  }
+
+  return "#ffffff";
 }
