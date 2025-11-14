@@ -118,15 +118,10 @@ function onDeliveryCompleted(state: GameState): GameState {
 }
 
 function moveRider(state: GameState, direction: Direction): GameState {
-  const { riderPosition, map } = state;
-  const target = getNextPosition(riderPosition, direction);
+  const { riderPosition, map, goalPosition } = state;
 
-  if (!isInsideMap(target, map)) {
-    return {
-      ...state,
-      facing: direction,
-    };
-  }
+  const rawTarget = getNextPosition(riderPosition, direction);
+  const target = wrapPosition(rawTarget, map);
 
   const tile = map[target.y][target.x];
   if (!isWalkable(tile)) {
@@ -139,7 +134,11 @@ function moveRider(state: GameState, direction: Direction): GameState {
   const stepCost = tile === "slow" ? 2 : 1;
 
   let nextDistance = state.distance + stepCost;
+  let nextDeliveries = state.deliveries;
+  let nextLevel = state.level;
+  let nextMap = map;
   let nextRiderPosition = target;
+  let nextGoalPosition = goalPosition;
   let nextCoinsPositions = state.coins;
   let nextCoinsCollected = state.coinsCollected;
 
@@ -158,15 +157,48 @@ function moveRider(state: GameState, direction: Direction): GameState {
     nextCoinsCollected = nextCoinsCollected + 2;
   }
 
+  const reachedGoal =
+    target.x === goalPosition.x && target.y === goalPosition.y;
+
+  if (reachedGoal) {
+    nextDeliveries += 1;
+
+    const shouldLevelUp = nextDeliveries % 5 === 0;
+    if (shouldLevelUp) {
+      nextLevel = state.level + 1;
+      nextMap = generateMap(state.options, nextLevel);
+
+      nextRiderPosition = {
+        x: Math.floor(state.options.width / 2),
+        y: Math.floor(state.options.height / 2),
+      };
+
+      nextGoalPosition = pickGoalPosition(nextMap, nextRiderPosition);
+      nextDistance = 0;
+      nextCoinsPositions = generateCoins(
+        nextMap,
+        nextLevel,
+        state.options.seed
+      );
+    } else {
+      nextGoalPosition = pickGoalPosition(map, target);
+    }
+  }
+
   return {
     ...state,
+    map: nextMap,
     riderPosition: nextRiderPosition,
+    goalPosition: nextGoalPosition,
     distance: nextDistance,
+    deliveries: nextDeliveries,
+    level: nextLevel,
     facing: direction,
     coins: nextCoinsPositions,
     coinsCollected: nextCoinsCollected,
   };
 }
+
 
 function regenerateMap(state: GameState): GameState {
   const map = generateMap(state.options, state.level);
@@ -435,6 +467,22 @@ function isWalkable(tile: TileType): boolean {
     tile === "shop" ||
     tile === "building"
   );
+}
+
+function wrapPosition(pos: Position, map: TileType[][]): Position {
+  const height = map.length;
+  const width = map[0].length;
+
+  let x = pos.x;
+  let y = pos.y;
+
+  if (x < 0) x = width - 1;
+  else if (x >= width) x = 0;
+
+  if (y < 0) y = height - 1;
+  else if (y >= height) y = 0;
+
+  return { x, y };
 }
 
 function createRng(seed: number): () => number {

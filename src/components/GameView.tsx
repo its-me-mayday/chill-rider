@@ -312,7 +312,7 @@ export function GameView() {
     }
 
     prevPositionRef.current = current;
-  }, [game.riderPosition, game.map, houses, sfxEnabled, theme]);
+  }, [game.riderPosition, game.map, houses, sfxEnabled, theme, game]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -349,8 +349,11 @@ export function GameView() {
       if (!direction) return;
       if (uiPhase !== "playing") return;
 
-      const nextPos = getNextPosition(game.riderPosition, direction);
-      if (!isInsideMap(nextPos, game.map)) return;
+      const rawNextPos = getNextPosition(
+        game.riderPosition,
+        direction
+      );
+      const nextPos = wrapPosition(rawNextPos, game.map);
 
       const tile = game.map[nextPos.y][nextPos.x];
 
@@ -697,11 +700,18 @@ function getNextPosition(pos: Position, dir: Direction): Position {
   }
 }
 
-function isInsideMap(pos: Position, map: TileType[][]): boolean {
-  return (
-    pos.y >= 0 &&
-    pos.y < map.length &&
-    pos.x >= 0 &&
-    pos.x < map[0].length
-  );
+function wrapPosition(pos: Position, map: TileType[][]): Position {
+  const height = map.length;
+  const width = map[0].length;
+
+  let x = pos.x;
+  let y = pos.y;
+
+  if (x < 0) x = width - 1;
+  else if (x >= width) x = 0;
+
+  if (y < 0) y = height - 1;
+  else if (y >= height) y = 0;
+
+  return { x, y };
 }
