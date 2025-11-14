@@ -28,7 +28,7 @@ type RewardPopup = {
   text: string;
   x: number;
   y: number;
-  variant: "coins" | "delivery";
+  variant: "coins" | "coffee" | "level";
 };
 
 const DELIVERIES_PER_LEVEL = 5;
@@ -45,6 +45,7 @@ export function GameView() {
   const viewportHeight =
     typeof window !== "undefined" ? window.innerHeight : 768;
 
+  // leave some room for HUD + inventory
   const maxMapWidth = viewportWidth - 200;
   const maxMapHeight = viewportHeight - 220;
 
@@ -72,6 +73,7 @@ export function GameView() {
 
   const prevDeliveriesRef = useRef(game.deliveries);
   const prevLevelRef = useRef(game.level);
+  const prevCoinsRef = useRef(game.coinsCollected);
   const prevPositionRef = useRef<Position>(game.riderPosition);
   const levelRef = useRef(game.level);
 
@@ -98,12 +100,16 @@ export function GameView() {
 
   function spawnRewardPopup(
     text: string,
-    variant: "coins" | "delivery" = "coins"
+    variant: "coins" | "coffee" | "level"
   ) {
     const centerX = game.riderPosition.x * tileSize + tileSize / 2;
     const centerY = game.riderPosition.y * tileSize + tileSize / 2;
 
-    const id = crypto.randomUUID();
+    const id =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random()}`;
+
     const popup: RewardPopup = {
       id,
       text,
@@ -147,9 +153,10 @@ export function GameView() {
   }
 
   function pickPackage(currentGame: GameState) {
+    // limit packages per level
     if (packagesSpawnedThisLevel >= DELIVERIES_PER_LEVEL) return;
 
-    // only one active delivery at a time
+    // only one active package / delivery at a time
     if (inventory.length > 0 || houses.length > 0) return;
 
     const colors: PackageColor[] = [
@@ -167,8 +174,13 @@ export function GameView() {
       return;
     }
 
+    const id =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random()}`;
+
     const pkg: PackageItem = {
-      id: crypto.randomUUID(),
+      id,
       color,
     };
 
@@ -181,22 +193,34 @@ export function GameView() {
   }
 
   function deliverPackage(house: HouseMarker) {
-    // remove package
+    // remove package from inventory
     setInventory((prev) =>
       prev.filter((p) => p.id !== house.packageId)
     );
-    // remove house marker (building torna muro)
+    // remove marker so building becomes solid again
     setHouses((prev) =>
       prev.filter((h) => h.packageId !== house.packageId)
     );
 
     addCoins(DELIVERY_COIN_REWARD);
-    spawnRewardPopup(`+${DELIVERY_COIN_REWARD} coins`, "coins");
     completeDelivery();
   }
 
-  // ---------- effects: deliveries / level up ----------
+  // ---------- effects: coins / deliveries / level up ----------
 
+  // coins change → popup +X coins (for coins, coffee, delivery)
+  useEffect(() => {
+    if (game.coinsCollected > prevCoinsRef.current) {
+      const gained = game.coinsCollected - prevCoinsRef.current;
+      spawnRewardPopup(
+        `+${gained} coin${gained > 1 ? "s" : ""}`,
+        "coins"
+      );
+    }
+    prevCoinsRef.current = game.coinsCollected;
+  }, [game.coinsCollected]);
+
+  // deliveries banner
   useEffect(() => {
     if (game.deliveries > prevDeliveriesRef.current) {
       setRecentDelivery(true);
@@ -209,18 +233,23 @@ export function GameView() {
     prevDeliveriesRef.current = game.deliveries;
   }, [game.deliveries]);
 
+  // level up banner + popup
   useEffect(() => {
     if (game.level > prevLevelRef.current) {
       setRecentLevelUp(true);
+      spawnRewardPopup(`Level ${game.level}!`, "level");
+
       const timeout = setTimeout(() => {
         setRecentLevelUp(false);
       }, 1100);
+
       prevLevelRef.current = game.level;
       return () => clearTimeout(timeout);
     }
     prevLevelRef.current = game.level;
   }, [game.level]);
 
+  // reset per-level package state on level change
   useEffect(() => {
     if (game.level !== levelRef.current) {
       levelRef.current = game.level;
@@ -230,7 +259,7 @@ export function GameView() {
     }
   }, [game.level]);
 
-  // ---------- rider movement: shop + houses ----------
+  // ---------- rider movement: shop + coffee + houses ----------
 
   useEffect(() => {
     const prev = prevPositionRef.current;
@@ -241,6 +270,11 @@ export function GameView() {
     }
 
     const tile = game.map[current.y][current.x];
+
+    if (tile === "coffee") {
+      // distance / coins effect is handled in engine; we just show popup
+      spawnRewardPopup("Coffee break!", "coffee");
+    }
 
     if (tile === "shop") {
       pickPackage(game);
@@ -266,6 +300,7 @@ export function GameView() {
         return;
       }
 
+      // when help is open, ignore other controls
       if (showHelp) {
         return;
       }
@@ -297,13 +332,13 @@ export function GameView() {
 
       const tile = game.map[nextPos.y][nextPos.x];
 
+      // buildings are walls unless they are the active delivery house
       if (tile === "building") {
         const hasDeliveryHere = houses.some(
           (h) =>
             h.position.x === nextPos.x &&
             h.position.y === nextPos.y
         );
-
         if (!hasDeliveryHere) {
           return;
         }
@@ -322,6 +357,8 @@ export function GameView() {
     game.map,
     houses,
   ]);
+
+  // ---------- UI handlers ----------
 
   function handleStartRide() {
     setUiPhase("playing");
@@ -345,6 +382,8 @@ export function GameView() {
 
   const isIntro = uiPhase === "intro";
   const isPaused = uiPhase === "paused";
+
+  // ---------- render ----------
 
   return (
     <div className={rootClass}>
@@ -370,7 +409,7 @@ export function GameView() {
         theme={theme}
       />
 
-      <div className="z-10 flex gap-4 items-start">
+      <div className="z-10 flex items-start gap-4">
         <div
           className="relative"
           style={{ width: mapPixelWidth, height: mapPixelHeight }}
@@ -390,11 +429,22 @@ export function GameView() {
           />
 
           {rewardPopups.map((popup) => {
+            let colorClasses = "";
+
+            if (popup.variant === "coins") {
+              colorClasses =
+                "bg-amber-400/95 text-slate-900 border-amber-200";
+            } else if (popup.variant === "coffee") {
+              colorClasses =
+                "bg-rose-500/95 text-white border-rose-200";
+            } else if (popup.variant === "level") {
+              colorClasses =
+                "bg-sky-500/95 text-white border-sky-200";
+            }
+
             const popupClass =
               "reward-popup absolute -translate-x-1/2 text-xs font-semibold px-2 py-1 rounded-full border shadow " +
-              (popup.variant === "coins"
-                ? "bg-amber-400/95 text-slate-900 border-amber-200"
-                : "bg-sky-500/95 text-white border-sky-200");
+              colorClasses;
 
             return (
               <div
@@ -411,6 +461,7 @@ export function GameView() {
           })}
         </div>
 
+        {/* Inventory panel */}
         <div className="w-40 rounded-2xl border border-slate-700 bg-slate-900/80 p-3 text-xs text-slate-100 shadow-lg">
           <div className="mb-2 text-center text-sm font-semibold tracking-[0.18em] uppercase text-slate-300">
             Inventory
@@ -500,8 +551,8 @@ export function GameView() {
       />
 
       <p className="z-10 mt-2 text-[0.7rem] text-slate-700">
-        Ride, grab a package in a shop, deliver it to the matching colored
-        building to complete deliveries, earn coins and level up the city.
+        Ride into a shop to grab a package, follow the matching colored
+        building, deliver, earn coins and level up the city.
       </p>
     </div>
   );
