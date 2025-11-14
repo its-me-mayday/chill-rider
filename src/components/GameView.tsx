@@ -65,7 +65,7 @@ export function GameView() {
     typeof window !== "undefined" ? window.innerHeight : 768;
 
   const maxMapWidth = viewportWidth - 200;
-  const maxMapHeight = viewportHeight - 220;
+  const maxMapHeight = viewportHeight - 260;
 
   const rawTileSize = Math.min(
     maxMapWidth / tilesX,
@@ -107,8 +107,8 @@ export function GameView() {
 
   const rootClass =
     theme === "hawkins"
-      ? "relative flex h-screen w-screen flex-col items-center justify-center bg-gradient-to-b from-slate-900 via-black to-slate-950 text-slate-100"
-      : "relative flex h-screen w-screen flex-col items-center justify-center bg-gradient-to-b from-sky-100 via-sky-200 to-emerald-200 text-slate-900";
+      ? "relative flex h-screen w-screen flex-col items-center justify-start pt-10 bg-gradient-to-b from-slate-900 via-black to-slate-950 text-slate-100"
+      : "relative flex h-screen w-screen flex-col items-center justify-start pt-10 bg-gradient-to-b from-sky-100 via-sky-200 to-emerald-200 text-slate-900";
 
   const bottomGlowClass =
     theme === "hawkins"
@@ -459,7 +459,7 @@ export function GameView() {
         </div>
       )}
 
-      <div className="z-10 mb-2 flex w-full max-w-5xl items-start justify-center gap-4">
+      <div className="z-10 mb-3 flex w-full max-w-5xl items-start justify-center gap-4">
         <HudBar
           level={game.level}
           distance={game.distance}
@@ -528,7 +528,7 @@ export function GameView() {
         </div>
       </div>
 
-      <div className="z-10 mt-4 flex w-full justify-center">
+      <div className="z-10 mt-2 mb-2 flex w-full justify-center">
         <InventoryPanel inventory={inventory} theme={theme} />
       </div>
 
@@ -568,11 +568,6 @@ export function GameView() {
         onChangeMusicVolume={setMusicVolume}
         onClose={() => setShowSettings(false)}
       />
-
-      <p className="z-10 mt-2 text-[0.7rem] text-slate-700">
-        Ride into a shop to grab a package, follow the matching colored
-        building, deliver, earn coins and level up the city.
-      </p>
     </div>
   );
 }
