@@ -122,6 +122,21 @@ export function GameView() {
   const targetHousePosition = targetHouse ? targetHouse.position : null;
 
   const deliveriesThisLevel = game.deliveries % DELIVERIES_PER_LEVEL;
+  
+  let housesCount = 0;
+let shopsCount = 0;
+
+for (let y = 0; y < game.map.length; y++) {
+  for (let x = 0; x < game.map[0].length; x++) {
+    const tile = game.map[y][x];
+    if (tile === "building") {
+      housesCount++;
+    } else if (tile === "shop") {
+      shopsCount++;
+    }
+  }
+}
+
 
   const isIntro = uiPhase === "intro";
   const isPaused = uiPhase === "paused";
@@ -463,16 +478,19 @@ export function GameView() {
       )}
 
       <div className="z-10 mb-3 flex w-full max-w-5xl items-start justify-center gap-4">
-        <HudBar
-          level={game.level}
-          distance={game.distance}
-          deliveries={game.deliveries}
-          coins={game.coinsCollected}
-          theme={theme}
-          targetColor={activePackage ? activePackage.color : null}
-          deliveriesThisLevel={deliveriesThisLevel}
-          deliveriesPerLevel={DELIVERIES_PER_LEVEL}
-        />
+      <HudBar
+  level={game.level}
+  distance={game.distance}
+  deliveries={game.deliveries}
+  coins={game.coinsCollected}
+  theme={theme}
+  targetColor={activePackage ? activePackage.color : null}
+  deliveriesThisLevel={deliveriesThisLevel}
+  deliveriesPerLevel={DELIVERIES_PER_LEVEL}
+  housesCount={housesCount}
+  shopsCount={shopsCount}
+/>
+
 
         <div className="mt-1 rounded-2xl border border-slate-300/70 bg-white/90 px-3 py-3 text-[0.7rem] text-slate-800 shadow-sm backdrop-blur-sm">
           <div className="mb-2 text-center text-[0.6rem] font-semibold uppercase tracking-[0.18em] text-slate-500">
