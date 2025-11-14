@@ -63,6 +63,7 @@ export function GameView() {
   const [showHelp, setShowHelp] = useState(false);
   const [uiPhase, setUiPhase] = useState<UiPhase>("intro");
   const [selectedSkin, setSelectedSkin] = useState<Skin>("rider");
+  const [showInventory, setShowInventory] = useState(true);
 
   const [inventory, setInventory] = useState<PackageItem[]>([]);
   const [houses, setHouses] = useState<HouseMarker[]>([]);
@@ -91,11 +92,12 @@ export function GameView() {
       : "absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-emerald-300/90 via-emerald-200/0 to-transparent";
 
   const activePackage = inventory[0] ?? null;
-  const deliveriesThisLevel = game.deliveries % DELIVERIES_PER_LEVEL;
   const targetHouse = activePackage
     ? houses.find((h) => h.packageId === activePackage.id)
     : null;
   const targetHousePosition = targetHouse ? targetHouse.position : null;
+
+  const deliveriesThisLevel = game.deliveries % DELIVERIES_PER_LEVEL;
 
   // ---------- reward popups ----------
 
@@ -209,7 +211,7 @@ export function GameView() {
 
   // ---------- effects: coins / deliveries / level up ----------
 
-  // coins change → popup +X coins (for coins, coffee, delivery)
+  // coins change → popup +X coins
   useEffect(() => {
     if (game.coinsCollected > prevCoinsRef.current) {
       const gained = game.coinsCollected - prevCoinsRef.current;
@@ -273,7 +275,7 @@ export function GameView() {
     const tile = game.map[current.y][current.x];
 
     if (tile === "coffee") {
-      // distance / coins effect is handled in engine; we just show popup
+      // engine handles distance / coins; we just show popup
       spawnRewardPopup("Coffee break!", "coffee");
     }
 
@@ -298,6 +300,11 @@ export function GameView() {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "h" || e.key === "H") {
         setShowHelp((prev) => !prev);
+        return;
+      }
+
+      if (e.key === "i" || e.key === "I") {
+        setShowInventory((prev) => !prev);
         return;
       }
 
@@ -402,20 +409,18 @@ export function GameView() {
         </div>
       )}
 
+      <HudBar
+        level={game.level}
+        distance={game.distance}
+        deliveries={game.deliveries}
+        coins={game.coinsCollected}
+        theme={theme}
+        targetColor={activePackage ? activePackage.color : null}
+        deliveriesThisLevel={deliveriesThisLevel}
+        deliveriesPerLevel={DELIVERIES_PER_LEVEL}
+      />
 
-<HudBar
-  level={game.level}
-  distance={game.distance}
-  deliveries={game.deliveries}
-  coins={game.coinsCollected}
-  theme={theme}
-  targetColor={activePackage ? activePackage.color : null}
-  deliveriesThisLevel={deliveriesThisLevel}
-  deliveriesPerLevel={DELIVERIES_PER_LEVEL}
-/>
-
-
-      <div className="z-10 flex items-start gap-4">
+      <div className="z-10 flex items-start">
         <div
           className="relative"
           style={{ width: mapPixelWidth, height: mapPixelHeight }}
@@ -466,11 +471,13 @@ export function GameView() {
             );
           })}
         </div>
+      </div>
 
-        {/* Inventory panel */}
-        <div className="w-40 rounded-2xl border border-slate-700 bg-slate-900/80 p-3 text-xs text-slate-100 shadow-lg">
+      {/* Floating inventory panel (toggle with I) */}
+      {showInventory && (
+        <div className="pointer-events-auto fixed right-6 top-1/2 z-20 w-40 -translate-y-1/2 rounded-2xl border border-slate-700 bg-slate-900/70 p-3 text-xs text-slate-100 shadow-lg backdrop-blur">
           <div className="mb-2 text-center text-sm font-semibold tracking-[0.18em] uppercase text-slate-300">
-            Inventory
+            Inventory <span className="text-[0.6rem]">(I)</span>
           </div>
           <div className="grid gap-2">
             {Array.from({ length: 5 }).map((_, i) => {
@@ -496,7 +503,7 @@ export function GameView() {
                       }}
                     />
                   ) : (
-                    <span className="text-[0.65rem] text-slate-500">
+                    <span className="text-[0.65rem] text-slate-400">
                       Empty
                     </span>
                   )}
@@ -505,7 +512,7 @@ export function GameView() {
             })}
           </div>
         </div>
-      </div>
+      )}
 
       <div className="z-10 mt-4 flex gap-3">
         <button
@@ -558,7 +565,7 @@ export function GameView() {
 
       <p className="z-10 mt-2 text-[0.7rem] text-slate-700">
         Ride into a shop to grab a package, follow the matching colored
-        building, deliver, earn coins and level up the city.
+        building, deliver, earn coins and level up the city. Toggle inventory with I.
       </p>
     </div>
   );
