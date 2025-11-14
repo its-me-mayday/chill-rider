@@ -273,16 +273,48 @@ function generateMap(options: GameOptions, level: number): TileType[][] {
     }
   }
 
-  // building: SOLO adiacenti alla strada (niente più "seconda riga" dietro)
-  const buildingChance = Math.min(0.22 + (level - 1) * 0.03, 0.4);
+  // === CASE (building) SEMPRE PRESENTI, ADIACENTI ALLA STRADA ===
+  const houseCandidates: Position[] = [];
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      if (rows[y][x] !== "road") continue;
-      if (rng() < buildingChance) {
-        const dir = rng() < 0.5 ? -1 : 1;
-        const by = y + dir;
-        if (by >= 0 && by < height && rows[by][x] === "grass") {
-          rows[by][x] = "building";
+      if (rows[y][x] !== "grass") continue;
+
+      const nearRoad =
+        (y > 0 && rows[y - 1][x] === "road") ||
+        (y < height - 1 && rows[y + 1][x] === "road") ||
+        (x > 0 && rows[y][x - 1] === "road") ||
+        (x < width - 1 && rows[y][x + 1] === "road");
+
+      if (nearRoad) {
+        houseCandidates.push({ x, y });
+      }
+    }
+  }
+
+  // minimo 1 casa, ma in pratica:
+  // - livelli 1–5: almeno 3
+  // - dal 6 in poi: almeno 5
+  const baseRequiredHouses = level <= 5 ? 3 : 5;
+  const requiredHouses = Math.max(1, baseRequiredHouses);
+  const targetHouses = Math.min(requiredHouses, houseCandidates.length);
+
+  const chosenHouses: Position[] = [];
+  while (chosenHouses.length < targetHouses && houseCandidates.length > 0) {
+    const idx = Math.floor(rng() * houseCandidates.length);
+    const pos = houseCandidates[idx];
+    houseCandidates.splice(idx, 1);
+    rows[pos.y][pos.x] = "building";
+    chosenHouses.push(pos);
+  }
+
+  // fallback paranoico: se per qualche motivo non abbiamo potuto piazzare case
+  // (molto improbabile con le dimensioni attuali), forziamo una casa su un grass qualsiasi
+  if (chosenHouses.length === 0) {
+    outer: for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        if (rows[y][x] === "grass") {
+          rows[y][x] = "building";
+          break outer;
         }
       }
     }
@@ -345,7 +377,7 @@ function generateMap(options: GameOptions, level: number): TileType[][] {
     }
   }
 
-  // shop candidati: erba vicino alla strada
+  // shop: come prima, sempre vicino alla strada
   const shopCandidates: Position[] = [];
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
@@ -366,7 +398,7 @@ function generateMap(options: GameOptions, level: number): TileType[][] {
   if (shopCandidates.length > 0) {
     const minShops = level <= 5 ? 2 : 5;
     const maxShops = Math.min(level <= 5 ? 3 : 7, shopCandidates.length);
-    const targetShops = Math.max(minShops, maxShops);
+    const targetShops = Math.min(Math.max(minShops, maxShops), shopCandidates.length);
 
     const chosen: Position[] = [];
     while (chosen.length < targetShops && shopCandidates.length > 0) {
@@ -380,6 +412,7 @@ function generateMap(options: GameOptions, level: number): TileType[][] {
 
   return rows;
 }
+
 
 
 function generateCoins(
