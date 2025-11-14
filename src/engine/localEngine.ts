@@ -389,20 +389,6 @@ function generateMap(options: GameOptions, level: number): TileType[][] {
   return rows;
 }
 
-
-function isNearRoad(rows: TileType[][], x: number, y: number): boolean {
-  const height = rows.length;
-  const width = rows[0].length;
-
-  if (y > 0 && rows[y - 1][x] === "road") return true;
-  if (y < height - 1 && rows[y + 1][x] === "road") return true;
-  if (x > 0 && rows[y][x - 1] === "road") return true;
-  if (x < width - 1 && rows[y][x + 1] === "road") return true;
-
-  return false;
-}
-
-
 function generateCoins(
   map: TileType[][],
   level: number,
