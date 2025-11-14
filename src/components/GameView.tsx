@@ -1,4 +1,3 @@
-import { sfx } from "./soundEffects";
 import { useEffect, useRef, useState } from "react";
 import {
   type Direction,
@@ -16,6 +15,7 @@ import { InventoryPanel } from "./InventoryPanel";
 import { RewardPopupsLayer } from "./RewardPopupsLayer";
 import { RunSummaryOverlay } from "./RunSummaryOverlay";
 import type { PackageItem, PackageColor } from "../types/Package";
+import { sfx } from "./soundEffects";
 
 type UiPhase = "intro" | "playing" | "paused" | "summary";
 export type Skin = "rider" | "dustin";
@@ -46,8 +46,14 @@ const DELIVERIES_PER_LEVEL = 5;
 const DELIVERY_COIN_REWARD = 3;
 
 export function GameView() {
-  const { game, move, newMap, addCoins, completeDelivery, resetGame } =
-  useGame();
+  const {
+    game,
+    move,
+    newMap,
+    addCoins,
+    completeDelivery,
+    resetGame,
+  } = useGame();
 
   const tilesX = game.options.width;
   const tilesY = game.options.height;
@@ -84,6 +90,7 @@ export function GameView() {
   const [runSummary, setRunSummary] = useState<RunSummary | null>(
     null
   );
+  const [sfxEnabled, setSfxEnabled] = useState(true);
 
   const prevDeliveriesRef = useRef(game.deliveries);
   const prevLevelRef = useRef(game.level);
@@ -210,28 +217,30 @@ export function GameView() {
     setHouses((prev) =>
       prev.filter((h) => h.packageId !== house.packageId)
     );
-  
+
     addCoins(DELIVERY_COIN_REWARD);
     completeDelivery();
-  
-    sfx.playDelivery();
+
+    if (sfxEnabled) {
+      sfx.playDelivery();
+    }
   }
-  
 
   useEffect(() => {
     if (game.coinsCollected > prevCoinsRef.current) {
       const gained = game.coinsCollected - prevCoinsRef.current;
-  
+
       spawnRewardPopup(
         `+${gained} coin${gained > 1 ? "s" : ""}`,
         "coins"
       );
-  
-      sfx.playCoin();
+
+      if (sfxEnabled) {
+        sfx.playCoin();
+      }
     }
     prevCoinsRef.current = game.coinsCollected;
-  }, [game.coinsCollected]);
-  
+  }, [game.coinsCollected, sfxEnabled]);
 
   useEffect(() => {
     if (game.deliveries > prevDeliveriesRef.current) {
@@ -272,22 +281,24 @@ export function GameView() {
   useEffect(() => {
     const prev = prevPositionRef.current;
     const current = game.riderPosition;
-  
+
     if (prev.x === current.x && prev.y === current.y) {
       return;
     }
-  
+
     const tile = game.map[current.y][current.x];
-  
+
     if (tile === "coffee") {
       spawnRewardPopup("Coffee break!", "coffee");
     }
-  
+
     if (tile === "shop") {
-      sfx.playShop();
+      if (sfxEnabled) {
+        sfx.playShop();
+      }
       pickPackage(game);
     }
-  
+
     const house = houses.find(
       (h) =>
         h.position.x === current.x && h.position.y === current.y
@@ -295,14 +306,12 @@ export function GameView() {
     if (house) {
       deliverPackage(house);
     }
-  
+
     prevPositionRef.current = current;
-  }, [game.riderPosition, game.map, houses]);
-  
+  }, [game.riderPosition, game.map, houses, sfxEnabled]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      // blocca tutto se siamo nel summary
       if (uiPhase === "summary") {
         return;
       }
@@ -395,16 +404,21 @@ export function GameView() {
 
   function handleSummaryPlayAgain() {
     resetGame();
+    setInventory([]);
+    setHouses([]);
+    setPackagesSpawnedThisLevel(0);
     setRunSummary(null);
     setUiPhase("playing");
   }
-  
+
   function handleSummaryBackToTitle() {
     resetGame();
+    setInventory([]);
+    setHouses([]);
+    setPackagesSpawnedThisLevel(0);
     setRunSummary(null);
     setUiPhase("intro");
   }
-  
 
   return (
     <div className={rootClass}>
@@ -422,7 +436,6 @@ export function GameView() {
         </div>
       )}
 
-      {/* HEADER: HUD + small controls on the side */}
       <div className="z-10 mb-2 flex w-full max-w-5xl items-start justify-center gap-4">
         <HudBar
           level={game.level}
@@ -435,37 +448,51 @@ export function GameView() {
           deliveriesPerLevel={DELIVERIES_PER_LEVEL}
         />
 
-        <div className="mt-1 flex flex-col gap-2 text-[0.7rem]">
-          <button
-            className="rounded-full bg-emerald-500 px-3 py-1 font-semibold text-white shadow-sm transition hover:bg-emerald-600"
-            onClick={handleNewMap}
-          >
-            New map
-          </button>
-          <button
-            className={`rounded-full px-3 py-1 font-semibold shadow-sm transition ${
-              showHelp
-                ? "bg-sky-600 text-white hover:bg-sky-700"
-                : "bg-white/80 text-sky-700 hover:bg-white"
-            }`}
-            onClick={() => setShowHelp((prev) => !prev)}
-          >
-            Help (H)
-          </button>
-          <button
-            className={`rounded-full px-3 py-1 font-semibold shadow-sm transition ${
-              isPaused
-                ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                : "bg-slate-900/80 text-slate-50 hover:bg-slate-900"
-            }`}
-            onClick={handlePauseToggle}
-          >
-            {isPaused ? "Resume (P)" : "Pause (P)"}
-          </button>
+        <div className="mt-1 rounded-2xl border border-slate-300/70 bg-white/90 px-3 py-3 text-[0.7rem] text-slate-800 shadow-sm backdrop-blur-sm">
+          <div className="mb-2 text-center text-[0.6rem] font-semibold uppercase tracking-[0.18em] text-slate-500">
+            Session controls
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              className="rounded-full bg-emerald-500 px-3 py-1 font-semibold text-white shadow-sm transition hover:bg-emerald-600"
+              onClick={handleNewMap}
+            >
+              New map
+            </button>
+            <button
+              className={`rounded-full px-3 py-1 font-semibold shadow-sm transition ${
+                isPaused
+                  ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                  : "bg-slate-900/80 text-slate-50 hover:bg-slate-900"
+              }`}
+              onClick={handlePauseToggle}
+            >
+              {isPaused ? "Resume (P)" : "Pause (P)"}
+            </button>
+            <button
+              className={`rounded-full px-3 py-1 font-semibold shadow-sm transition ${
+                showHelp
+                  ? "bg-sky-600 text-white hover:bg-sky-700"
+                  : "bg-slate-100 text-sky-700 hover:bg-white"
+              }`}
+              onClick={() => setShowHelp((prev) => !prev)}
+            >
+              Help (H)
+            </button>
+            <button
+              className={`rounded-full px-3 py-1 font-semibold shadow-sm transition ${
+                sfxEnabled
+                  ? "bg-amber-400 text-amber-950 hover:bg-amber-500"
+                  : "bg-slate-700 text-slate-100 hover:bg-slate-800"
+              }`}
+              onClick={() => setSfxEnabled((prev) => !prev)}
+            >
+              {sfxEnabled ? "SFX: On" : "SFX: Off"}
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* MAP */}
       <div className="z-10 flex items-start">
         <div
           className="relative"
