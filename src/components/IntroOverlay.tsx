@@ -5,7 +5,6 @@ type IntroOverlayProps = {
   selectedSkin: Skin;
   onSelectSkin: (skin: Skin) => void;
   onStartRide: () => void;
-  onShowHelp: () => void;
 };
 
 export function IntroOverlay({
@@ -13,7 +12,6 @@ export function IntroOverlay({
   selectedSkin,
   onSelectSkin,
   onStartRide,
-  onShowHelp,
 }: IntroOverlayProps) {
   if (!visible) return null;
 
@@ -118,12 +116,6 @@ export function IntroOverlay({
             onClick={onStartRide}
           >
             Start ride
-          </button>
-          <button
-            className="rounded-full bg-white px-4 py-2 text-[0.7rem] font-semibold text-sky-700 shadow-sm hover:bg-slate-50"
-            onClick={onShowHelp}
-          >
-            View controls
           </button>
         </div>
       </div>

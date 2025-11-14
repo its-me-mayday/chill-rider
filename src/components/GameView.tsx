@@ -479,7 +479,6 @@ export function GameView() {
         </div>
       </div>
 
-      {/* INVENTORY BAR SOTTO LA MAPPA */}
       <div className="z-10 mt-4 flex w-full justify-center">
         <InventoryPanel inventory={inventory} theme={theme} />
       </div>
@@ -491,7 +490,6 @@ export function GameView() {
         selectedSkin={selectedSkin}
         onSelectSkin={setSelectedSkin}
         onStartRide={handleStartRide}
-        onShowHelp={() => setShowHelp(true)}
       />
 
       <PauseOverlay
