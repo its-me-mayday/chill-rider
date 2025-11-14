@@ -16,6 +16,7 @@ import { RewardPopupsLayer } from "./RewardPopupsLayer";
 import { RunSummaryOverlay } from "./RunSummaryOverlay";
 import type { PackageItem, PackageColor } from "../types/Package";
 import { sfx } from "./soundEffects";
+import { bgm } from "./backgroundMusic";
 
 type UiPhase = "intro" | "playing" | "paused" | "summary";
 export type Skin = "rider" | "dustin";
@@ -91,6 +92,7 @@ export function GameView() {
     null
   );
   const [sfxEnabled, setSfxEnabled] = useState(true);
+  const [musicEnabled, setMusicEnabled] = useState(true);
 
   const prevDeliveriesRef = useRef(game.deliveries);
   const prevLevelRef = useRef(game.level);
@@ -375,6 +377,20 @@ export function GameView() {
     houses,
   ]);
 
+  useEffect(() => {
+    if (musicEnabled) {
+      bgm.play(theme);
+    } else {
+      bgm.stop();
+    }
+  }, [musicEnabled, theme]);
+
+  useEffect(() => {
+    return () => {
+      bgm.stop();
+    };
+  }, []);
+
   function handleStartRide() {
     setUiPhase("playing");
   }
@@ -436,7 +452,7 @@ export function GameView() {
         </div>
       )}
 
-      <div className="z-10 mb-2 flex w-full max-w-5xl items-start justify-center gap-4">
+      <div className="z-10 mb-2 flex w-full max-w-5xl items-start justifycenter gap-4">
         <HudBar
           level={game.level}
           distance={game.distance}
@@ -488,6 +504,16 @@ export function GameView() {
               onClick={() => setSfxEnabled((prev) => !prev)}
             >
               {sfxEnabled ? "SFX: On" : "SFX: Off"}
+            </button>
+            <button
+              className={`col-span-2 rounded-full px-3 py-1 font-semibold shadow-sm transition ${
+                musicEnabled
+                  ? "bg-indigo-400 text-indigo-950 hover:bg-indigo-500"
+                  : "bg-slate-600 text-slate-100 hover:bg-slate-700"
+              }`}
+              onClick={() => setMusicEnabled((prev) => !prev)}
+            >
+              {musicEnabled ? "Music: On" : "Music: Off"}
             </button>
           </div>
         </div>

@@ -38,7 +38,6 @@ function play(sound: Sound) {
     sound.currentTime = 0;
     void sound.play();
   } catch {
-    // ignoriamo eventuali errori (autoplay policies, ecc.)
   }
 }
 
