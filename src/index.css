@@ -68,3 +68,20 @@ body {
 .house-target {
   animation: house-shimmer 900ms ease-in-out infinite alternate;
 }
+
+@keyframes reward-fade {
+  0% {
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.reward-popup {
+  pointer-events: none;
+  animation: reward-fade 800ms ease-out forwards;
+}

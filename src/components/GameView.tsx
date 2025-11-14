@@ -23,6 +23,14 @@ type HouseMarker = {
   packageId: string;
 };
 
+type RewardPopup = {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  variant: "coins" | "delivery";
+};
+
 const DELIVERIES_PER_LEVEL = 5;
 const DELIVERY_COIN_REWARD = 3;
 
@@ -60,6 +68,8 @@ export function GameView() {
   const [packagesSpawnedThisLevel, setPackagesSpawnedThisLevel] =
     useState(0);
 
+  const [rewardPopups, setRewardPopups] = useState<RewardPopup[]>([]);
+
   const prevDeliveriesRef = useRef(game.deliveries);
   const prevLevelRef = useRef(game.level);
   const prevPositionRef = useRef<Position>(game.riderPosition);
@@ -83,6 +93,31 @@ export function GameView() {
     ? houses.find((h) => h.packageId === activePackage.id)
     : null;
   const targetHousePosition = targetHouse ? targetHouse.position : null;
+
+  // ---------- reward popups ----------
+
+  function spawnRewardPopup(
+    text: string,
+    variant: "coins" | "delivery" = "coins"
+  ) {
+    const centerX = game.riderPosition.x * tileSize + tileSize / 2;
+    const centerY = game.riderPosition.y * tileSize + tileSize / 2;
+
+    const id = crypto.randomUUID();
+    const popup: RewardPopup = {
+      id,
+      text,
+      x: centerX,
+      y: centerY,
+      variant,
+    };
+
+    setRewardPopups((prev) => [...prev, popup]);
+
+    setTimeout(() => {
+      setRewardPopups((prev) => prev.filter((p) => p.id !== id));
+    }, 800);
+  }
 
   // ---------- houses & packages ----------
 
@@ -156,6 +191,7 @@ export function GameView() {
     );
 
     addCoins(DELIVERY_COIN_REWARD);
+    spawnRewardPopup(`+${DELIVERY_COIN_REWARD} coins`, "coins");
     completeDelivery();
   }
 
@@ -332,23 +368,48 @@ export function GameView() {
         deliveries={game.deliveries}
         coins={game.coinsCollected}
         theme={theme}
-        helpVisible={showHelp}
       />
 
       <div className="z-10 flex gap-4 items-start">
-        <MapView
-          map={game.map}
-          riderPosition={game.riderPosition}
-          coins={game.coins}
-          facing={game.facing}
-          skin={selectedSkin}
-          tileSize={tileSize}
-          width={mapPixelWidth}
-          height={mapPixelHeight}
-          theme={theme}
-          houses={houses}
-          targetHousePosition={targetHousePosition}
-        />
+        <div
+          className="relative"
+          style={{ width: mapPixelWidth, height: mapPixelHeight }}
+        >
+          <MapView
+            map={game.map}
+            riderPosition={game.riderPosition}
+            coins={game.coins}
+            facing={game.facing}
+            skin={selectedSkin}
+            tileSize={tileSize}
+            width={mapPixelWidth}
+            height={mapPixelHeight}
+            theme={theme}
+            houses={houses}
+            targetHousePosition={targetHousePosition}
+          />
+
+          {rewardPopups.map((popup) => {
+            const popupClass =
+              "reward-popup absolute -translate-x-1/2 text-xs font-semibold px-2 py-1 rounded-full border shadow " +
+              (popup.variant === "coins"
+                ? "bg-amber-400/95 text-slate-900 border-amber-200"
+                : "bg-sky-500/95 text-white border-sky-200");
+
+            return (
+              <div
+                key={popup.id}
+                className={popupClass}
+                style={{
+                  left: popup.x,
+                  top: popup.y - 10,
+                }}
+              >
+                {popup.text}
+              </div>
+            );
+          })}
+        </div>
 
         <div className="w-40 rounded-2xl border border-slate-700 bg-slate-900/80 p-3 text-xs text-slate-100 shadow-lg">
           <div className="mb-2 text-center text-sm font-semibold tracking-[0.18em] uppercase text-slate-300">
