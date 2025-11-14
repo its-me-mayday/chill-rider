@@ -402,44 +402,6 @@ function isNearRoad(rows: TileType[][], x: number, y: number): boolean {
   return false;
 }
 
-function ensureMinBuildings(
-  rows: TileType[][],
-  minBuildings: number,
-  rng: () => number
-): void {
-  const height = rows.length;
-  const width = rows[0].length;
-
-  let currentBuildings = 0;
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      if (rows[y][x] === "building") {
-        currentBuildings++;
-      }
-    }
-  }
-
-  if (currentBuildings >= minBuildings) {
-    return;
-  }
-
-  const candidates: Position[] = [];
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      if (rows[y][x] !== "grass") continue;
-      if (!isNearRoad(rows, x, y)) continue;
-      candidates.push({ x, y });
-    }
-  }
-
-  while (currentBuildings < minBuildings && candidates.length > 0) {
-    const idx = Math.floor(rng() * candidates.length);
-    const pos = candidates[idx];
-    candidates.splice(idx, 1);
-    rows[pos.y][pos.x] = "building";
-    currentBuildings++;
-  }
-}
 
 function generateCoins(
   map: TileType[][],
