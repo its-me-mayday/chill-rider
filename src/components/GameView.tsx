@@ -222,7 +222,7 @@ export function GameView() {
     completeDelivery();
 
     if (sfxEnabled) {
-      sfx.playDelivery();
+      sfx.playDelivery(theme);
     }
   }
 
@@ -236,11 +236,11 @@ export function GameView() {
       );
 
       if (sfxEnabled) {
-        sfx.playCoin();
+        sfx.playCoin(theme);
       }
     }
     prevCoinsRef.current = game.coinsCollected;
-  }, [game.coinsCollected, sfxEnabled]);
+  }, [game.coinsCollected, sfxEnabled, theme]);
 
   useEffect(() => {
     if (game.deliveries > prevDeliveriesRef.current) {
@@ -294,7 +294,7 @@ export function GameView() {
 
     if (tile === "shop") {
       if (sfxEnabled) {
-        sfx.playShop();
+        sfx.playShop(theme);
       }
       pickPackage(game);
     }
@@ -308,7 +308,7 @@ export function GameView() {
     }
 
     prevPositionRef.current = current;
-  }, [game.riderPosition, game.map, houses, sfxEnabled]);
+  }, [game.riderPosition, game.map, houses, sfxEnabled, theme]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
