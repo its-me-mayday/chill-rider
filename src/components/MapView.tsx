@@ -124,7 +124,7 @@ export function MapView({
                     />
                     {houseMarker && (
                       <div
-                        className="absolute inset-0 rounded-md opacity-55 mix-blend-multiply"
+                        className="absolute inset-0 rounded-md opacity-70 mix-blend-screen"
                         style={{
                           backgroundColor:
                             houseColorHex[houseMarker.color],
@@ -132,7 +132,10 @@ export function MapView({
                       />
                     )}
                     {isTargetHouse && (
-                      <div className="pointer-events-none absolute inset-[-8%] rounded-xl border-2 border-amber-300/90 shadow-[0_0_18px_rgba(252,211,77,0.95)] animate-pulse" />
+                      <>
+                        <div className="pointer-events-none absolute inset-[-14%] rounded-2xl border-4 border-amber-300/95 shadow-[0_0_30px_rgba(252,211,77,1)] animate-pulse" />
+                        <div className="pointer-events-none absolute inset-[-6%] rounded-2xl bg-amber-300/18 blur-sm" />
+                      </>
                     )}
                   </div>
                 )}
@@ -163,7 +166,10 @@ export function MapView({
                       }}
                     />
                     {isPickupShop && (
-                      <div className="pointer-events-none absolute inset-[-10%] rounded-xl border-2 border-sky-300/90 shadow-[0_0_18px_rgba(125,211,252,0.95)] animate-pulse" />
+                      <>
+                        <div className="pointer-events-none absolute inset-[-16%] rounded-2xl border-4 border-sky-300/95 shadow-[0_0_32px_rgba(125,211,252,1)] animate-pulse" />
+                        <div className="pointer-events-none absolute inset-[-8%] rounded-2xl bg-sky-300/22 blur-sm" />
+                      </>
                     )}
                   </div>
                 )}
