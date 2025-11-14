@@ -449,15 +449,6 @@ function getNextPosition(pos: Position, dir: Direction): Position {
   }
 }
 
-function isInsideMap(pos: Position, map: TileType[][]): boolean {
-  return (
-    pos.y >= 0 &&
-    pos.y < map.length &&
-    pos.x >= 0 &&
-    pos.x < map[0].length
-  );
-}
-
 function isWalkable(tile: TileType): boolean {
   return (
     tile === "road" ||
