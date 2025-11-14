@@ -26,6 +26,7 @@ type MapViewProps = {
   theme: Theme;
   houses: HouseMarker[];
   targetHousePosition: Position | null;
+  pickupShopPosition: Position | null;
 };
 
 export function MapView({
@@ -40,19 +41,17 @@ export function MapView({
   theme,
   houses,
   targetHousePosition,
+  pickupShopPosition,
 }: MapViewProps) {
   const frameClass =
     theme === "hawkins"
-      ? "map-glow z-10 relative inline-block overflow-hidden rounded-2xl border border-red-500/60 bg-slate-950"
-      : "map-glow z-10 relative inline-block overflow-hidden rounded-2xl border border-slate-400/40 bg-slate-900";
+      ? "map-glow z-10 inline-block overflow-hidden rounded-2xl border border-red-500/60 bg-slate-950"
+      : "map-glow z-10 inline-block overflow-hidden rounded-2xl border border-slate-400/40 bg-slate-900";
 
   const buildingSprite = buildingSpriteForTheme(theme);
   const treeSprite = treeSpriteForTheme(theme);
   const slowSprite = slowSpriteForTheme(theme);
   const shopSprite = shopSpriteForTheme(theme);
-
-  const riderLeft = riderPosition.x * tileSize;
-  const riderTop = riderPosition.y * tileSize;
 
   return (
     <div
@@ -62,10 +61,11 @@ export function MapView({
         height,
       }}
     >
-      {/* TILES */}
       {map.map((row, y) => (
         <div key={y} className="flex">
           {row.map((tile, x) => {
+            const isRider =
+              riderPosition.x === x && riderPosition.y === y;
             const isCoin = coins.some(
               (c) => c.x === x && c.y === y
             );
@@ -74,14 +74,20 @@ export function MapView({
             const isSlow = tile === "slow";
             const isShop = tile === "shop";
 
-            const houseMarker = houses.find(
-              (h) =>
-                h.position.x === x && h.position.y === y
-            );
             const isTargetHouse =
               targetHousePosition &&
               targetHousePosition.x === x &&
               targetHousePosition.y === y;
+
+            const isPickupShop =
+              pickupShopPosition &&
+              pickupShopPosition.x === x &&
+              pickupShopPosition.y === y;
+
+            const houseMarker = houses.find(
+              (h) =>
+                h.position.x === x && h.position.y === y
+            );
 
             return (
               <div
@@ -89,16 +95,8 @@ export function MapView({
                 className="relative"
                 style={{ width: tileSize, height: tileSize }}
               >
-                {/* base tile */}
-                <div
-                  className={tileToClass(
-                    tile,
-                    theme,
-                    Boolean(isTargetHouse)
-                  )}
-                />
+                <div className={tileToClass(tile, theme)} />
 
-                {/* slow dirt */}
                 {isSlow && (
                   <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
                     <img
@@ -113,7 +111,32 @@ export function MapView({
                   </div>
                 )}
 
-                {/* trees */}
+                {isBuilding && (
+                  <div className="absolute inset-[10%] flex items-center justify-center">
+                    <img
+                      src={buildingSprite}
+                      alt="building"
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        imageRendering: "pixelated",
+                      }}
+                    />
+                    {houseMarker && (
+                      <div
+                        className="absolute inset-0 rounded-md opacity-55 mix-blend-multiply"
+                        style={{
+                          backgroundColor:
+                            houseColorHex[houseMarker.color],
+                        }}
+                      />
+                    )}
+                    {isTargetHouse && (
+                      <div className="pointer-events-none absolute inset-[-8%] rounded-xl border-2 border-amber-300/90 shadow-[0_0_18px_rgba(252,211,77,0.95)] animate-pulse" />
+                    )}
+                  </div>
+                )}
+
                 {isTree && (
                   <div className="absolute inset-[12%] flex items-center justify-center">
                     <img
@@ -128,7 +151,6 @@ export function MapView({
                   </div>
                 )}
 
-                {/* shops */}
                 {isShop && (
                   <div className="absolute inset-[10%] flex items-center justify-center">
                     <img
@@ -140,51 +162,25 @@ export function MapView({
                         imageRendering: "pixelated",
                       }}
                     />
+                    {isPickupShop && (
+                      <div className="pointer-events-none absolute inset-[-10%] rounded-xl border-2 border-sky-300/90 shadow-[0_0_18px_rgba(125,211,252,0.95)] animate-pulse" />
+                    )}
                   </div>
                 )}
 
-                {/* buildings */}
-                {isBuilding && (
-                  <div className="absolute inset-[10%] flex items-center justify-center">
-                    <img
-                      src={buildingSprite}
-                      alt="building"
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        imageRendering: "pixelated",
-                      }}
-                    />
-                  </div>
-                )}
-
-                {/* overlay colorata per le houses legate a pacchi */}
-                {houseMarker && (
-                  <div
-                    className="absolute inset-[14%] rounded-lg opacity-70 mix-blend-screen"
-                    style={{
-                      backgroundColor: houseColorOverlay(
-                        houseMarker.color,
-                        theme
-                      ),
-                    }}
-                  />
-                )}
-
-                {/* target house super evidente */}
-                {isTargetHouse && (
-                  <>
-                    <div className="pointer-events-none absolute inset-[4%] rounded-xl ring-2 ring-amber-300/80 shadow-[0_0_20px_rgba(251,191,36,0.7)] animate-pulse" />
-                    <div className="pointer-events-none absolute -top-1 left-1/2 -translate-x-1/2 text-[0.55rem] font-bold text-amber-200 drop-shadow">
-                      ★
-                    </div>
-                  </>
-                )}
-
-                {/* coins */}
                 {isCoin && (
                   <div className="absolute inset-[22%] flex items-center justify-center">
                     <CoinSprite size={tileSize * 0.5} />
+                  </div>
+                )}
+
+                {isRider && (
+                  <div className="absolute inset-[12%] flex items-center justify-center">
+                    <RiderSprite
+                      size={tileSize * 0.7}
+                      direction={facing}
+                      skin={skin}
+                    />
                   </div>
                 )}
               </div>
@@ -192,29 +188,17 @@ export function MapView({
           })}
         </div>
       ))}
-
-      {/* RIDER overlay, con movimento smooth */}
-      <div
-        className="pointer-events-none absolute"
-        style={{
-          left: riderLeft,
-          top: riderTop,
-          width: tileSize,
-          height: tileSize,
-          transition: "left 140ms ease-out, top 140ms ease-out",
-        }}
-      >
-        <div className="absolute inset-[12%] flex items-center justify-center">
-          <RiderSprite
-            size={tileSize * 0.7}
-            direction={facing}
-            skin={skin}
-          />
-        </div>
-      </div>
     </div>
   );
 }
+
+const houseColorHex: Record<PackageColor, string> = {
+  red: "#f97373",
+  blue: "#38bdf8",
+  green: "#22c55e",
+  yellow: "#eab308",
+  purple: "#a855f7",
+};
 
 function buildingSpriteForTheme(theme: Theme): string {
   const prefix = theme === "hawkins" ? "hawkins" : "chill";
@@ -236,24 +220,19 @@ function shopSpriteForTheme(theme: Theme): string {
   return `/chill-rider/tiles/${prefix}-shop.png`;
 }
 
-function tileToClass(
-  tile: TileType,
-  theme: Theme,
-  isTargetHouse: boolean
-): string {
+function tileToClass(tile: TileType, theme: Theme): string {
   const base = "h-full w-full";
 
   if (theme === "hawkins") {
-    if (isTargetHouse && tile === "building") {
-      return `${base} bg-gradient-to-b from-amber-900 to-rose-900`;
-    }
     switch (tile) {
       case "road":
         return `${base} bg-gradient-to-b from-slate-900 to-slate-800`;
       case "grass":
         return `${base} bg-gradient-to-b from-emerald-950 to-emerald-800`;
       case "tree":
+        return `${base} bg-gradient-to-b from-emerald-900 to-emerald-950`;
       case "shop":
+        return `${base} bg-gradient-to-b from-emerald-900 to-emerald-950`;
       case "building":
         return `${base} bg-gradient-to-b from-emerald-900 to-emerald-950`;
       case "slow":
@@ -265,10 +244,6 @@ function tileToClass(
     }
   }
 
-  if (isTargetHouse && tile === "building") {
-    return `${base} bg-gradient-to-b from-amber-200 to-orange-300`;
-  }
-
   switch (tile) {
     case "road":
       return `${base} bg-gradient-to-b from-slate-100 to-slate-300`;
@@ -277,6 +252,7 @@ function tileToClass(
     case "tree":
       return `${base} bg-gradient-to-b from-emerald-300 to-emerald-500`;
     case "shop":
+      return `${base} bg-gradient-to-b from-emerald-300 to-emerald-400`;
     case "building":
       return `${base} bg-gradient-to-b from-emerald-300 to-emerald-400`;
     case "slow":
@@ -286,36 +262,4 @@ function tileToClass(
     default:
       return `${base} bg-slate-900`;
   }
-}
-
-function houseColorOverlay(color: PackageColor, theme: Theme): string {
-  if (theme === "hawkins") {
-    switch (color) {
-      case "red":
-        return "#b91c1c";
-      case "blue":
-        return "#1d4ed8";
-      case "green":
-        return "#166534";
-      case "yellow":
-        return "#ca8a04";
-      case "purple":
-        return "#6d28d9";
-    }
-  }
-
-  switch (color) {
-    case "red":
-      return "#f97373";
-    case "blue":
-      return "#60a5fa";
-    case "green":
-      return "#4ade80";
-    case "yellow":
-      return "#facc15";
-    case "purple":
-      return "#c4b5fd";
-  }
-
-  return "#ffffff";
 }

@@ -96,6 +96,9 @@ export function GameView() {
   const [musicVolume, setMusicVolume] = useState(70);
   const [showSettings, setShowSettings] = useState(false);
 
+  const [activeShopPosition, setActiveShopPosition] =
+    useState<Position | null>(null);
+
   const prevDeliveriesRef = useRef(game.deliveries);
   const prevLevelRef = useRef(game.level);
   const prevCoinsRef = useRef(game.coinsCollected);
@@ -122,25 +125,20 @@ export function GameView() {
   const targetHousePosition = targetHouse ? targetHouse.position : null;
 
   const deliveriesThisLevel = game.deliveries % DELIVERIES_PER_LEVEL;
-  
-  let housesCount = 0;
-let shopsCount = 0;
-
-for (let y = 0; y < game.map.length; y++) {
-  for (let x = 0; x < game.map[0].length; x++) {
-    const tile = game.map[y][x];
-    if (tile === "building") {
-      housesCount++;
-    } else if (tile === "shop") {
-      shopsCount++;
-    }
-  }
-}
-
 
   const isIntro = uiPhase === "intro";
   const isPaused = uiPhase === "paused";
   const isSummary = uiPhase === "summary";
+
+  let housesCount = 0;
+  let shopsCount = 0;
+  for (let y = 0; y < game.map.length; y++) {
+    for (let x = 0; x < game.map[0].length; x++) {
+      const tile = game.map[y][x];
+      if (tile === "building") housesCount++;
+      if (tile === "shop") shopsCount++;
+    }
+  }
 
   function spawnRewardPopup(
     text: string,
@@ -243,6 +241,17 @@ for (let y = 0; y < game.map.length; y++) {
     if (sfxEnabled) {
       sfx.playDelivery(theme);
     }
+
+    if (packagesSpawnedThisLevel < DELIVERIES_PER_LEVEL) {
+      const nextShop = pickRandomShop(game.map);
+      if (nextShop) {
+        setActiveShopPosition(nextShop);
+      } else {
+        setActiveShopPosition(null);
+      }
+    } else {
+      setActiveShopPosition(null);
+    }
   }
 
   useEffect(() => {
@@ -294,6 +303,7 @@ for (let y = 0; y < game.map.length; y++) {
       setPackagesSpawnedThisLevel(0);
       setHouses([]);
       setInventory([]);
+      setActiveShopPosition(null);
     }
   }, [game.level]);
 
@@ -312,10 +322,18 @@ for (let y = 0; y < game.map.length; y++) {
     }
 
     if (tile === "shop") {
-      if (sfxEnabled) {
-        sfx.playShop(theme);
+      const isActiveShop =
+        activeShopPosition &&
+        activeShopPosition.x === current.x &&
+        activeShopPosition.y === current.y;
+
+      if (isActiveShop) {
+        if (sfxEnabled) {
+          sfx.playShop(theme);
+        }
+        pickPackage(game);
+        setActiveShopPosition(null);
       }
-      pickPackage(game);
     }
 
     const house = houses.find(
@@ -327,7 +345,35 @@ for (let y = 0; y < game.map.length; y++) {
     }
 
     prevPositionRef.current = current;
-  }, [game.riderPosition, game.map, houses, sfxEnabled, theme, game]);
+  }, [
+    game.riderPosition,
+    game.map,
+    houses,
+    sfxEnabled,
+    theme,
+    game,
+    activeShopPosition,
+  ]);
+
+  useEffect(() => {
+    if (
+      inventory.length === 0 &&
+      houses.length === 0 &&
+      packagesSpawnedThisLevel < DELIVERIES_PER_LEVEL &&
+      !activeShopPosition
+    ) {
+      const shop = pickRandomShop(game.map);
+      if (shop) {
+        setActiveShopPosition(shop);
+      }
+    }
+  }, [
+    inventory.length,
+    houses.length,
+    packagesSpawnedThisLevel,
+    activeShopPosition,
+    game.map,
+  ]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -431,6 +477,7 @@ for (let y = 0; y < game.map.length; y++) {
     setInventory([]);
     setHouses([]);
     setPackagesSpawnedThisLevel(0);
+    setActiveShopPosition(null);
   }
 
   function handleEndRun() {
@@ -448,6 +495,7 @@ for (let y = 0; y < game.map.length; y++) {
     setInventory([]);
     setHouses([]);
     setPackagesSpawnedThisLevel(0);
+    setActiveShopPosition(null);
     setRunSummary(null);
     setUiPhase("playing");
   }
@@ -457,6 +505,7 @@ for (let y = 0; y < game.map.length; y++) {
     setInventory([]);
     setHouses([]);
     setPackagesSpawnedThisLevel(0);
+    setActiveShopPosition(null);
     setRunSummary(null);
     setUiPhase("intro");
   }
@@ -478,19 +527,18 @@ for (let y = 0; y < game.map.length; y++) {
       )}
 
       <div className="z-10 mb-3 flex w-full max-w-5xl items-start justify-center gap-4">
-      <HudBar
-  level={game.level}
-  distance={game.distance}
-  deliveries={game.deliveries}
-  coins={game.coinsCollected}
-  theme={theme}
-  targetColor={activePackage ? activePackage.color : null}
-  deliveriesThisLevel={deliveriesThisLevel}
-  deliveriesPerLevel={DELIVERIES_PER_LEVEL}
-  housesCount={housesCount}
-  shopsCount={shopsCount}
-/>
-
+        <HudBar
+          level={game.level}
+          distance={game.distance}
+          deliveries={game.deliveries}
+          coins={game.coinsCollected}
+          theme={theme}
+          targetColor={activePackage ? activePackage.color : null}
+          deliveriesThisLevel={deliveriesThisLevel}
+          deliveriesPerLevel={DELIVERIES_PER_LEVEL}
+          housesCount={housesCount}
+          shopsCount={shopsCount}
+        />
 
         <div className="mt-1 rounded-2xl border border-slate-300/70 bg-white/90 px-3 py-3 text-[0.7rem] text-slate-800 shadow-sm backdrop-blur-sm">
           <div className="mb-2 text-center text-[0.6rem] font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -543,6 +591,7 @@ for (let y = 0; y < game.map.length; y++) {
             theme={theme}
             houses={houses}
             targetHousePosition={targetHousePosition}
+            pickupShopPosition={activeShopPosition}
           />
 
           <RewardPopupsLayer popups={rewardPopups} />
@@ -732,4 +781,23 @@ function wrapPosition(pos: Position, map: TileType[][]): Position {
   else if (y >= height) y = 0;
 
   return { x, y };
+}
+
+function findAllShops(map: TileType[][]): Position[] {
+  const shops: Position[] = [];
+  for (let y = 0; y < map.length; y++) {
+    for (let x = 0; x < map[0].length; x++) {
+      if (map[y][x] === "shop") {
+        shops.push({ x, y });
+      }
+    }
+  }
+  return shops;
+}
+
+function pickRandomShop(map: TileType[][]): Position | null {
+  const shops = findAllShops(map);
+  if (!shops.length) return null;
+  const idx = Math.floor(Math.random() * shops.length);
+  return shops[idx];
 }
