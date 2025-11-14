@@ -43,13 +43,16 @@ export function MapView({
 }: MapViewProps) {
   const frameClass =
     theme === "hawkins"
-      ? "map-glow z-10 inline-block overflow-hidden rounded-2xl border border-red-500/60 bg-slate-950"
-      : "map-glow z-10 inline-block overflow-hidden rounded-2xl border border-slate-400/40 bg-slate-900";
+      ? "map-glow z-10 relative inline-block overflow-hidden rounded-2xl border border-red-500/60 bg-slate-950"
+      : "map-glow z-10 relative inline-block overflow-hidden rounded-2xl border border-slate-400/40 bg-slate-900";
 
   const buildingSprite = buildingSpriteForTheme(theme);
   const treeSprite = treeSpriteForTheme(theme);
   const slowSprite = slowSpriteForTheme(theme);
   const shopSprite = shopSpriteForTheme(theme);
+
+  const riderLeft = riderPosition.x * tileSize;
+  const riderTop = riderPosition.y * tileSize;
 
   return (
     <div
@@ -59,11 +62,10 @@ export function MapView({
         height,
       }}
     >
+      {/* TILES */}
       {map.map((row, y) => (
         <div key={y} className="flex">
           {row.map((tile, x) => {
-            const isRider =
-              riderPosition.x === x && riderPosition.y === y;
             const isCoin = coins.some(
               (c) => c.x === x && c.y === y
             );
@@ -172,9 +174,7 @@ export function MapView({
                 {/* target house super evidente */}
                 {isTargetHouse && (
                   <>
-                    {/* glow pulsante */}
                     <div className="pointer-events-none absolute inset-[4%] rounded-xl ring-2 ring-amber-300/80 shadow-[0_0_20px_rgba(251,191,36,0.7)] animate-pulse" />
-                    {/* piccola stellina sopra */}
                     <div className="pointer-events-none absolute -top-1 left-1/2 -translate-x-1/2 text-[0.55rem] font-bold text-amber-200 drop-shadow">
                       ★
                     </div>
@@ -187,22 +187,31 @@ export function MapView({
                     <CoinSprite size={tileSize * 0.5} />
                   </div>
                 )}
-
-                {/* rider */}
-                {isRider && (
-                  <div className="absolute inset-[12%] flex items-center justify-center">
-                    <RiderSprite
-                      size={tileSize * 0.7}
-                      direction={facing}
-                      skin={skin}
-                    />
-                  </div>
-                )}
               </div>
             );
           })}
         </div>
       ))}
+
+      {/* RIDER overlay, con movimento smooth */}
+      <div
+        className="pointer-events-none absolute"
+        style={{
+          left: riderLeft,
+          top: riderTop,
+          width: tileSize,
+          height: tileSize,
+          transition: "left 140ms ease-out, top 140ms ease-out",
+        }}
+      >
+        <div className="absolute inset-[12%] flex items-center justify-center">
+          <RiderSprite
+            size={tileSize * 0.7}
+            direction={facing}
+            skin={skin}
+          />
+        </div>
+      </div>
     </div>
   );
 }
