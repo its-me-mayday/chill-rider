@@ -91,6 +91,7 @@ export function GameView() {
       : "absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-emerald-300/90 via-emerald-200/0 to-transparent";
 
   const activePackage = inventory[0] ?? null;
+  const deliveriesThisLevel = game.deliveries % DELIVERIES_PER_LEVEL;
   const targetHouse = activePackage
     ? houses.find((h) => h.packageId === activePackage.id)
     : null;
@@ -401,13 +402,18 @@ export function GameView() {
         </div>
       )}
 
-      <HudBar
-        level={game.level}
-        distance={game.distance}
-        deliveries={game.deliveries}
-        coins={game.coinsCollected}
-        theme={theme}
-      />
+
+<HudBar
+  level={game.level}
+  distance={game.distance}
+  deliveries={game.deliveries}
+  coins={game.coinsCollected}
+  theme={theme}
+  targetColor={activePackage ? activePackage.color : null}
+  deliveriesThisLevel={deliveriesThisLevel}
+  deliveriesPerLevel={DELIVERIES_PER_LEVEL}
+/>
+
 
       <div className="z-10 flex items-start gap-4">
         <div

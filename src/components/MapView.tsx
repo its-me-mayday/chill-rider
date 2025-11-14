@@ -11,6 +11,7 @@ import type { PackageColor } from "../types/Package";
 type HouseMarker = {
   position: Position;
   color: PackageColor;
+  packageId: string;
 };
 
 type MapViewProps = {
@@ -71,16 +72,14 @@ export function MapView({
             const isSlow = tile === "slow";
             const isShop = tile === "shop";
 
-            const house = houses.find(
+            const houseMarker = houses.find(
               (h) =>
                 h.position.x === x && h.position.y === y
             );
-
             const isTargetHouse =
-              !!house &&
-              !!targetHousePosition &&
-              house.position.x === targetHousePosition.x &&
-              house.position.y === targetHousePosition.y;
+              targetHousePosition &&
+              targetHousePosition.x === x &&
+              targetHousePosition.y === y;
 
             return (
               <div
@@ -88,8 +87,16 @@ export function MapView({
                 className="relative"
                 style={{ width: tileSize, height: tileSize }}
               >
-                <div className={tileToClass(tile, theme)} />
+                {/* base tile */}
+                <div
+                  className={tileToClass(
+                    tile,
+                    theme,
+                    Boolean(isTargetHouse)
+                  )}
+                />
 
+                {/* slow dirt */}
                 {isSlow && (
                   <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
                     <img
@@ -104,20 +111,7 @@ export function MapView({
                   </div>
                 )}
 
-                {isBuilding && (
-                  <div className="absolute inset-[10%] flex items-center justify-center">
-                    <img
-                      src={buildingSprite}
-                      alt="building"
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        imageRendering: "pixelated",
-                      }}
-                    />
-                  </div>
-                )}
-
+                {/* trees */}
                 {isTree && (
                   <div className="absolute inset-[12%] flex items-center justify-center">
                     <img
@@ -132,6 +126,7 @@ export function MapView({
                   </div>
                 )}
 
+                {/* shops */}
                 {isShop && (
                   <div className="absolute inset-[10%] flex items-center justify-center">
                     <img
@@ -146,29 +141,54 @@ export function MapView({
                   </div>
                 )}
 
-                {house && (
+                {/* buildings */}
+                {isBuilding && (
                   <div className="absolute inset-[10%] flex items-center justify-center">
-                    <div
-                      className={
-                        "w-full h-full rounded-md border-2 border-white/80 shadow-[0_0_12px_rgba(255,255,255,0.8)]" +
-                        (isTargetHouse ? " house-target" : "")
-                      }
+                    <img
+                      src={buildingSprite}
+                      alt="building"
                       style={{
-                        backgroundColor: colorForPackage(
-                          house.color,
-                          theme
-                        ),
+                        width: "100%",
+                        height: "100%",
+                        imageRendering: "pixelated",
                       }}
                     />
                   </div>
                 )}
 
+                {/* overlay colorata per le houses legate a pacchi */}
+                {houseMarker && (
+                  <div
+                    className="absolute inset-[14%] rounded-lg opacity-70 mix-blend-screen"
+                    style={{
+                      backgroundColor: houseColorOverlay(
+                        houseMarker.color,
+                        theme
+                      ),
+                    }}
+                  />
+                )}
+
+                {/* target house super evidente */}
+                {isTargetHouse && (
+                  <>
+                    {/* glow pulsante */}
+                    <div className="pointer-events-none absolute inset-[4%] rounded-xl ring-2 ring-amber-300/80 shadow-[0_0_20px_rgba(251,191,36,0.7)] animate-pulse" />
+                    {/* piccola stellina sopra */}
+                    <div className="pointer-events-none absolute -top-1 left-1/2 -translate-x-1/2 text-[0.55rem] font-bold text-amber-200 drop-shadow">
+                      ★
+                    </div>
+                  </>
+                )}
+
+                {/* coins */}
                 {isCoin && (
                   <div className="absolute inset-[22%] flex items-center justify-center">
                     <CoinSprite size={tileSize * 0.5} />
                   </div>
                 )}
 
+                {/* rider */}
                 {isRider && (
                   <div className="absolute inset-[12%] flex items-center justify-center">
                     <RiderSprite
@@ -207,19 +227,24 @@ function shopSpriteForTheme(theme: Theme): string {
   return `/chill-rider/tiles/${prefix}-shop.png`;
 }
 
-function tileToClass(tile: TileType, theme: Theme): string {
+function tileToClass(
+  tile: TileType,
+  theme: Theme,
+  isTargetHouse: boolean
+): string {
   const base = "h-full w-full";
 
   if (theme === "hawkins") {
+    if (isTargetHouse && tile === "building") {
+      return `${base} bg-gradient-to-b from-amber-900 to-rose-900`;
+    }
     switch (tile) {
       case "road":
         return `${base} bg-gradient-to-b from-slate-900 to-slate-800`;
       case "grass":
         return `${base} bg-gradient-to-b from-emerald-950 to-emerald-800`;
       case "tree":
-        return `${base} bg-gradient-to-b from-emerald-900 to-emerald-950`;
       case "shop":
-        return `${base} bg-gradient-to-b from-emerald-900 to-emerald-950`;
       case "building":
         return `${base} bg-gradient-to-b from-emerald-900 to-emerald-950`;
       case "slow":
@@ -231,6 +256,10 @@ function tileToClass(tile: TileType, theme: Theme): string {
     }
   }
 
+  if (isTargetHouse && tile === "building") {
+    return `${base} bg-gradient-to-b from-amber-200 to-orange-300`;
+  }
+
   switch (tile) {
     case "road":
       return `${base} bg-gradient-to-b from-slate-100 to-slate-300`;
@@ -239,7 +268,6 @@ function tileToClass(tile: TileType, theme: Theme): string {
     case "tree":
       return `${base} bg-gradient-to-b from-emerald-300 to-emerald-500`;
     case "shop":
-      return `${base} bg-gradient-to-b from-emerald-300 to-emerald-400`;
     case "building":
       return `${base} bg-gradient-to-b from-emerald-300 to-emerald-400`;
     case "slow":
@@ -251,7 +279,7 @@ function tileToClass(tile: TileType, theme: Theme): string {
   }
 }
 
-function colorForPackage(color: PackageColor, theme: Theme): string {
+function houseColorOverlay(color: PackageColor, theme: Theme): string {
   if (theme === "hawkins") {
     switch (color) {
       case "red":
@@ -259,7 +287,7 @@ function colorForPackage(color: PackageColor, theme: Theme): string {
       case "blue":
         return "#1d4ed8";
       case "green":
-        return "#15803d";
+        return "#166534";
       case "yellow":
         return "#ca8a04";
       case "purple":
