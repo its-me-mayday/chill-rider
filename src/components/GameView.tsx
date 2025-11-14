@@ -87,6 +87,12 @@ export function GameView() {
         return;
       }
 
+      // When help is open, game is effectively paused:
+      // ignore all other keys.
+      if (showHelp) {
+        return;
+      }
+
       if (e.key === "Enter" || e.key === " ") {
         if (uiPhase === "intro") {
           setUiPhase("playing");
@@ -111,7 +117,7 @@ export function GameView() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [move, uiPhase]);
+  }, [move, uiPhase, showHelp]);
 
   function handleStartRide() {
     setUiPhase("playing");
@@ -145,13 +151,15 @@ export function GameView() {
         </div>
       )}
 
-      <HudBar
+<HudBar
         level={game.level}
         distance={game.distance}
         deliveries={game.deliveries}
         coins={game.coinsCollected}
         theme={theme}
+        helpVisible={showHelp}
       />
+
 
       <MapView
         map={game.map}

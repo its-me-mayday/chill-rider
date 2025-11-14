@@ -6,6 +6,7 @@ type HudBarProps = {
   deliveries: number;
   coins: number;
   theme: Theme;
+  helpVisible?: boolean;
 };
 
 export function HudBar({
@@ -14,27 +15,40 @@ export function HudBar({
   deliveries,
   coins,
   theme,
+  helpVisible = false,
 }: HudBarProps) {
   const titleClass =
     theme === "hawkins"
       ? "text-2xl font-extrabold tracking-[0.3em] text-red-400"
       : "text-2xl font-extrabold tracking-[0.3em]";
 
-  const barClass =
+  const baseBarClass =
     theme === "hawkins"
       ? "z-10 mb-4 flex w-full max-w-3xl items-center justify-between gap-4 rounded-2xl border border-red-500/60 bg-slate-900/90 px-6 py-3 shadow-lg backdrop-blur-sm"
       : "z-10 mb-4 flex w-full max-w-3xl items-center justify-between gap-4 rounded-2xl border border-slate-300/70 bg-white/85 px-6 py-3 shadow-lg backdrop-blur-sm";
 
+  const barClass = helpVisible
+    ? `${baseBarClass} opacity-70`
+    : baseBarClass;
+
   return (
     <div className={barClass}>
-      <div>
-        <h1 className={titleClass}>CHILL RIDER</h1>
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-3">
+          <h1 className={titleClass}>CHILL RIDER</h1>
+          {helpVisible && (
+            <span className="rounded-full bg-sky-500/10 px-2.5 py-1 text-[0.6rem] font-semibold uppercase tracking-[0.16em] text-sky-600">
+              Help mode
+            </span>
+          )}
+        </div>
         <p className="text-xs text-slate-500">
           {theme === "hawkins"
             ? "Night ride through Hawkins streets."
             : "Cruise through pastel mountains and deliver in peace."}
         </p>
       </div>
+
       <div className="flex items-center gap-6 text-right text-sm">
         <div>
           <div className="text-[0.65rem] uppercase text-slate-500">
