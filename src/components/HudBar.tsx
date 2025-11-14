@@ -12,6 +12,8 @@ type HudBarProps = {
   deliveriesPerLevel: number;
   housesCount: number;
   shopsCount: number;
+  houseDirection: string | null;
+  shopDirection: string | null;
 };
 
 export function HudBar({
@@ -25,6 +27,8 @@ export function HudBar({
   deliveriesPerLevel,
   housesCount,
   shopsCount,
+  houseDirection,
+  shopDirection,
 }: HudBarProps) {
   const titleClass =
     theme === "hawkins"
@@ -71,6 +75,18 @@ export function HudBar({
 
   const hasTarget = Boolean(targetColor);
 
+  let directionText = "";
+  const parts: string[] = [];
+  if (shopDirection) {
+    parts.push(`Shop: ${shopDirection}`);
+  }
+  if (houseDirection) {
+    parts.push(`House: ${houseDirection}`);
+  }
+  if (parts.length > 0) {
+    directionText = " • " + parts.join(" • ");
+  }
+
   return (
     <div className={barClass}>
       <div className="min-w-0">
@@ -109,6 +125,7 @@ export function HudBar({
               {shopsCount}
             </span>{" "}
             shops
+            {directionText}
           </span>
         </div>
       </div>

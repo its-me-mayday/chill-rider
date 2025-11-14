@@ -123,6 +123,15 @@ export function GameView() {
     ? houses.find((h) => h.packageId === activePackage.id)
     : null;
   const targetHousePosition = targetHouse ? targetHouse.position : null;
+  
+  const houseDirection = computeDirectionLabel(
+    game.riderPosition,
+    targetHousePosition
+  );
+  const shopDirection = computeDirectionLabel(
+    game.riderPosition,
+    activeShopPosition
+  );
 
   const deliveriesThisLevel = game.deliveries % DELIVERIES_PER_LEVEL;
 
@@ -527,18 +536,21 @@ export function GameView() {
       )}
 
       <div className="z-10 mb-3 flex w-full max-w-5xl items-start justify-center gap-4">
-        <HudBar
-          level={game.level}
-          distance={game.distance}
-          deliveries={game.deliveries}
-          coins={game.coinsCollected}
-          theme={theme}
-          targetColor={activePackage ? activePackage.color : null}
-          deliveriesThisLevel={deliveriesThisLevel}
-          deliveriesPerLevel={DELIVERIES_PER_LEVEL}
-          housesCount={housesCount}
-          shopsCount={shopsCount}
-        />
+      <HudBar
+  level={game.level}
+  distance={game.distance}
+  deliveries={game.deliveries}
+  coins={game.coinsCollected}
+  theme={theme}
+  targetColor={activePackage ? activePackage.color : null}
+  deliveriesThisLevel={deliveriesThisLevel}
+  deliveriesPerLevel={DELIVERIES_PER_LEVEL}
+  housesCount={housesCount}
+  shopsCount={shopsCount}
+  houseDirection={houseDirection}
+  shopDirection={shopDirection}
+/>
+
 
         <div className="mt-1 rounded-2xl border border-slate-300/70 bg-white/90 px-3 py-3 text-[0.7rem] text-slate-800 shadow-sm backdrop-blur-sm">
           <div className="mb-2 text-center text-[0.6rem] font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -800,4 +812,32 @@ function pickRandomShop(map: TileType[][]): Position | null {
   if (!shops.length) return null;
   const idx = Math.floor(Math.random() * shops.length);
   return shops[idx];
+}
+
+function computeDirectionLabel(
+  from: Position,
+  to: Position | null
+): string | null {
+  if (!to) return null;
+
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+
+  if (dx === 0 && dy === 0) {
+    return "Here";
+  }
+
+  const angleRad = Math.atan2(-dy, dx);
+  const angleDeg = (angleRad * 180) / Math.PI;
+
+  if (angleDeg > -22.5 && angleDeg <= 22.5) return "E";
+  if (angleDeg > 22.5 && angleDeg <= 67.5) return "NE";
+  if (angleDeg > 67.5 && angleDeg <= 112.5) return "N";
+  if (angleDeg > 112.5 && angleDeg <= 157.5) return "NW";
+  if (angleDeg > 157.5 || angleDeg <= -157.5) return "W";
+  if (angleDeg > -157.5 && angleDeg <= -112.5) return "SW";
+  if (angleDeg > -112.5 && angleDeg <= -67.5) return "S";
+  if (angleDeg > -67.5 && angleDeg <= -22.5) return "SE";
+
+  return null;
 }
