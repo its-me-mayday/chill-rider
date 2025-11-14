@@ -13,9 +13,10 @@ import { IntroOverlay } from "./IntroOverlay";
 import { PauseOverlay } from "./PauseOverlay";
 import { InventoryPanel } from "./InventoryPanel";
 import { RewardPopupsLayer } from "./RewardPopupsLayer";
+import { RunSummaryOverlay } from "./RunSummaryOverlay";
 import type { PackageItem, PackageColor } from "../types/Package";
 
-type UiPhase = "intro" | "playing" | "paused";
+type UiPhase = "intro" | "playing" | "paused" | "summary";
 export type Skin = "rider" | "dustin";
 export type Theme = "chill" | "hawkins";
 
@@ -33,11 +34,19 @@ type RewardPopup = {
   variant: "coins" | "coffee" | "level";
 };
 
+type RunSummary = {
+  level: number;
+  distance: number;
+  deliveries: number;
+  coins: number;
+};
+
 const DELIVERIES_PER_LEVEL = 5;
 const DELIVERY_COIN_REWARD = 3;
 
 export function GameView() {
-  const { game, move, newMap, addCoins, completeDelivery } = useGame();
+  const { game, move, newMap, addCoins, completeDelivery, resetGame } =
+  useGame();
 
   const tilesX = game.options.width;
   const tilesY = game.options.height;
@@ -64,7 +73,6 @@ export function GameView() {
   const [showHelp, setShowHelp] = useState(false);
   const [uiPhase, setUiPhase] = useState<UiPhase>("intro");
   const [selectedSkin, setSelectedSkin] = useState<Skin>("rider");
-  const [showInventory, setShowInventory] = useState(true);
 
   const [inventory, setInventory] = useState<PackageItem[]>([]);
   const [houses, setHouses] = useState<HouseMarker[]>([]);
@@ -72,6 +80,9 @@ export function GameView() {
     useState(0);
 
   const [rewardPopups, setRewardPopups] = useState<RewardPopup[]>([]);
+  const [runSummary, setRunSummary] = useState<RunSummary | null>(
+    null
+  );
 
   const prevDeliveriesRef = useRef(game.deliveries);
   const prevLevelRef = useRef(game.level);
@@ -99,6 +110,10 @@ export function GameView() {
   const targetHousePosition = targetHouse ? targetHouse.position : null;
 
   const deliveriesThisLevel = game.deliveries % DELIVERIES_PER_LEVEL;
+
+  const isIntro = uiPhase === "intro";
+  const isPaused = uiPhase === "paused";
+  const isSummary = uiPhase === "summary";
 
   function spawnRewardPopup(
     text: string,
@@ -277,13 +292,13 @@ export function GameView() {
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "h" || e.key === "H") {
-        setShowHelp((prev) => !prev);
+      // blocca tutto se siamo nel summary
+      if (uiPhase === "summary") {
         return;
       }
 
-      if (e.key === "i" || e.key === "I") {
-        setShowInventory((prev) => !prev);
+      if (e.key === "h" || e.key === "H") {
+        setShowHelp((prev) => !prev);
         return;
       }
 
@@ -346,7 +361,9 @@ export function GameView() {
   }
 
   function handlePauseToggle() {
-    setUiPhase((prev) => (prev === "paused" ? "playing" : "paused"));
+    setUiPhase((prev) =>
+      prev === "paused" ? "playing" : "paused"
+    );
   }
 
   function handleNewMap() {
@@ -357,12 +374,27 @@ export function GameView() {
   }
 
   function handleEndRun() {
-    handleNewMap();
-    setUiPhase("intro");
+    setRunSummary({
+      level: game.level,
+      distance: game.distance,
+      deliveries: game.deliveries,
+      coins: game.coinsCollected,
+    });
+    setUiPhase("summary");
   }
 
-  const isIntro = uiPhase === "intro";
-  const isPaused = uiPhase === "paused";
+  function handleSummaryPlayAgain() {
+    resetGame();
+    setRunSummary(null);
+    setUiPhase("playing");
+  }
+  
+  function handleSummaryBackToTitle() {
+    resetGame();
+    setRunSummary(null);
+    setUiPhase("intro");
+  }
+  
 
   return (
     <div className={rootClass}>
@@ -380,17 +412,50 @@ export function GameView() {
         </div>
       )}
 
-      <HudBar
-        level={game.level}
-        distance={game.distance}
-        deliveries={game.deliveries}
-        coins={game.coinsCollected}
-        theme={theme}
-        targetColor={activePackage ? activePackage.color : null}
-        deliveriesThisLevel={deliveriesThisLevel}
-        deliveriesPerLevel={DELIVERIES_PER_LEVEL}
-      />
+      {/* HEADER: HUD + small controls on the side */}
+      <div className="z-10 mb-2 flex w-full max-w-5xl items-start justify-center gap-4">
+        <HudBar
+          level={game.level}
+          distance={game.distance}
+          deliveries={game.deliveries}
+          coins={game.coinsCollected}
+          theme={theme}
+          targetColor={activePackage ? activePackage.color : null}
+          deliveriesThisLevel={deliveriesThisLevel}
+          deliveriesPerLevel={DELIVERIES_PER_LEVEL}
+        />
 
+        <div className="mt-1 flex flex-col gap-2 text-[0.7rem]">
+          <button
+            className="rounded-full bg-emerald-500 px-3 py-1 font-semibold text-white shadow-sm transition hover:bg-emerald-600"
+            onClick={handleNewMap}
+          >
+            New map
+          </button>
+          <button
+            className={`rounded-full px-3 py-1 font-semibold shadow-sm transition ${
+              showHelp
+                ? "bg-sky-600 text-white hover:bg-sky-700"
+                : "bg-white/80 text-sky-700 hover:bg-white"
+            }`}
+            onClick={() => setShowHelp((prev) => !prev)}
+          >
+            Help (H)
+          </button>
+          <button
+            className={`rounded-full px-3 py-1 font-semibold shadow-sm transition ${
+              isPaused
+                ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                : "bg-slate-900/80 text-slate-50 hover:bg-slate-900"
+            }`}
+            onClick={handlePauseToggle}
+          >
+            {isPaused ? "Resume (P)" : "Pause (P)"}
+          </button>
+        </div>
+      </div>
+
+      {/* MAP */}
       <div className="z-10 flex items-start">
         <div
           className="relative"
@@ -414,39 +479,9 @@ export function GameView() {
         </div>
       </div>
 
-      <InventoryPanel
-        visible={showInventory}
-        inventory={inventory}
-        theme={theme}
-      />
-
-      <div className="z-10 mt-4 flex gap-3">
-        <button
-          className="rounded-full bg-emerald-500 px-5 py-2 text-sm font-semibold text-white shadow-md transition hover:bg-emerald-600 hover:shadow-lg"
-          onClick={handleNewMap}
-        >
-          New map
-        </button>
-        <button
-          className={`rounded-full px-5 py-2 text-sm font-semibold shadow-md transition ${
-            showHelp
-              ? "bg-sky-600 text-white hover:bg-sky-700"
-              : "bg-white/80 text-sky-700 hover:bg-white"
-          }`}
-          onClick={() => setShowHelp((prev) => !prev)}
-        >
-          Help (H)
-        </button>
-        <button
-          className={`rounded-full px-5 py-2 text-sm font-semibold shadow-md transition ${
-            isPaused
-              ? "bg-emerald-600 text-white hover:bg-emerald-700"
-              : "bg-slate-900/80 text-slate-50 hover:bg-slate-900"
-          }`}
-          onClick={handlePauseToggle}
-        >
-          {isPaused ? "Resume (P)" : "Pause (P)"}
-        </button>
+      {/* INVENTORY BAR SOTTO LA MAPPA */}
+      <div className="z-10 mt-4 flex w-full justify-center">
+        <InventoryPanel inventory={inventory} theme={theme} />
       </div>
 
       <HelpPanel visible={showHelp} />
@@ -469,9 +504,16 @@ export function GameView() {
         onEndRun={handleEndRun}
       />
 
+      <RunSummaryOverlay
+        visible={isSummary}
+        summary={runSummary}
+        onPlayAgain={handleSummaryPlayAgain}
+        onBackToTitle={handleSummaryBackToTitle}
+      />
+
       <p className="z-10 mt-2 text-[0.7rem] text-slate-700">
         Ride into a shop to grab a package, follow the matching colored
-        building, deliver, earn coins and level up the city. Toggle inventory with I.
+        building, deliver, earn coins and level up the city.
       </p>
     </div>
   );

@@ -3,30 +3,23 @@ import type { Theme } from "./GameView";
 import { colorForPackage } from "./colorForPackage";
 
 type InventoryPanelProps = {
-  visible: boolean;
   inventory: PackageItem[];
   theme: Theme;
 };
 
-export function InventoryPanel({
-  visible,
-  inventory,
-  theme,
-}: InventoryPanelProps) {
-  if (!visible) return null;
-
+export function InventoryPanel({ inventory, theme }: InventoryPanelProps) {
   return (
-    <div className="pointer-events-auto fixed right-6 top-1/2 z-20 w-40 -translate-y-1/2 rounded-2xl border border-slate-700 bg-slate-900/70 p-3 text-xs text-slate-100 shadow-lg backdrop-blur">
-      <div className="mb-2 text-center text-sm font-semibold tracking-[0.18em] uppercase text-slate-300">
-        Inventory <span className="text-[0.6rem]">(I)</span>
+    <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900/85 px-4 py-2 text-xs text-slate-100 shadow-lg backdrop-blur">
+      <div className="mb-1 text-center text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-slate-300">
+        Inventory
       </div>
-      <div className="grid gap-2">
+      <div className="flex items-center justify-center gap-2">
         {Array.from({ length: 5 }).map((_, i) => {
           const item = inventory[i];
           return (
             <div
               key={i}
-              className="flex h-10 items-center justify-center rounded-lg bg-slate-800/70"
+              className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-800/80"
               style={{
                 border: item
                   ? "2px solid rgba(248, 250, 252, 0.95)"
@@ -35,16 +28,13 @@ export function InventoryPanel({
             >
               {item ? (
                 <div
-                  className="h-5 w-5 rounded-sm shadow"
+                  className="h-4 w-4 rounded-sm shadow"
                   style={{
-                    backgroundColor: colorForPackage(
-                      item.color,
-                      theme
-                    ),
+                    backgroundColor: colorForPackage(item.color, theme),
                   }}
                 />
               ) : (
-                <span className="text-[0.65rem] text-slate-400">
+                <span className="text-[0.55rem] text-slate-400">
                   Empty
                 </span>
               )}

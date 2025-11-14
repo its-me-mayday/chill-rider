@@ -16,6 +16,11 @@ export function useGame(initialOptions: GameOptions = DEFAULT_OPTIONS) {
   const [game, setGame] = useState<GameState>(() =>
     createGame(initialOptions)
   );
+  const resetGame = useCallback(() => {
+    // torna a uno stato totalmente nuovo, livello 1
+    setGame(() => createGame(initialOptions));
+  }, [initialOptions]);
+  
 
   const move = useCallback((direction: Direction) => {
     setGame((prev) =>
@@ -49,5 +54,6 @@ export function useGame(initialOptions: GameOptions = DEFAULT_OPTIONS) {
     newMap,
     addCoins,
     completeDelivery,
+    resetGame
   };
 }
