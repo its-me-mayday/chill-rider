@@ -37,10 +37,17 @@ export function useGame(initialOptions: GameOptions = DEFAULT_OPTIONS) {
     }));
   }, []);
 
+  const completeDelivery = useCallback(() => {
+    setGame((prev) =>
+      applyCommand(prev, { type: "DELIVERY_COMPLETED" })
+    );
+  }, []);
+
   return {
     game,
     move,
     newMap,
     addCoins,
+    completeDelivery,
   };
 }

@@ -4,7 +4,6 @@ import {
   type TileType,
 } from "../engine/localEngine";
 import { RiderSprite } from "./RiderSprite";
-import { GoalSprite } from "./GoalSprite";
 import { CoinSprite } from "./CoinSprite";
 import type { Skin, Theme } from "./GameView";
 import type { PackageColor } from "../types/Package";
@@ -17,7 +16,6 @@ type HouseMarker = {
 type MapViewProps = {
   map: TileType[][];
   riderPosition: Position;
-  goalPosition: Position;
   coins: Position[];
   facing: Direction;
   skin: Skin;
@@ -32,7 +30,6 @@ type MapViewProps = {
 export function MapView({
   map,
   riderPosition,
-  goalPosition,
   coins,
   facing,
   skin,
@@ -66,8 +63,6 @@ export function MapView({
           {row.map((tile, x) => {
             const isRider =
               riderPosition.x === x && riderPosition.y === y;
-            const isGoal =
-              goalPosition.x === x && goalPosition.y === y;
             const isCoin = coins.some(
               (c) => c.x === x && c.y === y
             );
@@ -151,7 +146,7 @@ export function MapView({
                   </div>
                 )}
 
-{house && (
+                {house && (
                   <div className="absolute inset-[10%] flex items-center justify-center">
                     <div
                       className={
@@ -168,16 +163,9 @@ export function MapView({
                   </div>
                 )}
 
-
                 {isCoin && (
                   <div className="absolute inset-[22%] flex items-center justify-center">
                     <CoinSprite size={tileSize * 0.5} />
-                  </div>
-                )}
-
-                {isGoal && (
-                  <div className="absolute inset-[18%] flex items-center justify-center">
-                    <GoalSprite size={tileSize * 0.6} />
                   </div>
                 )}
 

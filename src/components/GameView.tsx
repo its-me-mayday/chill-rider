@@ -27,7 +27,7 @@ const DELIVERIES_PER_LEVEL = 5;
 const DELIVERY_COIN_REWARD = 3;
 
 export function GameView() {
-  const { game, move, newMap, addCoins } = useGame();
+  const { game, move, newMap, addCoins, completeDelivery } = useGame();
 
   const tilesX = game.options.width;
   const tilesY = game.options.height;
@@ -146,21 +146,18 @@ export function GameView() {
   }
 
   function deliverPackage(house: HouseMarker) {
-    // rimuovo sempre il pacco associato
+    // remove package
     setInventory((prev) =>
       prev.filter((p) => p.id !== house.packageId)
     );
-  
-    // e SEMPRE la house collegata a quel pacco
+    // remove house marker (building torna muro)
     setHouses((prev) =>
       prev.filter((h) => h.packageId !== house.packageId)
     );
-  
+
     addCoins(DELIVERY_COIN_REWARD);
-    setRecentDelivery(true);
-    setTimeout(() => setRecentDelivery(false), 900);
+    completeDelivery();
   }
-  
 
   // ---------- effects: deliveries / level up ----------
 
@@ -342,7 +339,6 @@ export function GameView() {
         <MapView
           map={game.map}
           riderPosition={game.riderPosition}
-          goalPosition={game.goalPosition}
           coins={game.coins}
           facing={game.facing}
           skin={selectedSkin}
@@ -443,9 +439,8 @@ export function GameView() {
       />
 
       <p className="z-10 mt-2 text-[0.7rem] text-slate-700">
-        Ride to the goal marker, collect coins, pick up packages in shops and
-        deliver them into colored buildings to earn extra coins and climb the
-        chill levels.
+        Ride, grab a package in a shop, deliver it to the matching colored
+        building to complete deliveries, earn coins and level up the city.
       </p>
     </div>
   );

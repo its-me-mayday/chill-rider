@@ -36,7 +36,10 @@ export interface GameState {
 
 export type Command =
   | { type: "MOVE"; direction: Direction }
-  | { type: "REGENERATE_MAP" };
+  | { type: "REGENERATE_MAP" }
+  | { type: "DELIVERY_COMPLETED" };
+
+const DELIVERIES_PER_LEVEL = 5;
 
 export function createGame(options: GameOptions): GameState {
   const level = 1;
@@ -73,13 +76,49 @@ export function applyCommand(
       return moveRider(state, command.direction);
     case "REGENERATE_MAP":
       return regenerateMap(state);
+    case "DELIVERY_COMPLETED":
+      return onDeliveryCompleted(state);
     default:
       return state;
   }
 }
 
+function onDeliveryCompleted(state: GameState): GameState {
+  const deliveries = state.deliveries + 1;
+  const shouldLevelUp = deliveries % DELIVERIES_PER_LEVEL === 0;
+
+  if (!shouldLevelUp) {
+    return {
+      ...state,
+      deliveries,
+    };
+  }
+
+  const nextLevel = state.level + 1;
+  const map = generateMap(state.options, nextLevel);
+
+  const riderPosition: Position = {
+    x: Math.floor(state.options.width / 2),
+    y: Math.floor(state.options.height / 2),
+  };
+
+  const goalPosition = pickGoalPosition(map, riderPosition);
+  const coins = generateCoins(map, nextLevel, state.options.seed);
+
+  return {
+    ...state,
+    map,
+    riderPosition,
+    goalPosition,
+    level: nextLevel,
+    deliveries,
+    distance: 0,
+    coins,
+  };
+}
+
 function moveRider(state: GameState, direction: Direction): GameState {
-  const { riderPosition, map, goalPosition } = state;
+  const { riderPosition, map } = state;
   const target = getNextPosition(riderPosition, direction);
 
   if (!isInsideMap(target, map)) {
@@ -100,11 +139,7 @@ function moveRider(state: GameState, direction: Direction): GameState {
   const stepCost = tile === "slow" ? 2 : 1;
 
   let nextDistance = state.distance + stepCost;
-  let nextDeliveries = state.deliveries;
-  let nextLevel = state.level;
-  let nextMap = map;
   let nextRiderPosition = target;
-  let nextGoalPosition = goalPosition;
   let nextCoinsPositions = state.coins;
   let nextCoinsCollected = state.coinsCollected;
 
@@ -123,42 +158,10 @@ function moveRider(state: GameState, direction: Direction): GameState {
     nextCoinsCollected = nextCoinsCollected + 2;
   }
 
-  const reachedGoal =
-    target.x === goalPosition.x && target.y === goalPosition.y;
-
-  if (reachedGoal) {
-    nextDeliveries += 1;
-
-    const shouldLevelUp = nextDeliveries % 5 === 0;
-    if (shouldLevelUp) {
-      nextLevel = state.level + 1;
-      nextMap = generateMap(state.options, nextLevel);
-
-      nextRiderPosition = {
-        x: Math.floor(state.options.width / 2),
-        y: Math.floor(state.options.height / 2),
-      };
-
-      nextGoalPosition = pickGoalPosition(nextMap, nextRiderPosition);
-      nextDistance = 0;
-      nextCoinsPositions = generateCoins(
-        nextMap,
-        nextLevel,
-        state.options.seed
-      );
-    } else {
-      nextGoalPosition = pickGoalPosition(map, target);
-    }
-  }
-
   return {
     ...state,
-    map: nextMap,
     riderPosition: nextRiderPosition,
-    goalPosition: nextGoalPosition,
     distance: nextDistance,
-    deliveries: nextDeliveries,
-    level: nextLevel,
     facing: direction,
     coins: nextCoinsPositions,
     coinsCollected: nextCoinsCollected,
@@ -430,10 +433,9 @@ function isWalkable(tile: TileType): boolean {
     tile === "slow" ||
     tile === "coffee" ||
     tile === "shop" ||
-    tile === "building" // now buildings CAN be walked, if allowed dalla UI
+    tile === "building"
   );
 }
-
 
 function createRng(seed: number): () => number {
   let state = seed % 2147483647;
