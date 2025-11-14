@@ -235,29 +235,47 @@ function generateMap(options: GameOptions, level: number): TileType[][] {
     rows.push(row);
   }
 
-  const mainRoadY = Math.floor(height / 2);
+  // main road orizzontale leggermente "wavy"
+  let mainRoadY = Math.floor(height / 2);
   for (let x = 0; x < width; x++) {
     rows[mainRoadY][x] = "road";
-    if (rng() < 0.15 && mainRoadY + 1 < height) {
-      rows[mainRoadY + 1][x] = "road";
+
+    if (rng() < 0.12 && mainRoadY > 1) {
+      mainRoadY -= 1;
+    } else if (rng() < 0.24 && mainRoadY < height - 2) {
+      mainRoadY += 1;
+    }
+
+    if (rng() < 0.1) {
+      const dy = rng() < 0.5 ? -1 : 1;
+      const y2 = mainRoadY + dy;
+      if (y2 >= 0 && y2 < height) {
+        rows[y2][x] = "road";
+      }
     }
   }
 
-  const verticalRoadCount = Math.max(
-    1,
-    Math.floor(width / 6) + Math.floor((level - 1) / 2)
-  );
+  // poche strade verticali, controllate e non troppo dense
+  const baseVertical = Math.max(2, Math.floor(width / 8));
+  const extraByLevel = Math.min(2, Math.floor((level - 1) / 3));
+  const verticalRoadCount = Math.min(4, baseVertical + extraByLevel);
+
   for (let i = 0; i < verticalRoadCount; i++) {
     const x = Math.floor(((i + 1) * width) / (verticalRoadCount + 1));
     for (let y = 0; y < height; y++) {
+      if (level >= 4 && rng() < 0.08) {
+        continue;
+      }
+
       rows[y][x] = "road";
-      if (rng() < 0.15 && x + 1 < width) {
+
+      if (rng() < 0.08 && x + 1 < width && rows[y][x + 1] === "grass") {
         rows[y][x + 1] = "road";
       }
     }
   }
 
-  const buildingChance = Math.min(0.25 + (level - 1) * 0.05, 0.5);
+  const buildingChance = Math.min(0.22 + (level - 1) * 0.03, 0.4);
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       if (rows[y][x] !== "road") continue;
@@ -266,7 +284,7 @@ function generateMap(options: GameOptions, level: number): TileType[][] {
         const by = y + dir;
         if (by >= 0 && by < height && rows[by][x] === "grass") {
           rows[by][x] = "building";
-          if (rng() < 0.5) {
+          if (rng() < 0.4) {
             const by2 = by + dir;
             if (by2 >= 0 && by2 < height && rows[by2][x] === "grass") {
               rows[by2][x] = "building";
@@ -277,7 +295,7 @@ function generateMap(options: GameOptions, level: number): TileType[][] {
     }
   }
 
-  const treeChance = Math.min(0.12 + (level - 1) * 0.03, 0.3);
+  const treeChance = Math.min(0.14 + (level - 1) * 0.03, 0.3);
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       if (rows[y][x] !== "grass") continue;
@@ -321,31 +339,45 @@ function generateMap(options: GameOptions, level: number): TileType[][] {
       if (rows[y][x] !== "grass") continue;
       if (rng() >= coffeeChance) continue;
 
-      if (isNearRoad(rows, x, y)) {
+      const nearRoad =
+        (y > 0 && rows[y - 1][x] === "road") ||
+        (y < height - 1 && rows[y + 1][x] === "road") ||
+        (x > 0 && rows[y][x - 1] === "road") ||
+        (x < width - 1 && rows[y][x + 1] === "road");
+
+      if (nearRoad) {
         rows[y][x] = "coffee";
       }
     }
   }
 
-  const minBuildings = level <= 5 ? 3 : 5;
-  ensureMinBuildings(rows, minBuildings, rng);
-
   const shopCandidates: Position[] = [];
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       if (rows[y][x] !== "grass") continue;
-      if (isNearRoad(rows, x, y)) {
+
+      const nearRoad =
+        (y > 0 && rows[y - 1][x] === "road") ||
+        (y < height - 1 && rows[y + 1][x] === "road") ||
+        (x > 0 && rows[y][x - 1] === "road") ||
+        (x < width - 1 && rows[y][x + 1] === "road");
+
+      if (nearRoad) {
         shopCandidates.push({ x, y });
       }
     }
   }
 
   if (shopCandidates.length > 0) {
-    const desiredShops = level <= 5 ? 2 : 5;
-    const shopsToPlace = Math.min(desiredShops, shopCandidates.length);
+    const minShops = level <= 5 ? 2 : 5;
+    const maxShops = Math.min(
+      level <= 5 ? 3 : 7,
+      shopCandidates.length
+    );
+    const targetShops = Math.max(minShops, maxShops);
 
     const chosen: Position[] = [];
-    while (chosen.length < shopsToPlace && shopCandidates.length > 0) {
+    while (chosen.length < targetShops && shopCandidates.length > 0) {
       const idx = Math.floor(rng() * shopCandidates.length);
       const candidate = shopCandidates[idx];
       shopCandidates.splice(idx, 1);
@@ -356,6 +388,7 @@ function generateMap(options: GameOptions, level: number): TileType[][] {
 
   return rows;
 }
+
 
 function isNearRoad(rows: TileType[][], x: number, y: number): boolean {
   const height = rows.length;
