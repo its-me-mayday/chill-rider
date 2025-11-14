@@ -11,6 +11,8 @@ import { MapView } from "./MapView";
 import { HelpPanel } from "./HelpPanel";
 import { IntroOverlay } from "./IntroOverlay";
 import { PauseOverlay } from "./PauseOverlay";
+import { InventoryPanel } from "./InventoryPanel";
+import { RewardPopupsLayer } from "./RewardPopupsLayer";
 import type { PackageItem, PackageColor } from "../types/Package";
 
 type UiPhase = "intro" | "playing" | "paused";
@@ -45,7 +47,6 @@ export function GameView() {
   const viewportHeight =
     typeof window !== "undefined" ? window.innerHeight : 768;
 
-  // leave some room for HUD + inventory
   const maxMapWidth = viewportWidth - 200;
   const maxMapHeight = viewportHeight - 220;
 
@@ -99,8 +100,6 @@ export function GameView() {
 
   const deliveriesThisLevel = game.deliveries % DELIVERIES_PER_LEVEL;
 
-  // ---------- reward popups ----------
-
   function spawnRewardPopup(
     text: string,
     variant: "coins" | "coffee" | "level"
@@ -128,8 +127,6 @@ export function GameView() {
     }, 800);
   }
 
-  // ---------- houses & packages ----------
-
   function findFreeBuildingPosition(
     map: TileType[][],
     currentHouses: HouseMarker[]
@@ -156,10 +153,7 @@ export function GameView() {
   }
 
   function pickPackage(currentGame: GameState) {
-    // limit packages per level
     if (packagesSpawnedThisLevel >= DELIVERIES_PER_LEVEL) return;
-
-    // only one active package / delivery at a time
     if (inventory.length > 0 || houses.length > 0) return;
 
     const colors: PackageColor[] = [
@@ -173,9 +167,7 @@ export function GameView() {
       colors[Math.floor(Math.random() * colors.length)];
 
     const position = findFreeBuildingPosition(currentGame.map, houses);
-    if (!position) {
-      return;
-    }
+    if (!position) return;
 
     const id =
       typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -196,11 +188,9 @@ export function GameView() {
   }
 
   function deliverPackage(house: HouseMarker) {
-    // remove package from inventory
     setInventory((prev) =>
       prev.filter((p) => p.id !== house.packageId)
     );
-    // remove marker so building becomes solid again
     setHouses((prev) =>
       prev.filter((h) => h.packageId !== house.packageId)
     );
@@ -209,9 +199,6 @@ export function GameView() {
     completeDelivery();
   }
 
-  // ---------- effects: coins / deliveries / level up ----------
-
-  // coins change → popup +X coins
   useEffect(() => {
     if (game.coinsCollected > prevCoinsRef.current) {
       const gained = game.coinsCollected - prevCoinsRef.current;
@@ -223,7 +210,6 @@ export function GameView() {
     prevCoinsRef.current = game.coinsCollected;
   }, [game.coinsCollected]);
 
-  // deliveries banner
   useEffect(() => {
     if (game.deliveries > prevDeliveriesRef.current) {
       setRecentDelivery(true);
@@ -236,7 +222,6 @@ export function GameView() {
     prevDeliveriesRef.current = game.deliveries;
   }, [game.deliveries]);
 
-  // level up banner + popup
   useEffect(() => {
     if (game.level > prevLevelRef.current) {
       setRecentLevelUp(true);
@@ -252,7 +237,6 @@ export function GameView() {
     prevLevelRef.current = game.level;
   }, [game.level]);
 
-  // reset per-level package state on level change
   useEffect(() => {
     if (game.level !== levelRef.current) {
       levelRef.current = game.level;
@@ -261,8 +245,6 @@ export function GameView() {
       setInventory([]);
     }
   }, [game.level]);
-
-  // ---------- rider movement: shop + coffee + houses ----------
 
   useEffect(() => {
     const prev = prevPositionRef.current;
@@ -275,7 +257,6 @@ export function GameView() {
     const tile = game.map[current.y][current.x];
 
     if (tile === "coffee") {
-      // engine handles distance / coins; we just show popup
       spawnRewardPopup("Coffee break!", "coffee");
     }
 
@@ -294,8 +275,6 @@ export function GameView() {
     prevPositionRef.current = current;
   }, [game.riderPosition, game.map, houses]);
 
-  // ---------- keyboard ----------
-
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "h" || e.key === "H") {
@@ -308,7 +287,6 @@ export function GameView() {
         return;
       }
 
-      // when help is open, ignore other controls
       if (showHelp) {
         return;
       }
@@ -334,13 +312,10 @@ export function GameView() {
       if (uiPhase !== "playing") return;
 
       const nextPos = getNextPosition(game.riderPosition, direction);
-      if (!isInsideMap(nextPos, game.map)) {
-        return;
-      }
+      if (!isInsideMap(nextPos, game.map)) return;
 
       const tile = game.map[nextPos.y][nextPos.x];
 
-      // buildings are walls unless they are the active delivery house
       if (tile === "building") {
         const hasDeliveryHere = houses.some(
           (h) =>
@@ -366,8 +341,6 @@ export function GameView() {
     houses,
   ]);
 
-  // ---------- UI handlers ----------
-
   function handleStartRide() {
     setUiPhase("playing");
   }
@@ -390,8 +363,6 @@ export function GameView() {
 
   const isIntro = uiPhase === "intro";
   const isPaused = uiPhase === "paused";
-
-  // ---------- render ----------
 
   return (
     <div className={rootClass}>
@@ -439,80 +410,15 @@ export function GameView() {
             targetHousePosition={targetHousePosition}
           />
 
-          {rewardPopups.map((popup) => {
-            let colorClasses = "";
-
-            if (popup.variant === "coins") {
-              colorClasses =
-                "bg-amber-400/95 text-slate-900 border-amber-200";
-            } else if (popup.variant === "coffee") {
-              colorClasses =
-                "bg-rose-500/95 text-white border-rose-200";
-            } else if (popup.variant === "level") {
-              colorClasses =
-                "bg-sky-500/95 text-white border-sky-200";
-            }
-
-            const popupClass =
-              "reward-popup absolute -translate-x-1/2 text-xs font-semibold px-2 py-1 rounded-full border shadow " +
-              colorClasses;
-
-            return (
-              <div
-                key={popup.id}
-                className={popupClass}
-                style={{
-                  left: popup.x,
-                  top: popup.y - 10,
-                }}
-              >
-                {popup.text}
-              </div>
-            );
-          })}
+          <RewardPopupsLayer popups={rewardPopups} />
         </div>
       </div>
 
-      {/* Floating inventory panel (toggle with I) */}
-      {showInventory && (
-        <div className="pointer-events-auto fixed right-6 top-1/2 z-20 w-40 -translate-y-1/2 rounded-2xl border border-slate-700 bg-slate-900/70 p-3 text-xs text-slate-100 shadow-lg backdrop-blur">
-          <div className="mb-2 text-center text-sm font-semibold tracking-[0.18em] uppercase text-slate-300">
-            Inventory <span className="text-[0.6rem]">(I)</span>
-          </div>
-          <div className="grid gap-2">
-            {Array.from({ length: 5 }).map((_, i) => {
-              const item = inventory[i];
-              return (
-                <div
-                  key={i}
-                  className="flex h-10 items-center justify-center rounded-lg bg-slate-800/70"
-                  style={{
-                    border: item
-                      ? "2px solid rgba(248, 250, 252, 0.95)"
-                      : "1px dashed rgba(148, 163, 184, 0.8)",
-                  }}
-                >
-                  {item ? (
-                    <div
-                      className="h-5 w-5 rounded-sm shadow"
-                      style={{
-                        backgroundColor: colorForPackage(
-                          item.color,
-                          theme
-                        ),
-                      }}
-                    />
-                  ) : (
-                    <span className="text-[0.65rem] text-slate-400">
-                      Empty
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      <InventoryPanel
+        visible={showInventory}
+        inventory={inventory}
+        theme={theme}
+      />
 
       <div className="z-10 mt-4 flex gap-3">
         <button
@@ -592,38 +498,6 @@ function keyToDirection(key: string): Direction | null {
     default:
       return null;
   }
-}
-
-function colorForPackage(color: PackageColor, theme: Theme): string {
-  if (theme === "hawkins") {
-    switch (color) {
-      case "red":
-        return "#b91c1c";
-      case "blue":
-        return "#1d4ed8";
-      case "green":
-        return "#15803d";
-      case "yellow":
-        return "#ca8a04";
-      case "purple":
-        return "#6d28d9";
-    }
-  }
-
-  switch (color) {
-    case "red":
-      return "#f97373";
-    case "blue":
-      return "#60a5fa";
-    case "green":
-      return "#4ade80";
-    case "yellow":
-      return "#facc15";
-    case "purple":
-      return "#c4b5fd";
-  }
-
-  return "#ffffff";
 }
 
 function getNextPosition(pos: Position, dir: Direction): Position {
