@@ -1,4 +1,3 @@
-
 import type { Theme } from "./GameView";
 import type { PackageColor } from "../types/Package";
 
@@ -18,7 +17,6 @@ type HudBarProps = {
   targetTimer?: number | null;
   globalTime: number;
   deliveriesGlow?: boolean;
-  mudStepsRemaining?: number;
 };
 
 export function HudBar({
@@ -36,43 +34,51 @@ export function HudBar({
   shopDirection,
   targetTimer,
   globalTime,
-  deliveriesGlow,
-  mudStepsRemaining,
+  deliveriesGlow = false,
 }: HudBarProps) {
-  const titleClass =
-    theme === "hawkins"
-      ? "text-xl font-extrabold tracking-[0.25em] text-red-400"
-      : "text-xl font-extrabold tracking-[0.25em]";
+  const isHawkins = theme === "hawkins";
 
-  const barClass =
-    theme === "hawkins"
-      ? "z-10 mb-2 flex w-full max-w-5xl items-center justify-between gap-4 rounded-2xl border border-red-500/60 bg-slate-900/90 px-5 py-1.5 shadow-lg backdrop-blur-sm"
-      : "z-10 mb-2 flex w-full max-w-5xl items-center justify-between gap-4 rounded-2xl border border-slate-300/70 bg-white/85 px-5 py-1.5 shadow-lg backdrop-blur-sm";
+  const titleClass = isHawkins
+    ? "text-xl font-extrabold tracking-[0.25em] text-red-400"
+    : "text-xl font-extrabold tracking-[0.25em] text-slate-800";
 
-  const subtitleClass =
-    theme === "hawkins"
-      ? "text-[0.7rem] text-slate-400"
-      : "text-[0.7rem] text-slate-500";
+  const barClass = isHawkins
+    ? "z-10 mb-2 flex w-full max-w-6xl items-center justify-between gap-4 rounded-2xl border border-red-500/60 bg-slate-950/95 px-5 py-2 shadow-lg backdrop-blur-sm"
+    : "z-10 mb-2 flex w-full max-w-6xl items-center justify-between gap-4 rounded-2xl border border-slate-300/70 bg-white/90 px-5 py-2 shadow-lg backdrop-blur-sm";
 
-  const levelColorClass =
-    theme === "hawkins"
-      ? "text-base font-semibold text-red-400"
-      : "text-base font-semibold text-sky-600";
+  const subtitleClass = isHawkins
+    ? "text-[0.7rem] text-slate-400"
+    : "text-[0.7rem] text-slate-500";
 
-  const distanceColorClass =
-    theme === "hawkins"
-      ? "text-base font-semibold text-slate-200"
-      : "text-base font-semibold text-emerald-500";
+  const levelColorClass = isHawkins
+    ? "text-base font-semibold text-red-400"
+    : "text-base font-semibold text-sky-600";
 
-  const deliveriesColorClass =
-    theme === "hawkins"
-      ? "text-base font-semibold text-red-300"
-      : "text-base font-semibold text-sky-500";
+  const distanceColorClass = isHawkins
+    ? "text-base font-semibold text-slate-200"
+    : "text-base font-semibold text-emerald-500";
 
-  const coinsColorClass =
-    theme === "hawkins"
-      ? "text-base font-semibold text-amber-300"
-      : "text-base font-semibold text-amber-500";
+  const deliveriesColorClassBase = isHawkins
+    ? "text-base font-semibold text-red-300"
+    : "text-base font-semibold text-sky-500";
+
+  const deliveriesColorClass = deliveriesGlow
+    ? deliveriesColorClassBase +
+      " animate-pulse drop-shadow-[0_0_8px_rgba(251,191,36,0.9)]"
+    : deliveriesColorClassBase;
+
+  const coinsColorClass = isHawkins
+    ? "text-base font-semibold text-amber-300"
+    : "text-base font-semibold text-amber-500";
+
+  const timerPillClass = isHawkins
+    ? "inline-flex items-center gap-1 rounded-full border border-red-500/70 bg-slate-900/90 px-3 py-1 text-[0.7rem] font-semibold text-red-200 shadow-sm"
+    : "inline-flex items-center gap-1 rounded-full border border-slate-300/80 bg-slate-900 text-[0.7rem] font-semibold text-emerald-200 shadow-sm";
+
+  const globalTimeIsLow = globalTime <= 10;
+  const globalTimeClassExtra = globalTimeIsLow
+    ? " animate-pulse text-red-400"
+    : "";
 
   const targetColorHex: Record<PackageColor, string> = {
     red: "#f97373",
@@ -83,6 +89,7 @@ export function HudBar({
   };
 
   const hasTarget = Boolean(targetColor);
+  const hasPerishableTimer = typeof targetTimer === "number";
 
   let directionText = "";
   const parts: string[] = [];
@@ -96,45 +103,21 @@ export function HudBar({
     directionText = " • " + parts.join(" • ");
   }
 
-  const totalSeconds = Math.max(0, Math.floor(globalTime));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  const formattedGlobalTime = `${minutes}:${seconds
-    .toString()
-    .padStart(2, "0")}`;
-
-  const timeColorClass =
-    theme === "hawkins"
-      ? totalSeconds <= 10
-        ? "text-base font-semibold text-red-400 animate-pulse"
-        : "text-base font-semibold text-slate-100"
-      : totalSeconds <= 10
-      ? "text-base font-semibold text-rose-600 animate-pulse"
-      : "text-base font-semibold text-slate-800";
-
-  const deliveriesHighlightClass = deliveriesGlow
-    ? " animate-pulse drop-shadow-[0_0_8px_rgba(16,185,129,0.8)] scale-[1.06]"
-    : "";
-
-  const mudActive = (mudStepsRemaining ?? 0) > 0;
-
-  const mudColorClass =
-    theme === "hawkins"
-      ? mudActive
-        ? "text-xs font-semibold text-amber-300 animate-pulse"
-        : "text-xs font-semibold text-slate-400"
-      : mudActive
-      ? "text-xs font-semibold text-amber-600 animate-pulse"
-      : "text-xs font-semibold text-slate-500";
+  const globalTimeDisplay = String(globalTime).padStart(2, "0");
+  const perishableTimerDisplay =
+    typeof targetTimer === "number"
+      ? String(Math.max(0, targetTimer)).padStart(2, "0")
+      : null;
 
   return (
     <div className={barClass}>
-      <div className="min-w-0">
+      {/* LEFT SIDE: Title, subtitle, map info, target info */}
+      <div className="min-w-0 flex-1">
         <h1 className={titleClass}>CHILL RIDER</h1>
         <p className={subtitleClass}>
-          {theme === "hawkins"
+          {isHawkins
             ? "Night ride through Hawkins streets."
-            : "Cruise through pastel mountains and deliver in peace."}
+            : "Cruise through pastel hills and deliver in peace."}
         </p>
 
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.65rem] text-slate-500">
@@ -152,10 +135,9 @@ export function HudBar({
                 className="inline-block h-3 w-3 rounded-sm border border-slate-700"
                 style={{ backgroundColor: targetColorHex[targetColor] }}
               />
-              {typeof targetTimer === "number" && (
-                <span className="ml-1 flex items-center gap-1 text-[0.6rem]">
-                  <span>⏱</span>
-                  <span>{targetTimer}s</span>
+              {hasPerishableTimer && perishableTimerDisplay && (
+                <span className="ml-1 text-[0.65rem] text-slate-600">
+                  ({perishableTimerDisplay}s)
                 </span>
               )}
             </span>
@@ -176,50 +158,48 @@ export function HudBar({
         </div>
       </div>
 
-      <div className="flex items-center gap-4 text-right text-xs">
-        <div>
-          <div className="text-[0.6rem] uppercase text-slate-500">
-            Level
-          </div>
-          <div className={levelColorClass}>{level}</div>
-        </div>
-        <div>
-          <div className="text-[0.6rem] uppercase text-slate-500">
-            Distance
-          </div>
-          <div className={distanceColorClass}>{distance}</div>
-        </div>
-        <div>
-          <div className="text-[0.6rem] uppercase text-slate-500">
-            Deliveries
-          </div>
-          <div
+      {/* RIGHT SIDE: global timer + stats */}
+      <div className="flex flex-col items-end gap-1 text-right text-xs">
+        {/* Global timer */}
+        <div className={timerPillClass}>
+          <span className="text-[0.6rem] uppercase tracking-[0.16em]">
+            Time
+          </span>
+          <span
             className={
-              deliveriesColorClass + " " + deliveriesHighlightClass
+              "ml-1 tabular-nums text-sm font-bold " + globalTimeClassExtra
             }
           >
-            {deliveries}
-          </div>
+            {globalTimeDisplay}s
+          </span>
         </div>
-        <div>
-          <div className="text-[0.6rem] uppercase text-slate-500">
-            Coins
+
+        {/* Stats row */}
+        <div className="mt-1 flex items-center gap-4">
+          <div>
+            <div className="text-[0.6rem] uppercase text-slate-500">
+              Level
+            </div>
+            <div className={levelColorClass}>{level}</div>
           </div>
-          <div className={coinsColorClass}>{coins}</div>
-        </div>
-        <div>
-          <div className="text-[0.6rem] uppercase text-slate-500">
-            Mud
+          <div>
+            <div className="text-[0.6rem] uppercase text-slate-500">
+              Distance
+            </div>
+            <div className={distanceColorClass}>{distance}</div>
           </div>
-          <div className={mudColorClass}>
-            {mudActive ? `${mudStepsRemaining} moves` : "—"}
+          <div>
+            <div className="text-[0.6rem] uppercase text-slate-500">
+              Deliveries
+            </div>
+            <div className={deliveriesColorClass}>{deliveries}</div>
           </div>
-        </div>
-        <div>
-          <div className="text-[0.6rem] uppercase text-slate-500">
-            Time
+          <div>
+            <div className="text-[0.6rem] uppercase text-slate-500">
+              Coins
+            </div>
+            <div className={coinsColorClass}>{coins}</div>
           </div>
-          <div className={timeColorClass}>{formattedGlobalTime}</div>
         </div>
       </div>
     </div>

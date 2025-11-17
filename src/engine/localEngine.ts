@@ -361,29 +361,6 @@ function generateMap(options: GameOptions, level: number): TileType[][] {
     }
   }
 
-  // coffee
-  const coffeeBase = 0.03;
-  const coffeePerLevel = 0.01;
-  const coffeeChance = Math.min(
-    coffeeBase + Math.max(level - 1, 0) * coffeePerLevel,
-    0.1
-  );
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      if (rows[y][x] !== "grass") continue;
-      if (rng() >= coffeeChance) continue;
-
-      const nearRoad =
-        (y > 0 && rows[y - 1][x] === "road") ||
-        (y < height - 1 && rows[y + 1][x] === "road") ||
-        (x > 0 && rows[y][x - 1] === "road") ||
-        (x < width - 1 && rows[y][x + 1] === "road");
-
-      if (nearRoad) {
-        rows[y][x] = "coffee";
-      }
-    }
-  }
 
   // shop: come prima, sempre vicino alla strada
   const shopCandidates: Position[] = [];

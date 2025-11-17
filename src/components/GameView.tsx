@@ -26,6 +26,8 @@ import {
   EquipmentChoiceOverlay,
   type EquipmentChoice,
 } from "./EquipmentChoiceOverlay";
+import { MalusPanel } from "./MalusPanel";
+import { TimePanel } from "./TimePanel";
 
 type UiPhase = "intro" | "playing" | "paused" | "summary" | "equipment";
 export type Skin = "rider" | "dustin";
@@ -42,7 +44,7 @@ type RewardPopup = {
   text: string;
   x: number;
   y: number;
-  variant: "coins" | "coffee" | "level" | "lucky";
+  variant: "coins" | "coffee" | "level";
 };
 
 type RunSummary = {
@@ -54,7 +56,7 @@ type RunSummary = {
 
 const DELIVERIES_PER_LEVEL = 5;
 const DELIVERY_COIN_REWARD = 3;
-const PERISHABLE_TIMEOUT_PENALTY = 3;
+const PERISHABLE_TIMEOUT_SECONDS_PENALTY = 20;
 
 export function GameView() {
   const { game, move, newMap, addCoins, completeDelivery, resetGame } =
@@ -83,7 +85,6 @@ export function GameView() {
 
   const inventoryWidth = Math.min(mapPixelWidth, viewportWidth - 80);
 
-  const [recentDelivery, setRecentDelivery] = useState(false);
   const [recentLevelUp, setRecentLevelUp] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [uiPhase, setUiPhase] = useState<UiPhase>("intro");
@@ -102,9 +103,6 @@ export function GameView() {
   const [inventory, setInventory] = useState<PackageItem[]>([]);
   const [inventoryHighlight, setInventoryHighlight] = useState(false);
   const [houses, setHouses] = useState<HouseMarker[]>([]);
-  const [packagesSpawnedThisLevel, setPackagesSpawnedThisLevel] =
-    useState(0);
-
   const [rewardPopups, setRewardPopups] = useState<RewardPopup[]>([]);
   const [runSummary, setRunSummary] = useState<RunSummary | null>(null);
   const [deliveryBurst, setDeliveryBurst] = useState<Position | null>(null);
@@ -113,12 +111,13 @@ export function GameView() {
   const [musicEnabled, setMusicEnabled] = useState(true);
   const [musicVolume, setMusicVolume] = useState(70);
   const [showSettings, setShowSettings] = useState(false);
-  const [showSessionMenu, setShowSessionMenu] = useState(false);
 
   const [activeShopPosition, setActiveShopPosition] =
     useState<Position | null>(null);
 
   const [warningFlash, setWarningFlash] = useState(false);
+
+  // Mud / malus
   const [mudStepsRemaining, setMudStepsRemaining] = useState(0);
 
   const [equipmentLevels, setEquipmentLevels] = useState<
@@ -189,10 +188,68 @@ export function GameView() {
       if (tile === "shop") shopsCount++;
     }
   }
+  
+  function deliverPackage(house: HouseMarker) {
+    const deliveredPackage = inventory.find(
+      (p) => p.id === house.packageId
+    );
+
+    const timeBonus =
+      deliveredPackage && deliveredPackage.kind === "perishable"
+        ? 20
+        : 15;
+
+    setGlobalTime((prev) => prev + timeBonus);
+
+    setInventory((prev) =>
+      prev.filter((p) => p.id !== house.packageId)
+    );
+    setHouses((prev) =>
+      prev.filter((h) => h.packageId !== house.packageId)
+    );
+
+    if (activePackage && activePackage.id === house.packageId) {
+      setActivePackageTimer(null);
+    }
+
+    addCoins(DELIVERY_COIN_REWARD);
+    completeDelivery();
+
+    if (sfxEnabled) {
+      sfx.playDelivery(theme);
+    }
+
+    setRiderShake(true);
+    setDeliveriesGlow(true);
+    setTimeout(() => setRiderShake(false), 220);
+    setTimeout(() => setDeliveriesGlow(false), 280);
+
+// quante consegne avremo dopo questa
+const deliveriesAfter = game.deliveries + 1;
+const deliveriesThisLevelAfter =
+  deliveriesAfter % DELIVERIES_PER_LEVEL;
+
+// se NON abbiamo ancora finito il livello, prepara un nuovo shop
+if (deliveriesThisLevelAfter !== 0) {
+  const nextShop = pickRandomShop(game.map);
+  if (nextShop) {
+    setActiveShopPosition(nextShop);
+  } else {
+    setActiveShopPosition(null);
+  }
+} else {
+  // quinta consegna del livello -> stop shop, il level-up penserà al resto
+  setActiveShopPosition(null);
+}
+
+    setTimeout(() => {
+      setDeliveryBurst(null);
+    }, 350);
+  }
 
   function spawnRewardPopup(
     text: string,
-    variant: RewardPopup["variant"]
+    variant: "coins" | "coffee" | "level"
   ) {
     const centerX = game.riderPosition.x * tileSize + tileSize / 2;
     const centerY = game.riderPosition.y * tileSize + tileSize / 2;
@@ -242,107 +299,65 @@ export function GameView() {
     return candidates[idx];
   }
 
-  function pickPackage(currentGame: typeof game) {
-    if (packagesSpawnedThisLevel >= DELIVERIES_PER_LEVEL) return;
-    if (inventory.length > 0 || houses.length > 0) return;
+function pickPackage(currentGame: typeof game) {
+// quante consegne ho fatto in questo livello
+const deliveriesThisLevel =
+currentGame.deliveries % DELIVERIES_PER_LEVEL;
 
-    const colors: PackageColor[] = [
-      "red",
-      "blue",
-      "green",
-      "yellow",
-      "purple",
-    ];
-    const color =
-      colors[Math.floor(Math.random() * colors.length)];
+// se ho già fatto tutte le consegne del livello, non spawnare altri pacchi
+if (deliveriesThisLevel >= DELIVERIES_PER_LEVEL) return;
 
-    const position = findFreeBuildingPosition(currentGame.map, houses);
-    if (!position) return;
+// se ho già un pacco o una casa attiva, non ne creo altri
+if (inventory.length > 0 || houses.length > 0) return;
 
-    const id =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random()}`;
+const colors: PackageColor[] = [
+"red",
+"blue",
+"green",
+"yellow",
+"purple",
+];
+const color =
+colors[Math.floor(Math.random() * colors.length)];
 
-    const kind: PackageKind = decidePackageKind(currentGame.level);
+const position = findFreeBuildingPosition(currentGame.map, houses);
+if (!position) return;
 
-    const pkg: PackageItem = {
-      id,
-      color,
-      kind,
-    };
+const id =
+typeof crypto !== "undefined" && "randomUUID" in crypto
+  ? crypto.randomUUID()
+  : `${Date.now()}-${Math.random()}`;
 
-    setInventory((prev) => [...prev, pkg]);
-    setHouses((prev) => [
-      ...prev,
-      { position, color: pkg.color, packageId: pkg.id },
-    ]);
-    setPackagesSpawnedThisLevel((count) => count + 1);
+const kind: PackageKind = decidePackageKind(currentGame.level);
 
-    if (kind === "perishable") {
-      const backpackLevel = equipmentLevels.backpack ?? 0;
-      const baseTimer = initialPerishableTimer(currentGame.level);
-      const bonus = backpackLevel;
-      setActivePackageTimer(baseTimer + bonus);
-    } else {
-      setActivePackageTimer(null);
-    }
+const pkg: PackageItem = {
+id,
+color,
+kind,
+};
 
-    setInventoryHighlight(true);
-    setTimeout(() => setInventoryHighlight(false), 350);
-  }
+setInventory((prev) => [...prev, pkg]);
+setHouses((prev) => [
+...prev,
+{ position, color: pkg.color, packageId: pkg.id },
+]);
 
-  function deliverPackage(house: HouseMarker) {
-    const deliveredPackage = inventory.find(
-      (p) => p.id === house.packageId
-    );
+// timer per i deperibili con bonus zaino
+if (kind === "perishable") {
+const backpackLevel = equipmentLevels.backpack ?? 0;
+const baseTimer = initialPerishableTimer(currentGame.level);
+const bonus = backpackLevel;
+setActivePackageTimer(baseTimer + bonus);
+} else {
+setActivePackageTimer(null);
+}
 
-    const timeBonus =
-      deliveredPackage && deliveredPackage.kind === "perishable"
-        ? 20
-        : 15;
+// micro-flash inventory
+setInventoryHighlight(true);
+setTimeout(() => setInventoryHighlight(false), 350);
+}
 
-    setGlobalTime((prev) => prev + timeBonus);
 
-    setInventory((prev) =>
-      prev.filter((p) => p.id !== house.packageId)
-    );
-    setHouses((prev) =>
-      prev.filter((h) => h.packageId !== house.packageId)
-    );
-
-    if (activePackage && activePackage.id === house.packageId) {
-      setActivePackageTimer(null);
-    }
-
-    addCoins(DELIVERY_COIN_REWARD);
-    completeDelivery();
-
-    if (sfxEnabled) {
-      sfx.playDelivery(theme);
-    }
-
-    setRiderShake(true);
-    setDeliveriesGlow(true);
-    setTimeout(() => setRiderShake(false), 220);
-    setTimeout(() => setDeliveriesGlow(false), 280);
-
-    if (packagesSpawnedThisLevel < DELIVERIES_PER_LEVEL) {
-      const nextShop = pickRandomShop(game.map);
-      if (nextShop) {
-        setActiveShopPosition(nextShop);
-      } else {
-        setActiveShopPosition(null);
-      }
-    } else {
-      setActiveShopPosition(null);
-    }
-
-    setDeliveryBurst(house.position);
-    setTimeout(() => {
-      setDeliveryBurst(null);
-    }, 350);
-  }
 
   function openEquipmentChoiceOverlay() {
     const allKeys: EquipmentKey[] = [
@@ -376,7 +391,6 @@ export function GameView() {
     if (choices.length > 0) {
       setEquipmentChoices(choices);
       setUiPhase("equipment");
-      setShowSessionMenu(false);
     }
   }
 
@@ -448,32 +462,12 @@ export function GameView() {
     prevCoinsRef.current = game.coinsCollected;
   }, [game.coinsCollected, sfxEnabled, theme]);
 
-  useEffect(() => {
-    if (game.deliveries > prevDeliveriesRef.current) {
-      setRecentDelivery(true);
-      const timeout = setTimeout(() => {
-        setRecentDelivery(false);
-      }, 900);
-
-      const justCompleted = game.deliveries;
-      const completedLevel =
-        justCompleted > 0 &&
-        justCompleted % DELIVERIES_PER_LEVEL === 0;
-
-      if (completedLevel) {
-        openEquipmentChoiceOverlay();
-      }
-
-      prevDeliveriesRef.current = game.deliveries;
-      return () => clearTimeout(timeout);
-    }
-    prevDeliveriesRef.current = game.deliveries;
-  }, [game.deliveries]);
-
+  // level up + equipment choice
   useEffect(() => {
     if (game.level > prevLevelRef.current) {
       setRecentLevelUp(true);
       spawnRewardPopup(`Level ${game.level}!`, "level");
+      openEquipmentChoiceOverlay();
 
       const timeout = setTimeout(() => {
         setRecentLevelUp(false);
@@ -488,7 +482,6 @@ export function GameView() {
   useEffect(() => {
     if (game.level !== levelRef.current) {
       levelRef.current = game.level;
-      setPackagesSpawnedThisLevel(0);
       setHouses([]);
       setInventory([]);
       setActiveShopPosition(null);
@@ -497,6 +490,7 @@ export function GameView() {
     }
   }, [game.level]);
 
+  // on rider movement (tile effects)
   useEffect(() => {
     const prev = prevPositionRef.current;
     const current = game.riderPosition;
@@ -507,33 +501,7 @@ export function GameView() {
 
     const tile = game.map[current.y][current.x];
 
-    if (tile === "coffee") {
-      spawnRewardPopup("Coffee break!", "coffee");
-
-      const coffeeLevel = equipmentLevels.coffeeThermos ?? 0;
-      if (coffeeLevel > 0) {
-        const bonusCoins = coffeeLevel;
-        addCoins(bonusCoins);
-      }
-    }
-
-    if (tile === "slow") {
-      // somma la durata del malus ad ogni passaggio
-      const duration = Math.floor(Math.random() * 10) + 1; // 1–10 moves
-      setMudStepsRemaining((prevSteps) => prevSteps + duration);
-
-      // perdita coin 0–5, ma non andiamo sotto zero
-      const rolledLoss = Math.floor(Math.random() * 6); // 0–5
-      const maxLoss = Math.min(rolledLoss, Math.max(0, game.coinsCollected));
-
-      if (maxLoss > 0) {
-        addCoins(-maxLoss);
-        spawnRewardPopup(`-${maxLoss} coins`, "coins");
-      } else {
-        // effetto lucky dedicato
-        spawnRewardPopup("Lucky ☘️", "lucky");
-      }
-    }
+    // Coffee tiles removed – no more bonuses here
 
     if (tile === "shop") {
       const isActiveShop =
@@ -569,14 +537,16 @@ export function GameView() {
     activeShopPosition,
     equipmentLevels,
     addCoins,
-    game.coinsCollected,
   ]);
 
   useEffect(() => {
+    const deliveriesThisLevel =
+      game.deliveries % DELIVERIES_PER_LEVEL;
+  
     if (
       inventory.length === 0 &&
       houses.length === 0 &&
-      packagesSpawnedThisLevel < DELIVERIES_PER_LEVEL &&
+      deliveriesThisLevel < DELIVERIES_PER_LEVEL &&
       !activeShopPosition
     ) {
       const shop = pickRandomShop(game.map);
@@ -587,11 +557,13 @@ export function GameView() {
   }, [
     inventory.length,
     houses.length,
-    packagesSpawnedThisLevel,
     activeShopPosition,
     game.map,
+    game.deliveries,
   ]);
+  
 
+  // package perishable decay on distance
   useEffect(() => {
     const prev = prevDistanceRef.current;
     const current = game.distance;
@@ -627,6 +599,7 @@ export function GameView() {
     equipmentLevels,
   ]);
 
+  // perishable warning flash
   useEffect(() => {
     if (!activePackage || activePackage.kind !== "perishable") {
       setWarningFlash(false);
@@ -644,6 +617,7 @@ export function GameView() {
     }
   }, [activePackage, activePackageTimer]);
 
+  // perishable expired -> time penalty
   useEffect(() => {
     if (!activePackage) return;
     if (activePackage.kind !== "perishable") return;
@@ -655,16 +629,13 @@ export function GameView() {
     setHouses((prev) => prev.filter((h) => h.packageId !== expiredId));
     setActivePackageTimer(null);
 
-    setPackagesSpawnedThisLevel((prev) => Math.max(0, prev - 1));
+    setGlobalTime((prev) =>
+      Math.max(0, prev - PERISHABLE_TIMEOUT_SECONDS_PENALTY)
+    );
+    spawnRewardPopup(`-${PERISHABLE_TIMEOUT_SECONDS_PENALTY}s (expired)`, "coins");
+  }, [activePackage, activePackageTimer]);
 
-    const helmetLevel = equipmentLevels.helmet ?? 0;
-    const basePenalty = PERISHABLE_TIMEOUT_PENALTY;
-    const reducedPenalty = Math.max(1, basePenalty - helmetLevel);
-
-    addCoins(-reducedPenalty);
-    spawnRewardPopup(`-${reducedPenalty} (expired)`, "coins");
-  }, [activePackage, activePackageTimer, addCoins, equipmentLevels]);
-
+  // Keyboard handling (movement, pause, help, mud)
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (uiPhase === "summary" || uiPhase === "equipment") {
@@ -682,9 +653,6 @@ export function GameView() {
 
       if (e.key === "Enter" || e.key === " ") {
         if (uiPhase === "intro") {
-          setGlobalTime(60);
-          setIsGameOver(false);
-          setIsLevelFrozen(false);
           setUiPhase("playing");
         }
         return;
@@ -699,19 +667,19 @@ export function GameView() {
         return;
       }
 
-      const direction = keyToDirection(e.key);
+      let direction = keyToDirection(e.key);
       if (!direction) return;
       if (uiPhase !== "playing") return;
 
-      let effectiveDirection = direction;
+      // Mud inversion
       if (mudStepsRemaining > 0) {
-        effectiveDirection = invertDirection(direction);
-        setMudStepsRemaining((n) => Math.max(0, n - 1));
+        direction = invertDirection(direction);
+        setMudStepsRemaining((prev) => Math.max(0, prev - 1));
       }
 
       const rawNextPos = getNextPosition(
         game.riderPosition,
-        effectiveDirection
+        direction
       );
       const nextPos = wrapPosition(rawNextPos, game.map);
 
@@ -728,9 +696,20 @@ export function GameView() {
         }
       }
 
+      // Mud penalty on entering slow tile
+      if (tile === "slow") {
+        const addedSteps = 1 + Math.floor(Math.random() * 10); // 1..10 steps
+        setMudStepsRemaining((prev) => prev + addedSteps);
+
+        const lostSeconds = 1 + Math.floor(Math.random() * 5); // 1..5 seconds
+        setGlobalTime((prev) => Math.max(0, prev - lostSeconds));
+        spawnRewardPopup(`-${lostSeconds}s (mud)`, "coins");
+      }
+
+      // first move after level-up -> unfreeze global timer
       setIsLevelFrozen(false);
 
-      move(effectiveDirection);
+      move(direction);
     }
 
     window.addEventListener("keydown", handleKeyDown);
@@ -768,6 +747,7 @@ export function GameView() {
     setGlobalTime(60);
     setIsGameOver(false);
     setIsLevelFrozen(false);
+    setMudStepsRemaining(0);
     setUiPhase("playing");
   }
 
@@ -781,10 +761,9 @@ export function GameView() {
     newMap();
     setInventory([]);
     setHouses([]);
-    setPackagesSpawnedThisLevel(0);
     setActiveShopPosition(null);
     setActivePackageTimer(null);
-    setShowSessionMenu(false);
+    setMudStepsRemaining(0);
   }
 
   function handleEndRun() {
@@ -802,13 +781,13 @@ export function GameView() {
     resetGame();
     setInventory([]);
     setHouses([]);
-    setPackagesSpawnedThisLevel(0);
     setActiveShopPosition(null);
     setRunSummary(null);
     setActivePackageTimer(null);
     setGlobalTime(60);
     setIsGameOver(false);
     setIsLevelFrozen(false);
+    setMudStepsRemaining(0);
     setUiPhase("playing");
   }
 
@@ -816,13 +795,13 @@ export function GameView() {
     resetGame();
     setInventory([]);
     setHouses([]);
-    setPackagesSpawnedThisLevel(0);
     setActiveShopPosition(null);
     setRunSummary(null);
     setActivePackageTimer(null);
     setGlobalTime(60);
     setIsGameOver(false);
     setIsLevelFrozen(false);
+    setMudStepsRemaining(0);
     setUiPhase("intro");
   }
 
@@ -850,13 +829,14 @@ export function GameView() {
         </div>
       )}
 
-      {recentDelivery && uiPhase === "playing" && (
+      {uiPhase === "playing" && (
         <div className="pointer-events-none fixed top-6 right-6 z-30 rounded-xl bg-white/90 px-4 py-2 text-sm font-semibold text-emerald-700 shadow-lg backdrop-blur">
           Delivery completed!
         </div>
       )}
 
-      <div className="z-10 mb-3 flex w-full max-w-6xl items-start justify-center gap-4">
+      {/* TOP BAR */}
+      <div className="z-10 mb-3 flex w-full max-w-6xl items-start justify-center">
         <HudBar
           level={game.level}
           distance={game.distance}
@@ -877,65 +857,12 @@ export function GameView() {
           }
           globalTime={globalTime}
           deliveriesGlow={deliveriesGlow}
-          mudStepsRemaining={mudStepsRemaining}
         />
-
-        <div className="mt-1 flex flex-col items-end md:hidden">
-          <button
-            className={
-              "flex h-9 w-9 items-center justify-center rounded-full border text-sm font-semibold shadow-sm transition " +
-              (theme === "hawkins"
-                ? "border-red-500/60 bg-slate-900/90 text-red-200 hover:bg-slate-800"
-                : "border-slate-300/70 bg-white/90 text-slate-700 hover:bg-slate-50")
-            }
-            onClick={() =>
-              setShowSessionMenu((prev) => !prev)
-            }
-            aria-label="Session menu"
-          >
-            ☰
-          </button>
-
-          {showSessionMenu && (
-            <div className="mt-2 w-48 rounded-2xl border border-slate-300/70 bg-white/95 px-3 py-3 text-[0.7rem] text-slate-800 shadow-lg backdrop-blur-sm">
-              <div className="mb-1 text-center text-[0.6rem] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Session controls
-              </div>
-              <div className="flex flex-col gap-2">
-                <button
-                  className="rounded-full bg-emerald-500 px-3 py-1 font-semibold text-white shadow-sm transition hover:bg-emerald-600"
-                  onClick={handleNewMap}
-                >
-                  New map
-                </button>
-                <button
-                  className="rounded-full bg-slate-100 px-3 py-1 font-semibold text-sky-700 shadow-sm transition hover:bg-white"
-                  onClick={() => {
-                    setShowHelp((prev) => !prev);
-                    setShowSessionMenu(false);
-                  }}
-                >
-                  Help (H)
-                </button>
-                <button
-                  className="rounded-full bg-slate-200 px-3 py-1 font-semibold text-slate-800 shadow-sm transition hover:bg-slate-300"
-                  onClick={() => {
-                    setShowSettings(true);
-                    setShowSessionMenu(false);
-                  }}
-                >
-                  Settings ⚙️
-                </button>
-              </div>
-              <div className="mt-2 text-center text-[0.6rem] text-slate-500">
-                Pause with <span className="font-semibold">P</span>
-              </div>
-            </div>
-          )}
-        </div>
       </div>
 
+      {/* MAP + EQUIPMENT + MALUS + TIME + INVENTORY */}
       <div className="z-10 mt-1 grid w-full max-w-6xl justify-center gap-4 md:grid-cols-[auto_auto]">
+        {/* MAP */}
         <div
           className="relative md:col-start-1 md:row-start-1"
           style={{ width: mapPixelWidth, height: mapPixelHeight }}
@@ -984,8 +911,9 @@ export function GameView() {
           <RewardPopupsLayer popups={rewardPopups} />
         </div>
 
+        {/* RIGHT COLUMN: equipment + malus (row 1) */}
         <div
-          className="md:col-start-2 md:row-start-1 md:row-span-2 flex flex-col gap-3"
+          className="md:col-start-2 md:row-start-1 flex flex-col gap-3"
           style={{ width: sidePanelWidth, maxHeight: mapPixelHeight }}
         >
           <div className="h-full min-h-0 overflow-hidden">
@@ -998,16 +926,13 @@ export function GameView() {
             </div>
           </div>
 
-          <div className="hidden md:block">
-            <SessionControlsPanel
-              theme={theme}
-              onNewMap={handleNewMap}
-              onToggleHelp={() => setShowHelp((prev) => !prev)}
-              onOpenSettings={() => setShowSettings(true)}
-            />
-          </div>
+          <MalusPanel
+            theme={theme}
+            mudStepsRemaining={mudStepsRemaining}
+          />
         </div>
 
+        {/* BOTTOM ROW: inventory (left) + time panel (right) */}
         <div className="md:col-start-1 md:row-start-2 mb-2 flex justify-center">
           <div style={{ width: inventoryWidth }}>
             <InventoryPanel
@@ -1015,6 +940,12 @@ export function GameView() {
               theme={theme}
               highlight={inventoryHighlight}
             />
+          </div>
+        </div>
+
+        <div className="md:col-start-2 md:row-start-2 mb-2 flex justify-end">
+          <div style={{ width: sidePanelWidth }}>
+            <TimePanel theme={theme} globalTime={globalTime} />
           </div>
         </div>
       </div>
@@ -1036,6 +967,10 @@ export function GameView() {
         coins={game.coinsCollected}
         onResume={handlePauseToggle}
         onEndRun={handleEndRun}
+        onNewMap={handleNewMap}
+        onToggleHelp={() => setShowHelp((prev) => !prev)}
+        onOpenSettings={() => setShowSettings(true)}
+        theme={theme}
       />
 
       <RunSummaryOverlay
@@ -1073,6 +1008,8 @@ export function GameView() {
     </div>
   );
 }
+
+/* === SettingsPanel, helpers & visual effects ========================= */
 
 type SettingsPanelProps = {
   visible: boolean;
@@ -1163,57 +1100,6 @@ function SettingsPanel({
   );
 }
 
-type SessionControlsPanelProps = {
-  theme: Theme;
-  onNewMap: () => void;
-  onToggleHelp: () => void;
-  onOpenSettings: () => void;
-};
-
-function SessionControlsPanel({
-  theme,
-  onNewMap,
-  onToggleHelp,
-  onOpenSettings,
-}: SessionControlsPanelProps) {
-  const panelClass =
-    theme === "hawkins"
-      ? "w-full rounded-2xl border border-red-500/50 bg-slate-900/90 px-3 py-3 text-[0.7rem] text-slate-100 shadow-lg backdrop-blur-sm"
-      : "w-full rounded-2xl border border-slate-300/70 bg-white/95 px-3 py-3 text-[0.7rem] text-slate-800 shadow-lg backdrop-blur-sm";
-
-  const titleClass =
-    "mb-2 text-center text-[0.6rem] font-semibold uppercase tracking-[0.18em] text-slate-500";
-
-  return (
-    <div className={panelClass}>
-      <div className={titleClass}>Session controls</div>
-      <div className="flex flex-col gap-2">
-        <button
-          className="w-full rounded-full bg-emerald-500 px-3 py-1 font-semibold text-white shadow-sm transition hover:bg-emerald-600"
-          onClick={onNewMap}
-        >
-          New map
-        </button>
-        <button
-          className="w-full rounded-full bg-slate-100 px-3 py-1 font-semibold text-sky-700 shadow-sm transition hover:bg-white"
-          onClick={onToggleHelp}
-        >
-          Help (H)
-        </button>
-        <button
-          className="w-full rounded-full bg-slate-200 px-3 py-1 font-semibold text-slate-800 shadow-sm transition hover:bg-slate-300"
-          onClick={onOpenSettings}
-        >
-          Settings ⚙️
-        </button>
-      </div>
-      <div className="mt-2 text-center text-[0.6rem] text-slate-500">
-        Pause with <span className="font-semibold">P</span>
-      </div>
-    </div>
-  );
-}
-
 function keyToDirection(key: string): Direction | null {
   switch (key) {
     case "ArrowUp":
@@ -1237,8 +1123,8 @@ function keyToDirection(key: string): Direction | null {
   }
 }
 
-function invertDirection(dir: Direction): Direction {
-  switch (dir) {
+function invertDirection(direction: Direction): Direction {
+  switch (direction) {
     case "up":
       return "down";
     case "down":
