@@ -137,7 +137,6 @@ export function GameView() {
     EquipmentChoice[] | null
   >(null);
 
-  const prevDeliveriesRef = useRef(game.deliveries);
   const prevLevelRef = useRef(game.level);
   const prevCoinsRef = useRef(game.coinsCollected);
   const prevPositionRef = useRef<Position>(game.riderPosition);

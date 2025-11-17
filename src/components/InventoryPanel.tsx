@@ -95,7 +95,6 @@ export function InventoryPanel({
               </div>
             </div>
 
-            {/* TIME SENSITIVE BADGE (ONLY PERISHABLE) */}
             {isPerishable && (
               <span className="flex items-center gap-1 rounded-full bg-black/10 px-2 py-[1px] text-[0.55rem] uppercase tracking-wide animate-pulse">
                 <span>⏱</span>
