@@ -10,6 +10,7 @@ export type EquipmentKey =
 type EquipmentPanelProps = {
   theme: Theme;
   equipmentLevels?: Partial<Record<EquipmentKey, number>>;
+  highlightedKey?: EquipmentKey | null;
 };
 
 const EQUIPMENT_SLOTS: {
@@ -53,6 +54,7 @@ const EQUIPMENT_SLOTS: {
 export function EquipmentPanel({
   theme,
   equipmentLevels,
+  highlightedKey,
 }: EquipmentPanelProps) {
   const panelClass =
     theme === "hawkins"
@@ -94,11 +96,16 @@ export function EquipmentPanel({
         {EQUIPMENT_SLOTS.map((slot) => {
           const level = equipmentLevels?.[slot.key] ?? 0;
           const hasLevel = level > 0;
+          const isHighlighted = highlightedKey === slot.key;
 
           return (
             <div
               key={slot.key}
-              className={`${slotBaseClass} ${slotColorClass}`}
+              className={`${slotBaseClass} ${slotColorClass} ${
+                isHighlighted
+                  ? "ring-2 ring-emerald-400/70 animate-pulse"
+                  : ""
+              }`}
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-start gap-2">

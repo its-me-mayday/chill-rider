@@ -43,8 +43,8 @@ export function HudBar({
 
   const barClass =
     theme === "hawkins"
-      ? "z-10 mb-2 flex w-full max-w-3xl items-center justify-between gap-4 rounded-2xl border border-red-500/60 bg-slate-900/90 px-5 py-2 shadow-lg backdrop-blur-sm"
-      : "z-10 mb-2 flex w-full max-w-3xl items-center justify-between gap-4 rounded-2xl border border-slate-300/70 bg-white/85 px-5 py-2 shadow-lg backdrop-blur-sm";
+      ? "z-10 mb-2 flex w-full max-w-6xl items-center justify-between gap-4 rounded-2xl border border-red-500/60 bg-slate-900/90 px-6 py-1.5 shadow-lg backdrop-blur-sm"
+      : "z-10 mb-2 flex w-full max-w-6xl items-center justify-between gap-4 rounded-2xl border border-slate-300/70 bg-white/85 px-6 py-1.5 shadow-lg backdrop-blur-sm";
 
   const subtitleClass =
     theme === "hawkins"
@@ -129,12 +129,12 @@ export function HudBar({
         </p>
 
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.65rem] text-slate-500">
-            <span>
-              Level progress:{" "}
-              <span className="font-semibold text-slate-700">
-                {deliveriesThisLevel}/{deliveriesPerLevel}
-              </span>
+          <span>
+            Level progress:{" "}
+            <span className="font-semibold text-slate-700">
+              {deliveriesThisLevel}/{deliveriesPerLevel}
             </span>
+          </span>
 
           {hasTarget && targetColor && (
             <span className="flex items-center gap-1">

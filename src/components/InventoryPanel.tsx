@@ -4,6 +4,7 @@ import type { PackageItem, PackageColor } from "../types/Package";
 type InventoryPanelProps = {
   inventory: PackageItem[];
   theme: Theme;
+  highlight?: boolean;
 };
 
 const PACKAGE_COLORS: Record<PackageColor, string> = {
@@ -14,22 +15,31 @@ const PACKAGE_COLORS: Record<PackageColor, string> = {
   purple: "#a855f7",
 };
 
-export function InventoryPanel({ inventory, theme }: InventoryPanelProps) {
+export function InventoryPanel({
+  inventory,
+  theme,
+  highlight = false,
+}: InventoryPanelProps) {
   const active = inventory[0] ?? null;
   const isPerishable = active?.kind === "perishable";
 
-  const panelClass =
+  const basePanelClass =
     theme === "hawkins"
-      ? "w-full rounded-2xl border border-red-500/60 bg-slate-900/90 px-4 py-3 shadow-lg backdrop-blur-sm"
-      : "w-full rounded-2xl border border-slate-300/80 bg-white/90 px-4 py-3 shadow-lg backdrop-blur-sm";
+      ? "w-full rounded-2xl border border-red-500/60 bg-slate-900/90 px-4 py-2 shadow-lg backdrop-blur-sm"
+      : "w-full rounded-2xl border border-slate-300/80 bg-white/90 px-4 py-2 shadow-lg backdrop-blur-sm";
+
+  const panelHighlightClass = highlight
+    ? " ring-2 ring-emerald-300/70 animate-pulse"
+    : "";
 
   const titleClass =
     theme === "hawkins"
-      ? "text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-slate-400"
-      : "text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-slate-500";
+      ? "text-[0.6rem] font-semibold uppercase tracking-[0.18em] text-slate-400"
+      : "text-[0.6rem] font-semibold uppercase tracking-[0.18em] text-slate-500";
 
+  // slot più sottile
   const slotBaseClass =
-    "mt-2 flex min-h-[56px] w-full items-center justify-between rounded-xl border px-4 py-2 text-[0.75rem] transition-colors";
+    "mt-1 flex min-h-[44px] w-full items-center justify-between rounded-xl border px-3 py-2 text-[0.7rem] transition-colors";
 
   const slotThemeClass = (() => {
     if (isPerishable) {
@@ -43,7 +53,7 @@ export function InventoryPanel({ inventory, theme }: InventoryPanelProps) {
   })();
 
   return (
-    <div className={panelClass}>
+    <div className={basePanelClass + panelHighlightClass}>
       <div className="flex items-center justify-between">
         <h2 className={titleClass}>Inventory</h2>
       </div>
@@ -53,7 +63,7 @@ export function InventoryPanel({ inventory, theme }: InventoryPanelProps) {
           <>
             <div className="flex items-center gap-3">
               {/* ICON BOX */}
-              <div className="relative flex h-8 w-8 items-center justify-center rounded-md border border-slate-800/30 bg-black/5 shadow-sm">
+              <div className="relative flex h-7 w-7 items-center justify-center rounded-md border border-slate-800/30 bg-black/5 shadow-sm">
                 <div
                   className="absolute inset-0 rounded-md opacity-70"
                   style={{
@@ -61,7 +71,7 @@ export function InventoryPanel({ inventory, theme }: InventoryPanelProps) {
                     mixBlendMode: "multiply",
                   }}
                 />
-                <span className="relative text-xs">📦</span>
+                <span className="relative text-[0.7rem]">📦</span>
 
                 {/* Radar ping only if perishable */}
                 {isPerishable && (
@@ -74,10 +84,10 @@ export function InventoryPanel({ inventory, theme }: InventoryPanelProps) {
 
               {/* TEXT */}
               <div className="flex flex-col">
-                <span className="text-[0.75rem] font-semibold">
+                <span className="text-[0.7rem] font-semibold">
                   Package
                 </span>
-                <span className="text-[0.65rem] opacity-80 capitalize">
+                <span className="text-[0.6rem] opacity-80 capitalize">
                   {active.kind === "perishable"
                     ? "Perishable delivery"
                     : "Standard delivery"}
@@ -87,14 +97,14 @@ export function InventoryPanel({ inventory, theme }: InventoryPanelProps) {
 
             {/* TIME SENSITIVE BADGE (ONLY PERISHABLE) */}
             {isPerishable && (
-              <span className="flex items-center gap-1 rounded-full bg-black/10 px-2 py-[2px] text-[0.6rem] uppercase tracking-wide animate-pulse">
+              <span className="flex items-center gap-1 rounded-full bg-black/10 px-2 py-[1px] text-[0.55rem] uppercase tracking-wide animate-pulse">
                 <span>⏱</span>
                 <span>Time sensitive</span>
               </span>
             )}
           </>
         ) : (
-          <div className="flex w-full items-center justify-center text-[0.7rem] opacity-70">
+          <div className="flex w-full items-center justify-center text-[0.65rem] opacity-70">
             No package picked up.
           </div>
         )}

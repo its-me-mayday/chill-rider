@@ -67,13 +67,11 @@ export function GameView() {
   const viewportHeight =
     typeof window !== "undefined" ? window.innerHeight : 768;
 
-  // One side panel (equipment) width, proportional but clamped
   const sidePanelWidth =
     typeof window !== "undefined"
       ? Math.max(180, Math.min(260, window.innerWidth * 0.22))
       : 220;
 
-  // Map width keeps room for ONE side panel plus some margin
   const maxMapWidth = Math.max(
     320,
     viewportWidth - sidePanelWidth - 80
@@ -88,7 +86,6 @@ export function GameView() {
   const mapPixelWidth = tilesX * tileSize;
   const mapPixelHeight = tilesY * tileSize;
 
-  // Inventory a bit smaller than viewport to avoid touching screen edges
   const inventoryWidth = Math.min(mapPixelWidth, viewportWidth - 80);
 
   const [recentDelivery, setRecentDelivery] = useState(false);
@@ -101,6 +98,7 @@ export function GameView() {
     useState<number | null>(null);
 
   const [inventory, setInventory] = useState<PackageItem[]>([]);
+  const [inventoryHighlight, setInventoryHighlight] = useState(false);
   const [houses, setHouses] = useState<HouseMarker[]>([]);
   const [packagesSpawnedThisLevel, setPackagesSpawnedThisLevel] =
     useState(0);
@@ -129,6 +127,9 @@ export function GameView() {
     coffeeThermos: 0,
     backpack: 0,
   });
+
+  const [recentUpgradedKey, setRecentUpgradedKey] =
+    useState<EquipmentKey | null>(null);
 
   const [equipmentChoices, setEquipmentChoices] = useState<
     EquipmentChoice[] | null
@@ -278,11 +279,15 @@ export function GameView() {
     if (kind === "perishable") {
       const backpackLevel = equipmentLevels.backpack ?? 0;
       const baseTimer = initialPerishableTimer(currentGame.level);
-      const bonus = backpackLevel; // +1s per backpack level
+      const bonus = backpackLevel;
       setActivePackageTimer(baseTimer + bonus);
     } else {
       setActivePackageTimer(null);
     }
+
+    // micro-flash inventory
+    setInventoryHighlight(true);
+    setTimeout(() => setInventoryHighlight(false), 350);
   }
 
   function deliverPackage(house: HouseMarker) {
@@ -364,6 +369,9 @@ export function GameView() {
     }));
     setEquipmentChoices(null);
     setUiPhase("playing");
+
+    setRecentUpgradedKey(choice.key);
+    setTimeout(() => setRecentUpgradedKey(null), 600);
   }
 
   function handleEquipmentSkip() {
@@ -371,7 +379,6 @@ export function GameView() {
     setUiPhase("playing");
   }
 
-  // coins popup & sfx
   useEffect(() => {
     if (game.coinsCollected > prevCoinsRef.current) {
       const gained = game.coinsCollected - prevCoinsRef.current;
@@ -388,7 +395,6 @@ export function GameView() {
     prevCoinsRef.current = game.coinsCollected;
   }, [game.coinsCollected, sfxEnabled, theme]);
 
-  // delivery flash
   useEffect(() => {
     if (game.deliveries > prevDeliveriesRef.current) {
       setRecentDelivery(true);
@@ -401,7 +407,6 @@ export function GameView() {
     prevDeliveriesRef.current = game.deliveries;
   }, [game.deliveries]);
 
-  // level up: animation + remember last level
   useEffect(() => {
     if (game.level > prevLevelRef.current) {
       setRecentLevelUp(true);
@@ -417,7 +422,6 @@ export function GameView() {
     prevLevelRef.current = game.level;
   }, [game.level]);
 
-  // when level changes, reset per-level stuff and open equipment choice
   useEffect(() => {
     if (game.level !== levelRef.current) {
       levelRef.current = game.level;
@@ -433,7 +437,6 @@ export function GameView() {
     }
   }, [game.level]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // tile interactions (coffee, shop, house)
   useEffect(() => {
     const prev = prevPositionRef.current;
     const current = game.riderPosition;
@@ -490,7 +493,6 @@ export function GameView() {
     addCoins,
   ]);
 
-  // ensure a shop is highlighted when needed
   useEffect(() => {
     if (
       inventory.length === 0 &&
@@ -511,7 +513,6 @@ export function GameView() {
     game.map,
   ]);
 
-  // distance-based perishable timer with bike frame bonus
   useEffect(() => {
     const prev = prevDistanceRef.current;
     const current = game.distance;
@@ -529,7 +530,7 @@ export function GameView() {
     if (activePackageTimer === null) return;
 
     const bikeLevel = equipmentLevels.bikeFrame ?? 0;
-    const decayModifier = Math.max(0.5, 1 - bikeLevel * 0.05); // up to 50% slower decay
+    const decayModifier = Math.max(0.5, 1 - bikeLevel * 0.05);
     const effectiveSteps = Math.max(
       1,
       Math.round(movedSteps * decayModifier)
@@ -547,7 +548,6 @@ export function GameView() {
     equipmentLevels,
   ]);
 
-  // subtle red flash when timer is low
   useEffect(() => {
     if (!activePackage || activePackage.kind !== "perishable") {
       setWarningFlash(false);
@@ -565,7 +565,6 @@ export function GameView() {
     }
   }, [activePackage, activePackageTimer]);
 
-  // penalty on perishable timeout (helmet reduces)
   useEffect(() => {
     if (!activePackage) return;
     if (activePackage.kind !== "perishable") return;
@@ -585,7 +584,6 @@ export function GameView() {
     spawnRewardPopup(`-${reducedPenalty} (expired)`, "coins");
   }, [activePackage, activePackageTimer, addCoins, equipmentLevels]);
 
-  // keyboard controls
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (uiPhase === "summary" || uiPhase === "equipment") {
@@ -654,7 +652,6 @@ export function GameView() {
     houses,
   ]);
 
-  // music
   useEffect(() => {
     if (musicEnabled) {
       bgm.play(theme);
@@ -734,7 +731,6 @@ export function GameView() {
         <div className="pointer-events-none absolute inset-0 z-0 animate-pulse bg-red-500/8" />
       )}
 
-      {/* CENTERED LEVEL-UP ANIMATION */}
       {recentLevelUp && uiPhase === "playing" && (
         <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center">
           <div className="animate-[bounce_0.8s_ease-out] rounded-3xl border border-amber-400/80 bg-black/70 px-10 py-6 text-center shadow-2xl backdrop-blur">
@@ -757,7 +753,7 @@ export function GameView() {
         </div>
       )}
 
-      {/* TOP BAR + HAMBURGER (MOBILE ONLY) */}
+      {/* TOP BAR + mobile hamburger */}
       <div className="z-10 mb-3 flex w-full max-w-6xl items-start justify-center gap-4">
         <HudBar
           level={game.level}
@@ -779,7 +775,7 @@ export function GameView() {
           }
         />
 
-        {/* Mobile hamburger for session controls */}
+        {/* mobile-only hamburger */}
         <div className="mt-1 flex flex-col items-end md:hidden">
           <button
             className={
@@ -835,9 +831,8 @@ export function GameView() {
         </div>
       </div>
 
-      {/* MAP + EQUIPMENT + INVENTORY (aligned) */}
+      {/* MAP + EQUIPMENT + INVENTORY */}
       <div className="z-10 mt-1 grid w-full max-w-6xl justify-center gap-4 md:grid-cols-[auto_auto]">
-        {/* Map */}
         <div
           className="relative md:col-start-1 md:row-start-1"
           style={{ width: mapPixelWidth, height: mapPixelHeight }}
@@ -860,7 +855,6 @@ export function GameView() {
           <RewardPopupsLayer popups={rewardPopups} />
         </div>
 
-        {/* Right: equipment + desktop session controls */}
         <div
           className="md:col-start-2 md:row-start-1 md:row-span-2 flex flex-col gap-3"
           style={{ width: sidePanelWidth, maxHeight: mapPixelHeight }}
@@ -870,11 +864,11 @@ export function GameView() {
               <EquipmentPanel
                 theme={theme}
                 equipmentLevels={equipmentLevels}
+                highlightedKey={recentUpgradedKey}
               />
             </div>
           </div>
 
-          {/* Desktop session controls (fills the empty space) */}
           <div className="hidden md:block">
             <SessionControlsPanel
               theme={theme}
@@ -885,10 +879,13 @@ export function GameView() {
           </div>
         </div>
 
-        {/* Inventory – always under map column, a bit narrower and centered */}
         <div className="md:col-start-1 md:row-start-2 mb-2 flex justify-center">
           <div style={{ width: inventoryWidth }}>
-            <InventoryPanel inventory={inventory} theme={theme} />
+            <InventoryPanel
+              inventory={inventory}
+              theme={theme}
+              highlight={inventoryHighlight}
+            />
           </div>
         </div>
       </div>
@@ -966,7 +963,7 @@ function SettingsPanel({
 
   return (
     <div className="fixed top-24 right-6 z-40 w-72 rounded-2xl border border-slate-300/80 bg-white/95 px-4 py-4 text-xs text-slate-800 shadow-xl backdrop-blur-sm">
-      <div className="mb-2 flex items-center justify_between">
+      <div className="mb-2 flex items-center justify-between">
         <h2 className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-slate-500">
           Settings
         </h2>
