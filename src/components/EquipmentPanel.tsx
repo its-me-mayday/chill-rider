@@ -109,7 +109,7 @@ export function EquipmentPanel({
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-start gap-2">
-                  <span className="mt-[1px] text-sm">
+                  <span className="mt-px text-sm">
                     {slot.icon}
                   </span>
                   <div className="flex flex-col">

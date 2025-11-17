@@ -473,7 +473,6 @@ useEffect(() => {
         justCompleted > 0 &&
         justCompleted % DELIVERIES_PER_LEVEL === 0;
 
-      // fine livello -> apri scelta equip
       if (completedLevel) {
         openEquipmentChoiceOverlay();
         setUiPhase("equipment");
@@ -588,6 +587,7 @@ useEffect(() => {
     activeShopPosition,
     game.map,
   ]);
+  
 
   useEffect(() => {
     const prev = prevDistanceRef.current;
@@ -652,6 +652,8 @@ useEffect(() => {
     setHouses((prev) => prev.filter((h) => h.packageId !== expiredId));
     setActivePackageTimer(null);
 
+    setPackagesSpawnedThisLevel((prev) => Math.max(0, prev - 1));
+
     const helmetLevel = equipmentLevels.helmet ?? 0;
     const basePenalty = PERISHABLE_TIMEOUT_PENALTY;
     const reducedPenalty = Math.max(1, basePenalty - helmetLevel);
@@ -659,6 +661,7 @@ useEffect(() => {
     addCoins(-reducedPenalty);
     spawnRewardPopup(`-${reducedPenalty} (expired)`, "coins");
   }, [activePackage, activePackageTimer, addCoins, equipmentLevels]);
+
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {

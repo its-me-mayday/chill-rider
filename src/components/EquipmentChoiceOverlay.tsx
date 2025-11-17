@@ -136,7 +136,7 @@ export function EquipmentChoiceOverlay({
                         {meta.label}
                       </span>
                       <span
-                        className={`rounded-full px-2 py-[1px] text-[0.6rem] font-semibold uppercase tracking-wide ${badgeTheme}`}
+                        className={`rounded-full px-2 py-px text-[0.6rem] font-semibold uppercase tracking-wide ${badgeTheme}`}
                       >
                         Lv. {currentLevel} → {choice.nextLevel}
                       </span>
