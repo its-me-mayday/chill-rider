@@ -27,6 +27,7 @@ type MapViewProps = {
   houses: HouseMarker[];
   targetHousePosition: Position | null;
   pickupShopPosition: Position | null;
+  shakeRider?: boolean;
 };
 
 export function MapView({
@@ -42,6 +43,7 @@ export function MapView({
   houses,
   targetHousePosition,
   pickupShopPosition,
+  shakeRider,
 }: MapViewProps) {
   const frameClass =
     theme === "hawkins"
@@ -180,15 +182,23 @@ export function MapView({
                   </div>
                 )}
 
-                {isRider && (
-                  <div className="absolute inset-[12%] flex items-center justify-center">
-                    <RiderSprite
-                      size={tileSize * 0.7}
-                      direction={facing}
-                      skin={skin}
-                    />
-                  </div>
-                )}
+{isRider && (
+  <div
+    className={
+      "absolute inset-[12%] flex items-center justify-center transition-transform " +
+      (shakeRider
+        ? " animate-[wiggle_0.18s_ease-in-out_2]"
+        : "")
+    }
+  >
+    <RiderSprite
+      size={tileSize * 0.7}
+      direction={facing}
+      skin={skin}
+    />
+  </div>
+)}
+
               </div>
             );
           })}

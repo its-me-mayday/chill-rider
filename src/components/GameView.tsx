@@ -93,6 +93,10 @@ export function GameView() {
   const [showHelp, setShowHelp] = useState(false);
   const [uiPhase, setUiPhase] = useState<UiPhase>("intro");
   const [selectedSkin, setSelectedSkin] = useState<Skin>("rider");
+  
+  const [riderShake, setRiderShake] = useState(false);
+  const [deliveriesGlow, setDeliveriesGlow] = useState(false);
+
 
   const [activePackageTimer, setActivePackageTimer] =
     useState<number | null>(null);
@@ -107,6 +111,8 @@ export function GameView() {
   const [runSummary, setRunSummary] = useState<RunSummary | null>(
     null
   );
+  const [deliveryBurst, setDeliveryBurst] = useState<Position | null>(null);
+
   const [sfxEnabled, setSfxEnabled] = useState(true);
   const [musicEnabled, setMusicEnabled] = useState(true);
   const [musicVolume, setMusicVolume] = useState(70);
@@ -297,23 +303,28 @@ export function GameView() {
     setHouses((prev) =>
       prev.filter((h) => h.packageId !== house.packageId)
     );
-
+  
     if (activePackage && activePackage.id === house.packageId) {
       setActivePackageTimer(null);
     }
-
+  
     const bellLevel = equipmentLevels.bell ?? 0;
     const extraFromBell =
       bellLevel > 0 ? Math.floor((bellLevel + 1) / 2) : 0;
     const totalReward = DELIVERY_COIN_REWARD + extraFromBell;
-
+  
     addCoins(totalReward);
     completeDelivery();
-
+  
     if (sfxEnabled) {
       sfx.playDelivery(theme);
     }
-
+  
+    setRiderShake(true);
+    setDeliveriesGlow(true);
+    setTimeout(() => setRiderShake(false), 220);
+    setTimeout(() => setDeliveriesGlow(false), 280);
+  
     if (packagesSpawnedThisLevel < DELIVERIES_PER_LEVEL) {
       const nextShop = pickRandomShop(game.map);
       if (nextShop) {
@@ -324,7 +335,13 @@ export function GameView() {
     } else {
       setActiveShopPosition(null);
     }
+  
+    setDeliveryBurst(house.position);
+    setTimeout(() => {
+      setDeliveryBurst(null);
+    }, 350);
   }
+  
 
   function openEquipmentChoiceOverlay() {
     const allKeys: EquipmentKey[] = [
@@ -755,25 +772,27 @@ export function GameView() {
 
       {/* TOP BAR + mobile hamburger */}
       <div className="z-10 mb-3 flex w-full max-w-6xl items-start justify-center gap-4">
-        <HudBar
-          level={game.level}
-          distance={game.distance}
-          deliveries={game.deliveries}
-          coins={game.coinsCollected}
-          theme={theme}
-          targetColor={activePackage ? activePackage.color : null}
-          deliveriesThisLevel={deliveriesThisLevel}
-          deliveriesPerLevel={DELIVERIES_PER_LEVEL}
-          housesCount={housesCount}
-          shopsCount={shopsCount}
-          houseDirection={houseDirection}
-          shopDirection={shopDirection}
-          targetTimer={
-            activePackage && activePackage.kind === "perishable"
-              ? activePackageTimer
-              : null
-          }
-        />
+      <HudBar
+  level={game.level}
+  distance={game.distance}
+  deliveries={game.deliveries}
+  coins={game.coinsCollected}
+  theme={theme}
+  targetColor={activePackage ? activePackage.color : null}
+  deliveriesThisLevel={deliveriesThisLevel}
+  deliveriesPerLevel={DELIVERIES_PER_LEVEL}
+  housesCount={housesCount}
+  shopsCount={shopsCount}
+  houseDirection={houseDirection}
+  shopDirection={shopDirection}
+  targetTimer={
+    activePackage && activePackage.kind === "perishable"
+      ? activePackageTimer
+      : null
+  }
+  deliveriesGlow={deliveriesGlow}
+/>
+
 
         {/* mobile-only hamburger */}
         <div className="mt-1 flex flex-col items-end md:hidden">
@@ -837,23 +856,53 @@ export function GameView() {
           className="relative md:col-start-1 md:row-start-1"
           style={{ width: mapPixelWidth, height: mapPixelHeight }}
         >
-          <MapView
-            map={game.map}
-            riderPosition={game.riderPosition}
-            coins={game.coins}
-            facing={game.facing}
-            skin={selectedSkin}
-            tileSize={tileSize}
-            width={mapPixelWidth}
-            height={mapPixelHeight}
-            theme={theme}
-            houses={houses}
-            targetHousePosition={targetHousePosition}
-            pickupShopPosition={activeShopPosition}
-          />
+<MapView
+  map={game.map}
+  riderPosition={game.riderPosition}
+  coins={game.coins}
+  facing={game.facing}
+  skin={selectedSkin}
+  tileSize={tileSize}
+  width={mapPixelWidth}
+  height={mapPixelHeight}
+  theme={theme}
+  houses={houses}
+  targetHousePosition={targetHousePosition}
+  pickupShopPosition={activeShopPosition}
+  shakeRider={riderShake}
+/>
 
-          <RewardPopupsLayer popups={rewardPopups} />
-        </div>
+
+  {/* ACTIVE SHOP MARKER */}
+  {activeShopPosition && (
+    <TileMarker
+      kind="shop"
+      position={activeShopPosition}
+      tileSize={tileSize}
+      theme={theme}
+    />
+  )}
+
+  {/* TARGET HOUSE MARKER */}
+  {targetHousePosition && targetHouse && (
+    <TileMarker
+      kind="house"
+      position={targetHousePosition}
+      tileSize={tileSize}
+      theme={theme}
+    />
+  )}
+
+  {/* DELIVERY BURST ON HOUSE */}
+  {deliveryBurst && (
+    <DeliveryBurstEffect
+      position={deliveryBurst}
+      tileSize={tileSize}
+    />
+  )}
+
+  <RewardPopupsLayer popups={rewardPopups} />
+</div>
 
         <div
           className="md:col-start-2 md:row-start-1 md:row-span-2 flex flex-col gap-3"
@@ -1193,3 +1242,86 @@ function computeDirectionLabel(
 
   return null;
 }
+
+type TileMarkerProps = {
+  kind: "shop" | "house";
+  position: Position;
+  tileSize: number;
+  theme: Theme;
+};
+
+function TileMarker({
+  kind,
+  position,
+  tileSize,
+  theme,
+}: TileMarkerProps) {
+  const cx = position.x * tileSize + tileSize / 2;
+  const cy = position.y * tileSize + tileSize / 2;
+
+  const isHawkins = theme === "hawkins";
+
+  const ringColorClass =
+    kind === "shop"
+      ? isHawkins
+        ? "border-cyan-300/80"
+        : "border-sky-400/80"
+      : isHawkins
+      ? "border-emerald-300/80"
+      : "border-emerald-500/80";
+
+  return (
+    <div
+      className="pointer-events-none absolute"
+      style={{
+        left: cx,
+        top: cy,
+        width: tileSize * 1.3,
+        height: tileSize * 1.3,
+        transform: "translate(-50%, -50%)",
+      }}
+    >
+      <div
+        className={
+          "absolute inset-0 rounded-full border-2 bg-transparent " +
+          ringColorClass +
+          " animate-ping"
+        }
+      />
+
+    </div>
+  );
+}
+
+
+type DeliveryBurstEffectProps = {
+  position: Position;
+  tileSize: number;
+};
+
+function DeliveryBurstEffect({
+  position,
+  tileSize,
+}: DeliveryBurstEffectProps) {
+  const cx = position.x * tileSize + tileSize / 2;
+  const cy = position.y * tileSize + tileSize / 2;
+
+  return (
+    <div
+      className="pointer-events-none absolute"
+      style={{
+        left: cx,
+        top: cy,
+        width: tileSize * 1.6,
+        height: tileSize * 1.6,
+        transform: "translate(-50%, -50%)",
+      }}
+    >
+      <div className="absolute inset-0 rounded-full bg-emerald-400/25 animate-ping" />
+      <div className="absolute inset-[20%] flex items-center justify-center rounded-full border-2 border-emerald-500 bg-emerald-400/80 text-[0.75rem] font-bold text-emerald-950 shadow-lg">
+        ✓
+      </div>
+    </div>
+  );
+}
+

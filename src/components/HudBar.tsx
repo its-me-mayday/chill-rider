@@ -19,6 +19,7 @@ type HudBarProps = {
     houseId: string;
   } | undefined;
   targetTimer?: number | null;
+  deliveriesGlow?: boolean;
 };
 
 export function HudBar({
@@ -35,6 +36,7 @@ export function HudBar({
   houseDirection,
   shopDirection,
   targetTimer,
+  deliveriesGlow,
 }: HudBarProps) {
   const titleClass =
     theme === "hawkins"
@@ -70,6 +72,11 @@ export function HudBar({
     theme === "hawkins"
       ? "text-base font-semibold text-amber-300"
       : "text-base font-semibold text-amber-500";
+
+      const deliveriesHighlightClass = deliveriesGlow
+      ? " animate-pulse drop-shadow-[0_0_8px_rgba(16,185,129,0.8)] scale-[1.06]"
+      : "";
+  
 
   const targetColorHex: Record<PackageColor, string> = {
     red: "#f97373",
@@ -185,11 +192,18 @@ export function HudBar({
           <div className={distanceColorClass}>{distance}</div>
         </div>
         <div>
-          <div className="text-[0.6rem] uppercase text-slate-500">
-            Deliveries
-          </div>
-          <div className={deliveriesColorClass}>{deliveries}</div>
-        </div>
+  <div className="text-[0.6rem] uppercase text-slate-500">
+    Deliveries
+  </div>
+  <div
+    className={
+      deliveriesColorClass + " " + deliveriesHighlightClass
+    }
+  >
+    {deliveries}
+  </div>
+</div>
+
         <div>
           <div className="text-[0.6rem] uppercase text-slate-500">
             Coins
