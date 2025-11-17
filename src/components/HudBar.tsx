@@ -14,11 +14,8 @@ type HudBarProps = {
   shopsCount: number;
   houseDirection: string | null;
   shopDirection: string | null;
-  target?: {
-    houseColor: string;
-    houseId: string;
-  } | undefined;
   targetTimer?: number | null;
+  globalTime: number;
   deliveriesGlow?: boolean;
 };
 
@@ -36,6 +33,7 @@ export function HudBar({
   houseDirection,
   shopDirection,
   targetTimer,
+  globalTime,
   deliveriesGlow,
 }: HudBarProps) {
   const titleClass =
@@ -45,8 +43,8 @@ export function HudBar({
 
   const barClass =
     theme === "hawkins"
-      ? "z-10 mb-2 flex w-full max-w-6xl items-center justify-between gap-4 rounded-2xl border border-red-500/60 bg-slate-900/90 px-6 py-1.5 shadow-lg backdrop-blur-sm"
-      : "z-10 mb-2 flex w-full max-w-6xl items-center justify-between gap-4 rounded-2xl border border-slate-300/70 bg-white/85 px-6 py-1.5 shadow-lg backdrop-blur-sm";
+      ? "z-10 mb-2 flex w-full max-w-5xl items-center justify-between gap-4 rounded-2xl border border-red-500/60 bg-slate-900/90 px-5 py-1.5 shadow-lg backdrop-blur-sm"
+      : "z-10 mb-2 flex w-full max-w-5xl items-center justify-between gap-4 rounded-2xl border border-slate-300/70 bg-white/85 px-5 py-1.5 shadow-lg backdrop-blur-sm";
 
   const subtitleClass =
     theme === "hawkins"
@@ -73,11 +71,6 @@ export function HudBar({
       ? "text-base font-semibold text-amber-300"
       : "text-base font-semibold text-amber-500";
 
-      const deliveriesHighlightClass = deliveriesGlow
-      ? " animate-pulse drop-shadow-[0_0_8px_rgba(16,185,129,0.8)] scale-[1.06]"
-      : "";
-  
-
   const targetColorHex: Record<PackageColor, string> = {
     red: "#f97373",
     blue: "#38bdf8",
@@ -87,15 +80,6 @@ export function HudBar({
   };
 
   const hasTarget = Boolean(targetColor);
-  const showTimer =
-    typeof targetTimer === "number" && targetTimer >= 0;
-
-  let timerSeverity: "normal" | "warning" | "danger" | "none" = "none";
-  if (showTimer) {
-    if (targetTimer! <= 3) timerSeverity = "danger";
-    else if (targetTimer! <= 7) timerSeverity = "warning";
-    else timerSeverity = "normal";
-  }
 
   let directionText = "";
   const parts: string[] = [];
@@ -109,24 +93,29 @@ export function HudBar({
     directionText = " • " + parts.join(" • ");
   }
 
-  const timerPillBase =
-    "inline-flex items-center gap-1 rounded-full px-2 py-[2px] text-[0.7rem] font-semibold";
-  const timerPillTheme =
+  // global timer format mm:ss
+  const totalSeconds = Math.max(0, Math.floor(globalTime));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  const formattedGlobalTime = `${minutes}:${seconds
+    .toString()
+    .padStart(2, "0")}`;
+
+  const timeColorClass =
     theme === "hawkins"
-      ? timerSeverity === "danger"
-        ? "bg-red-700/80 text-red-100 border border-red-300/60 animate-pulse"
-        : timerSeverity === "warning"
-        ? "bg-amber-700/70 text-amber-100 border border-amber-300/60"
-        : "bg-slate-800/90 text-slate-100 border border-slate-600/80"
-      : timerSeverity === "danger"
-      ? "bg-red-100 text-red-700 border border-red-300 animate-pulse"
-      : timerSeverity === "warning"
-      ? "bg-amber-100 text-amber-700 border border-amber-300"
-      : "bg-slate-100 text-slate-700 border border-slate-300";
+      ? totalSeconds <= 10
+        ? "text-base font-semibold text-red-400 animate-pulse"
+        : "text-base font-semibold text-slate-100"
+      : totalSeconds <= 10
+      ? "text-base font-semibold text-rose-600 animate-pulse"
+      : "text-base font-semibold text-slate-800";
+
+  const deliveriesHighlightClass = deliveriesGlow
+    ? " animate-pulse drop-shadow-[0_0_8px_rgba(16,185,129,0.8)] scale-[1.06]"
+    : "";
 
   return (
     <div className={barClass}>
-      {/* LEFT: title + progress + target + timer */}
       <div className="min-w-0">
         <h1 className={titleClass}>CHILL RIDER</h1>
         <p className={subtitleClass}>
@@ -148,17 +137,14 @@ export function HudBar({
               Target:
               <span
                 className="inline-block h-3 w-3 rounded-sm border border-slate-700"
-                style={{
-                  backgroundColor: targetColorHex[targetColor],
-                }}
+                style={{ backgroundColor: targetColorHex[targetColor] }}
               />
-            </span>
-          )}
-
-          {showTimer && (
-            <span className={`${timerPillBase} ${timerPillTheme}`}>
-              <span className="text-[0.7rem]">⏱</span>
-              <span>{targetTimer}s</span>
+              {typeof targetTimer === "number" && (
+                <span className="ml-1 flex items-center gap-1 text-[0.6rem]">
+                  <span>⏱</span>
+                  <span>{targetTimer}s</span>
+                </span>
+              )}
             </span>
           )}
 
@@ -177,7 +163,6 @@ export function HudBar({
         </div>
       </div>
 
-      {/* RIGHT: stats */}
       <div className="flex items-center gap-4 text-right text-xs">
         <div>
           <div className="text-[0.6rem] uppercase text-slate-500">
@@ -192,23 +177,28 @@ export function HudBar({
           <div className={distanceColorClass}>{distance}</div>
         </div>
         <div>
-  <div className="text-[0.6rem] uppercase text-slate-500">
-    Deliveries
-  </div>
-  <div
-    className={
-      deliveriesColorClass + " " + deliveriesHighlightClass
-    }
-  >
-    {deliveries}
-  </div>
-</div>
-
+          <div className="text-[0.6rem] uppercase text-slate-500">
+            Deliveries
+          </div>
+          <div
+            className={
+              deliveriesColorClass + " " + deliveriesHighlightClass
+            }
+          >
+            {deliveries}
+          </div>
+        </div>
         <div>
           <div className="text-[0.6rem] uppercase text-slate-500">
             Coins
           </div>
           <div className={coinsColorClass}>{coins}</div>
+        </div>
+        <div>
+          <div className="text-[0.6rem] uppercase text-slate-500">
+            Time
+          </div>
+          <div className={timeColorClass}>{formattedGlobalTime}</div>
         </div>
       </div>
     </div>

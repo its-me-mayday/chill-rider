@@ -13,6 +13,7 @@ import { PauseOverlay } from "./PauseOverlay";
 import { InventoryPanel } from "./InventoryPanel";
 import { RewardPopupsLayer } from "./RewardPopupsLayer";
 import { RunSummaryOverlay } from "./RunSummaryOverlay";
+import { GameOverOverlay } from "./GameOverOverlay";
 import type {
   PackageItem,
   PackageColor,
@@ -96,6 +97,10 @@ export function GameView() {
   
   const [riderShake, setRiderShake] = useState(false);
   const [deliveriesGlow, setDeliveriesGlow] = useState(false);
+  
+  const [globalTime, setGlobalTime] = useState(60);
+const [isGameOver, setIsGameOver] = useState(false);
+const [isLevelFrozen, setIsLevelFrozen] = useState(false);
 
 
   const [activePackageTimer, setActivePackageTimer] =
@@ -297,6 +302,19 @@ export function GameView() {
   }
 
   function deliverPackage(house: HouseMarker) {
+    // find delivered package to know if it was perishable
+    const deliveredPackage = inventory.find(
+      (p) => p.id === house.packageId
+    );
+  
+    const timeBonus =
+      deliveredPackage && deliveredPackage.kind === "perishable"
+        ? 20
+        : 15;
+  
+    setGlobalTime((prev) => prev + timeBonus);
+  
+    // il resto della funzione come ce l’hai
     setInventory((prev) =>
       prev.filter((p) => p.id !== house.packageId)
     );
@@ -308,18 +326,14 @@ export function GameView() {
       setActivePackageTimer(null);
     }
   
-    const bellLevel = equipmentLevels.bell ?? 0;
-    const extraFromBell =
-      bellLevel > 0 ? Math.floor((bellLevel + 1) / 2) : 0;
-    const totalReward = DELIVERY_COIN_REWARD + extraFromBell;
-  
-    addCoins(totalReward);
+    addCoins(DELIVERY_COIN_REWARD);
     completeDelivery();
   
     if (sfxEnabled) {
       sfx.playDelivery(theme);
     }
   
+    // rider shake + glow consegne + burst sulla casa (se già l’hai messo)
     setRiderShake(true);
     setDeliveriesGlow(true);
     setTimeout(() => setRiderShake(false), 220);
@@ -396,6 +410,41 @@ export function GameView() {
     setUiPhase("playing");
   }
 
+  // Global timer tick (real time)
+useEffect(() => {
+  if (uiPhase !== "playing") return;
+  if (isGameOver) return;
+  if (isLevelFrozen) return;
+  if (globalTime <= 0) return;
+
+  const id = window.setInterval(() => {
+    setGlobalTime((prev) => (prev > 0 ? prev - 1 : 0));
+  }, 1000);
+
+  return () => window.clearInterval(id);
+}, [uiPhase, isGameOver, isLevelFrozen, globalTime]);
+
+// When timer reaches 0 -> Game Over
+useEffect(() => {
+  if (globalTime === 0 && !isGameOver) {
+    setIsGameOver(true);
+    setRunSummary({
+      level: game.level,
+      distance: game.distance,
+      deliveries: game.deliveries,
+      coins: game.coinsCollected,
+    });
+    setUiPhase("summary");
+  }
+}, [
+  globalTime,
+  isGameOver,
+  game.level,
+  game.distance,
+  game.deliveries,
+  game.coinsCollected,
+]);
+
   useEffect(() => {
     if (game.coinsCollected > prevCoinsRef.current) {
       const gained = game.coinsCollected - prevCoinsRef.current;
@@ -418,11 +467,24 @@ export function GameView() {
       const timeout = setTimeout(() => {
         setRecentDelivery(false);
       }, 900);
+
+      const justCompleted = game.deliveries;
+      const completedLevel =
+        justCompleted > 0 &&
+        justCompleted % DELIVERIES_PER_LEVEL === 0;
+
+      // fine livello -> apri scelta equip
+      if (completedLevel) {
+        openEquipmentChoiceOverlay();
+        setUiPhase("equipment");
+      }
+
       prevDeliveriesRef.current = game.deliveries;
       return () => clearTimeout(timeout);
     }
     prevDeliveriesRef.current = game.deliveries;
   }, [game.deliveries]);
+
 
   useEffect(() => {
     if (game.level > prevLevelRef.current) {
@@ -447,12 +509,9 @@ export function GameView() {
       setInventory([]);
       setActiveShopPosition(null);
       setActivePackageTimer(null);
-
-      if (game.level > 1) {
-        openEquipmentChoiceOverlay();
-      }
+      setIsLevelFrozen(true); // ⏸ freeze timer after level up
     }
-  }, [game.level]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [game.level]);
 
   useEffect(() => {
     const prev = prevPositionRef.current;
@@ -603,26 +662,34 @@ export function GameView() {
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      // blocca input se in summary o equipment
       if (uiPhase === "summary" || uiPhase === "equipment") {
         return;
       }
 
+      // toggle help
       if (e.key === "h" || e.key === "H") {
         setShowHelp((prev) => !prev);
         return;
       }
 
+      // se help aperto, ignoriamo il resto
       if (showHelp) {
         return;
       }
 
+      // start dalla intro con Enter / Space
       if (e.key === "Enter" || e.key === " ") {
         if (uiPhase === "intro") {
+          setGlobalTime(60);
+          setIsGameOver(false);
+          setIsLevelFrozen(false);
           setUiPhase("playing");
         }
         return;
       }
 
+      // pausa
       if (e.key === "p" || e.key === "P" || e.key === "Escape") {
         if (uiPhase === "playing") {
           setUiPhase("paused");
@@ -655,6 +722,9 @@ export function GameView() {
         }
       }
 
+      // prima mossa dopo il level up -> riattiva timer globale
+      setIsLevelFrozen(false);
+
       move(direction);
     }
 
@@ -668,6 +738,7 @@ export function GameView() {
     game.map,
     houses,
   ]);
+
 
   useEffect(() => {
     if (musicEnabled) {
@@ -689,6 +760,9 @@ export function GameView() {
   }, []);
 
   function handleStartRide() {
+    setGlobalTime(60);
+    setIsGameOver(false);
+    setIsLevelFrozen(false);
     setUiPhase("playing");
   }
 
@@ -697,6 +771,8 @@ export function GameView() {
       prev === "paused" ? "playing" : "paused"
     );
   }
+  
+  
 
   function handleNewMap() {
     newMap();
@@ -715,8 +791,10 @@ export function GameView() {
       deliveries: game.deliveries,
       coins: game.coinsCollected,
     });
+    setIsGameOver(false);
     setUiPhase("summary");
   }
+  
 
   function handleSummaryPlayAgain() {
     resetGame();
@@ -726,8 +804,12 @@ export function GameView() {
     setActiveShopPosition(null);
     setRunSummary(null);
     setActivePackageTimer(null);
+    setGlobalTime(60);
+    setIsGameOver(false);
+    setIsLevelFrozen(false);
     setUiPhase("playing");
   }
+  
 
   function handleSummaryBackToTitle() {
     resetGame();
@@ -737,8 +819,12 @@ export function GameView() {
     setActiveShopPosition(null);
     setRunSummary(null);
     setActivePackageTimer(null);
+    setGlobalTime(60);
+    setIsGameOver(false);
+    setIsLevelFrozen(false);
     setUiPhase("intro");
   }
+  
 
   return (
     <div className={rootClass}>
@@ -790,8 +876,10 @@ export function GameView() {
       ? activePackageTimer
       : null
   }
+  globalTime={globalTime}
   deliveriesGlow={deliveriesGlow}
 />
+
 
 
         {/* mobile-only hamburger */}
@@ -958,12 +1046,20 @@ export function GameView() {
         onEndRun={handleEndRun}
       />
 
-      <RunSummaryOverlay
-        visible={isSummary}
-        summary={runSummary}
-        onPlayAgain={handleSummaryPlayAgain}
-        onBackToTitle={handleSummaryBackToTitle}
-      />
+<RunSummaryOverlay
+  visible={isSummary && !isGameOver}
+  summary={runSummary}
+  onPlayAgain={handleSummaryPlayAgain}
+  onBackToTitle={handleSummaryBackToTitle}
+/>
+
+<GameOverOverlay
+  visible={isSummary && isGameOver}
+  summary={runSummary}
+  onPlayAgain={handleSummaryPlayAgain}
+  onBackToTitle={handleSummaryBackToTitle}
+/>
+
 
       <EquipmentChoiceOverlay
         visible={isEquipmentPhase && !!equipmentChoices}
