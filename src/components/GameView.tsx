@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState } from "react";
 import {
   type Direction,
@@ -103,7 +102,8 @@ export function GameView() {
   const [inventory, setInventory] = useState<PackageItem[]>([]);
   const [inventoryHighlight, setInventoryHighlight] = useState(false);
   const [houses, setHouses] = useState<HouseMarker[]>([]);
-  const [packagesSpawnedThisLevel, setPackagesSpawnedThisLevel] = useState(0);
+  const [packagesSpawnedThisLevel, setPackagesSpawnedThisLevel] =
+    useState(0);
 
   const [rewardPopups, setRewardPopups] = useState<RewardPopup[]>([]);
   const [runSummary, setRunSummary] = useState<RunSummary | null>(null);
@@ -288,6 +288,7 @@ export function GameView() {
       setActivePackageTimer(null);
     }
 
+    // micro-flash inventory
     setInventoryHighlight(true);
     setTimeout(() => setInventoryHighlight(false), 350);
   }
@@ -397,6 +398,7 @@ export function GameView() {
     setUiPhase("playing");
   }
 
+  // Global timer tick (real time)
   useEffect(() => {
     if (uiPhase !== "playing") return;
     if (isGameOver) return;
@@ -410,6 +412,7 @@ export function GameView() {
     return () => window.clearInterval(id);
   }, [uiPhase, isGameOver, isLevelFrozen, globalTime]);
 
+  // When timer reaches 0 -> Game Over
   useEffect(() => {
     if (globalTime === 0 && !isGameOver) {
       setIsGameOver(true);
@@ -516,8 +519,21 @@ export function GameView() {
     }
 
     if (tile === "slow") {
-      const duration = Math.floor(Math.random() * 10) + 1;
+      const duration = Math.floor(Math.random() * 10) + 1; // 1–10 moves
       setMudStepsRemaining((prevSteps) => Math.max(prevSteps, duration));
+
+      const rolledLoss = Math.floor(Math.random() * 6); // 0–5
+      const effectiveLoss = Math.min(
+        rolledLoss,
+        Math.max(0, game.coinsCollected)
+      );
+
+      if (effectiveLoss > 0) {
+        addCoins(-effectiveLoss);
+        spawnRewardPopup(`-${effectiveLoss} coins`, "coins");
+      } else {
+        spawnRewardPopup("Lucky ☘️", "coins");
+      }
     }
 
     if (tile === "shop") {
@@ -554,6 +570,7 @@ export function GameView() {
     activeShopPosition,
     equipmentLevels,
     addCoins,
+    game.coinsCollected,
   ]);
 
   useEffect(() => {
@@ -713,6 +730,7 @@ export function GameView() {
       }
 
       setIsLevelFrozen(false);
+
       move(effectiveDirection);
     }
 
