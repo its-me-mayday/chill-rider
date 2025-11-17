@@ -1,12 +1,23 @@
 import type { Theme } from "./GameView";
-import type { PackageItem } from "../types/Package";
+import type { PackageItem, PackageColor } from "../types/Package";
 
 type InventoryPanelProps = {
   inventory: PackageItem[];
   theme: Theme;
 };
 
+const PACKAGE_COLORS: Record<PackageColor, string> = {
+  red: "#f97373",
+  blue: "#38bdf8",
+  green: "#22c55e",
+  yellow: "#eab308",
+  purple: "#a855f7",
+};
+
 export function InventoryPanel({ inventory, theme }: InventoryPanelProps) {
+  const active = inventory[0] ?? null;
+  const isPerishable = active?.kind === "perishable";
+
   const panelClass =
     theme === "hawkins"
       ? "w-full rounded-2xl border border-red-500/60 bg-slate-900/90 px-4 py-3 shadow-lg backdrop-blur-sm"
@@ -17,79 +28,77 @@ export function InventoryPanel({ inventory, theme }: InventoryPanelProps) {
       ? "text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-slate-400"
       : "text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-slate-500";
 
+  const slotBaseClass =
+    "mt-2 flex min-h-[56px] w-full items-center justify-between rounded-xl border px-4 py-2 text-[0.75rem] transition-colors";
+
+  const slotThemeClass = (() => {
+    if (isPerishable) {
+      return theme === "hawkins"
+        ? "border-amber-400/80 bg-amber-900/30 text-amber-100"
+        : "border-amber-400 bg-amber-50 text-amber-900";
+    }
+    return theme === "hawkins"
+      ? "border-slate-700/80 bg-slate-900/80 text-slate-100"
+      : "border-slate-300/80 bg-slate-50 text-slate-900";
+  })();
+
   return (
     <div className={panelClass}>
-      <div className="mb-2 flex items-center justify-between">
+      <div className="flex items-center justify-between">
         <h2 className={titleClass}>Inventory</h2>
-        <span className="text-[0.65rem] text-slate-500">
-          {inventory.length}/5 slots
-        </span>
       </div>
 
-      {inventory.length === 0 ? (
-        <p className="text-[0.7rem] italic text-slate-500">
-          No packages yet… ride to a shop to pick one!
-        </p>
-      ) : (
-        <div className="flex flex-wrap gap-2">
-          {inventory.map((pkg, idx) => {
-            const isActive = idx === 0;
-            const isPerishable = pkg.kind === "perishable";
-
-            const baseCard =
-              "flex items-center gap-2 rounded-lg border px-2 py-1.5 text-[0.7rem] transition-transform duration-150";
-            const activeRing = isActive
-              ? theme === "hawkins"
-                ? "ring-1 ring-red-400/70 scale-[1.02]"
-                : "ring-1 ring-sky-400/70 scale-[1.02]"
-              : "";
-
-            const perishableClasses = isPerishable
-              ? theme === "hawkins"
-                ? "bg-amber-900/50 border-amber-500/70 text-amber-50"
-                : "bg-amber-50 border-amber-300 text-amber-900"
-              : theme === "hawkins"
-              ? "bg-slate-900/80 border-slate-600 text-slate-100"
-              : "bg-slate-50 border-slate-300 text-slate-800";
-
-            return (
-              <div
-                key={pkg.id}
-                className={`${baseCard} ${perishableClasses} ${activeRing}`}
-              >
-                {/* color square */}
-                <span
-                  className="inline-block h-4 w-4 rounded-sm border border-black/40 shadow-sm"
-                  style={{ backgroundColor: pkg.color }}
+      <div className={`${slotBaseClass} ${slotThemeClass}`}>
+        {active ? (
+          <>
+            <div className="flex items-center gap-3">
+              {/* ICON BOX */}
+              <div className="relative flex h-8 w-8 items-center justify-center rounded-md border border-slate-800/30 bg-black/5 shadow-sm">
+                <div
+                  className="absolute inset-0 rounded-md opacity-70"
+                  style={{
+                    backgroundColor: PACKAGE_COLORS[active.color],
+                    mixBlendMode: "multiply",
+                  }}
                 />
+                <span className="relative text-xs">📦</span>
 
-                <div className="flex flex-col leading-tight">
-                  <div className="flex items-center gap-1">
-                    <span className="font-semibold truncate max-w-[7rem]">
-                      {isPerishable ? "Fresh delivery" : "Standard box"}
-                    </span>
-                    {isActive && (
-                      <span className="rounded-full bg-black/15 px-2 py-[1px] text-[0.6rem] uppercase tracking-wide">
-                        Active
-                      </span>
-                    )}
-                    {isPerishable && (
-                      <span className="rounded-full bg-black/20 px-2 py-[1px] text-[0.6rem] uppercase tracking-wide">
-                        Perishable
-                      </span>
-                    )}
-                  </div>
-                  <span className="text-[0.6rem] text-slate-400">
-                    {isPerishable
-                      ? "Fast delivery, keep an eye on the timer."
-                      : "Relaxed ride, no expiration at all."}
+                {/* Radar ping only if perishable */}
+                {isPerishable && (
+                  <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400/70" />
+                    <span className="relative inline-flex h-3 w-3 rounded-full bg-amber-500" />
                   </span>
-                </div>
+                )}
               </div>
-            );
-          })}
-        </div>
-      )}
+
+              {/* TEXT */}
+              <div className="flex flex-col">
+                <span className="text-[0.75rem] font-semibold">
+                  Package
+                </span>
+                <span className="text-[0.65rem] opacity-80 capitalize">
+                  {active.kind === "perishable"
+                    ? "Perishable delivery"
+                    : "Standard delivery"}
+                </span>
+              </div>
+            </div>
+
+            {/* TIME SENSITIVE BADGE (ONLY PERISHABLE) */}
+            {isPerishable && (
+              <span className="flex items-center gap-1 rounded-full bg-black/10 px-2 py-[2px] text-[0.6rem] uppercase tracking-wide animate-pulse">
+                <span>⏱</span>
+                <span>Time sensitive</span>
+              </span>
+            )}
+          </>
+        ) : (
+          <div className="flex w-full items-center justify-center text-[0.7rem] opacity-70">
+            No package picked up.
+          </div>
+        )}
+      </div>
     </div>
   );
 }

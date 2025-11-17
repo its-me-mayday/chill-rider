@@ -14,7 +14,11 @@ type HudBarProps = {
   shopsCount: number;
   houseDirection: string | null;
   shopDirection: string | null;
-  targetTimer: number | null;
+  target?: {
+    houseColor: string;
+    houseId: string;
+  } | undefined;
+  targetTimer?: number | null;
 };
 
 export function HudBar({
@@ -76,6 +80,15 @@ export function HudBar({
   };
 
   const hasTarget = Boolean(targetColor);
+  const showTimer =
+    typeof targetTimer === "number" && targetTimer >= 0;
+
+  let timerSeverity: "normal" | "warning" | "danger" | "none" = "none";
+  if (showTimer) {
+    if (targetTimer! <= 3) timerSeverity = "danger";
+    else if (targetTimer! <= 7) timerSeverity = "warning";
+    else timerSeverity = "normal";
+  }
 
   let directionText = "";
   const parts: string[] = [];
@@ -89,8 +102,24 @@ export function HudBar({
     directionText = " • " + parts.join(" • ");
   }
 
+  const timerPillBase =
+    "inline-flex items-center gap-1 rounded-full px-2 py-[2px] text-[0.7rem] font-semibold";
+  const timerPillTheme =
+    theme === "hawkins"
+      ? timerSeverity === "danger"
+        ? "bg-red-700/80 text-red-100 border border-red-300/60 animate-pulse"
+        : timerSeverity === "warning"
+        ? "bg-amber-700/70 text-amber-100 border border-amber-300/60"
+        : "bg-slate-800/90 text-slate-100 border border-slate-600/80"
+      : timerSeverity === "danger"
+      ? "bg-red-100 text-red-700 border border-red-300 animate-pulse"
+      : timerSeverity === "warning"
+      ? "bg-amber-100 text-amber-700 border border-amber-300"
+      : "bg-slate-100 text-slate-700 border border-slate-300";
+
   return (
     <div className={barClass}>
+      {/* LEFT: title + progress + target + timer */}
       <div className="min-w-0">
         <h1 className={titleClass}>CHILL RIDER</h1>
         <p className={subtitleClass}>
@@ -100,40 +129,29 @@ export function HudBar({
         </p>
 
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.65rem] text-slate-500">
-          <span>
-            Level progress:{" "}
-            <span className="font-semibold text-slate-700">
-              {deliveriesThisLevel}/{deliveriesPerLevel}
+            <span>
+              Level progress:{" "}
+              <span className="font-semibold text-slate-700">
+                {deliveriesThisLevel}/{deliveriesPerLevel}
+              </span>
             </span>
-          </span>
 
           {hasTarget && targetColor && (
             <span className="flex items-center gap-1">
               Target:
               <span
                 className="inline-block h-3 w-3 rounded-sm border border-slate-700"
-                style={{ backgroundColor: targetColorHex[targetColor] }}
+                style={{
+                  backgroundColor: targetColorHex[targetColor],
+                }}
               />
-              {typeof targetTimer === "number" && (
-                <span
-                  className={
-                    "ml-1 inline-flex items-center gap-1 rounded-full border px-3 py-[2px] text-[0.7rem] font-semibold leading-none " +
-                    (targetTimer > 5
-                      ? theme === "hawkins"
-                        ? "border-emerald-500/50 bg-emerald-900/60 text-emerald-100"
-                        : "border-emerald-300 bg-emerald-50 text-emerald-700"
-                      : targetTimer > 0
-                      ? theme === "hawkins"
-                        ? "border-amber-500/60 bg-amber-900/60 text-amber-100"
-                        : "border-amber-300 bg-amber-50 text-amber-700"
-                      : theme === "hawkins"
-                      ? "border-rose-500/70 bg-rose-900/70 text-rose-100"
-                      : "border-rose-300 bg-rose-50 text-rose-700")
-                  }
-                >
-                  ⏱ {targetTimer > 0 ? targetTimer : 0}
-                </span>
-              )}
+            </span>
+          )}
+
+          {showTimer && (
+            <span className={`${timerPillBase} ${timerPillTheme}`}>
+              <span className="text-[0.7rem]">⏱</span>
+              <span>{targetTimer}s</span>
             </span>
           )}
 
@@ -152,6 +170,7 @@ export function HudBar({
         </div>
       </div>
 
+      {/* RIGHT: stats */}
       <div className="flex items-center gap-4 text-right text-xs">
         <div>
           <div className="text-[0.6rem] uppercase text-slate-500">
