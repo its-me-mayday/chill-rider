@@ -42,9 +42,11 @@ export function HudBar({
     ? "text-xl font-extrabold tracking-[0.25em] text-red-400"
     : "text-xl font-extrabold tracking-[0.25em] text-slate-800";
 
-  const barClass = isHawkins
-    ? "z-10 mb-2 flex w-full max-w-6xl items-center justify-between gap-4 rounded-2xl border border-red-500/60 bg-slate-950/95 px-5 py-2 shadow-lg backdrop-blur-sm"
-    : "z-10 mb-2 flex w-full max-w-6xl items-center justify-between gap-4 rounded-2xl border border-slate-300/70 bg-white/90 px-5 py-2 shadow-lg backdrop-blur-sm";
+    const barClass =
+    "w-full flex items-center justify-between rounded-2xl px-6 py-3 shadow-lg " +
+    (isHawkins
+      ? "border border-red-500/60 bg-slate-950/95"
+      : "border border-slate-300/70 bg-white/95");
 
   const subtitleClass = isHawkins
     ? "text-[0.7rem] text-slate-400"
@@ -160,19 +162,6 @@ export function HudBar({
 
       {/* RIGHT SIDE: global timer + stats */}
       <div className="flex flex-col items-end gap-1 text-right text-xs">
-        {/* Global timer */}
-        <div className={timerPillClass}>
-          <span className="text-[0.6rem] uppercase tracking-[0.16em]">
-            Time
-          </span>
-          <span
-            className={
-              "ml-1 tabular-nums text-sm font-bold " + globalTimeClassExtra
-            }
-          >
-            {globalTimeDisplay}s
-          </span>
-        </div>
 
         {/* Stats row */}
         <div className="mt-1 flex items-center gap-4">

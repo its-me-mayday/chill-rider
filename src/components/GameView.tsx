@@ -70,10 +70,11 @@ export function GameView() {
   const viewportHeight =
     typeof window !== "undefined" ? window.innerHeight : 768;
 
-  const sidePanelWidth =
+    const sidePanelWidth =
     typeof window !== "undefined"
-      ? Math.max(180, Math.min(260, window.innerWidth * 0.22))
-      : 220;
+      ? Math.max(230, Math.min(320, window.innerWidth * 0.28))
+      : 260;
+  
 
   const maxMapWidth = Math.max(320, viewportWidth - sidePanelWidth - 80);
   const maxMapHeight = viewportHeight - 260;
@@ -834,8 +835,7 @@ setTimeout(() => setInventoryHighlight(false), 350);
         </div>
       )}
 
-      {/* TOP BAR */}
-      <div className="z-10 mb-3 flex w-full max-w-6xl items-start justify-center">
+      <div className="z-10 mb-3 flex w-full items-start justify-center px-6">
         <HudBar
           level={game.level}
           distance={game.distance}
