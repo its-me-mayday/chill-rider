@@ -1,6 +1,9 @@
 export type PackageColor = "red" | "blue" | "green" | "yellow" | "purple";
 
-export interface PackageItem {
+export type PackageKind = "standard" | "perishable";
+
+export type PackageItem = {
   id: string;
   color: PackageColor;
-}
+  kind: PackageKind;
+};

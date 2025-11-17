@@ -14,6 +14,7 @@ type HudBarProps = {
   shopsCount: number;
   houseDirection: string | null;
   shopDirection: string | null;
+  targetTimer: number | null;
 };
 
 export function HudBar({
@@ -29,6 +30,7 @@ export function HudBar({
   shopsCount,
   houseDirection,
   shopDirection,
+  targetTimer,
 }: HudBarProps) {
   const titleClass =
     theme === "hawkins"
@@ -99,7 +101,7 @@ export function HudBar({
 
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.65rem] text-slate-500">
           <span>
-            Level:{" "}
+            Level progress:{" "}
             <span className="font-semibold text-slate-700">
               {deliveriesThisLevel}/{deliveriesPerLevel}
             </span>
@@ -112,6 +114,26 @@ export function HudBar({
                 className="inline-block h-3 w-3 rounded-sm border border-slate-700"
                 style={{ backgroundColor: targetColorHex[targetColor] }}
               />
+              {typeof targetTimer === "number" && (
+                <span
+                  className={
+                    "ml-1 inline-flex items-center gap-1 rounded-full border px-3 py-[2px] text-[0.7rem] font-semibold leading-none " +
+                    (targetTimer > 5
+                      ? theme === "hawkins"
+                        ? "border-emerald-500/50 bg-emerald-900/60 text-emerald-100"
+                        : "border-emerald-300 bg-emerald-50 text-emerald-700"
+                      : targetTimer > 0
+                      ? theme === "hawkins"
+                        ? "border-amber-500/60 bg-amber-900/60 text-amber-100"
+                        : "border-amber-300 bg-amber-50 text-amber-700"
+                      : theme === "hawkins"
+                      ? "border-rose-500/70 bg-rose-900/70 text-rose-100"
+                      : "border-rose-300 bg-rose-50 text-rose-700")
+                  }
+                >
+                  ⏱ {targetTimer > 0 ? targetTimer : 0}
+                </span>
+              )}
             </span>
           )}
 

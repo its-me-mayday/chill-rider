@@ -32,6 +32,12 @@ export interface GameState {
   facing: Direction;
   coins: Position[];
   coinsCollected: number;
+  score: number;
+  activeTarget?: {
+    houseColor: string;
+    houseId: string;
+    remainingTime: number; // NEW
+  };
 }
 
 export type Command =
@@ -52,8 +58,10 @@ export function createGame(options: GameOptions): GameState {
 
   const goalPosition = pickGoalPosition(map, riderPosition);
   const coins = generateCoins(map, level, options.seed);
+  const score = 0
 
   return {
+    score,
     map,
     riderPosition,
     goalPosition,

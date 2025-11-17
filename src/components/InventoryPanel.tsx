@@ -1,113 +1,95 @@
-import type { PackageItem } from "../types/Package";
 import type { Theme } from "./GameView";
+import type { PackageItem } from "../types/Package";
 
 type InventoryPanelProps = {
   inventory: PackageItem[];
   theme: Theme;
 };
 
-const INVENTORY_SLOTS = 3;
-const EQUIPMENT_SLOTS = 5;
-const MODIFIER_SLOTS = 2;
-
 export function InventoryPanel({ inventory, theme }: InventoryPanelProps) {
-  const basePanelClass =
+  const panelClass =
     theme === "hawkins"
-      ? "flex-1 rounded-2xl border border-red-500/40 bg-slate-900/85 shadow-lg backdrop-blur-sm"
-      : "flex-1 rounded-2xl border border-slate-300/70 bg-white/90 shadow-lg backdrop-blur-sm";
+      ? "w-full rounded-2xl border border-red-500/60 bg-slate-900/90 px-4 py-3 shadow-lg backdrop-blur-sm"
+      : "w-full rounded-2xl border border-slate-300/80 bg-white/90 px-4 py-3 shadow-lg backdrop-blur-sm";
 
   const titleClass =
     theme === "hawkins"
-      ? "text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-red-300"
+      ? "text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-slate-400"
       : "text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-slate-500";
 
-  const labelClass =
-    theme === "hawkins"
-      ? "text-[0.7rem] text-slate-300"
-      : "text-[0.7rem] text-slate-600";
-
-  const emptyTextClass =
-    theme === "hawkins"
-      ? "text-[0.6rem] text-slate-500"
-      : "text-[0.6rem] text-slate-400";
-
-  const slotBorderBase =
-    theme === "hawkins"
-      ? "border border-red-500/40 bg-slate-900/90"
-      : "border border-slate-300/70 bg-slate-900/5";
-
   return (
-    <div className="flex w-full max-w-5xl gap-3 px-4">
-      <div className={basePanelClass}>
-        <div className="flex h-full flex-col gap-2 px-3 py-2">
-          <div className="flex items-center justify-between">
-            <span className={titleClass}>Inventory</span>
-            <span className={labelClass}>
-              {inventory.length}/{INVENTORY_SLOTS}
-            </span>
-          </div>
-          <div className="flex gap-2">
-            {Array.from({ length: INVENTORY_SLOTS }).map((_, i) => {
-              const item = inventory[i];
-              return (
-                <div
-                  key={i}
-                  className={`flex h-10 flex-1 items-center justify-center rounded-xl ${slotBorderBase}`}
-                >
-                  {item ? (
-                    <div
-                      className="h-6 w-6 rounded-md shadow-md"
-                      style={{
-                        backgroundColor: item.color,
-                      }}
-                    />
-                  ) : (
-                    <span className={emptyTextClass}>Empty</span>
-                  )}
+    <div className={panelClass}>
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className={titleClass}>Inventory</h2>
+        <span className="text-[0.65rem] text-slate-500">
+          {inventory.length}/5 slots
+        </span>
+      </div>
+
+      {inventory.length === 0 ? (
+        <p className="text-[0.7rem] italic text-slate-500">
+          No packages yet… ride to a shop to pick one!
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {inventory.map((pkg, idx) => {
+            const isActive = idx === 0;
+            const isPerishable = pkg.kind === "perishable";
+
+            const baseCard =
+              "flex items-center gap-2 rounded-lg border px-2 py-1.5 text-[0.7rem] transition-transform duration-150";
+            const activeRing = isActive
+              ? theme === "hawkins"
+                ? "ring-1 ring-red-400/70 scale-[1.02]"
+                : "ring-1 ring-sky-400/70 scale-[1.02]"
+              : "";
+
+            const perishableClasses = isPerishable
+              ? theme === "hawkins"
+                ? "bg-amber-900/50 border-amber-500/70 text-amber-50"
+                : "bg-amber-50 border-amber-300 text-amber-900"
+              : theme === "hawkins"
+              ? "bg-slate-900/80 border-slate-600 text-slate-100"
+              : "bg-slate-50 border-slate-300 text-slate-800";
+
+            return (
+              <div
+                key={pkg.id}
+                className={`${baseCard} ${perishableClasses} ${activeRing}`}
+              >
+                {/* color square */}
+                <span
+                  className="inline-block h-4 w-4 rounded-sm border border-black/40 shadow-sm"
+                  style={{ backgroundColor: pkg.color }}
+                />
+
+                <div className="flex flex-col leading-tight">
+                  <div className="flex items-center gap-1">
+                    <span className="font-semibold truncate max-w-[7rem]">
+                      {isPerishable ? "Fresh delivery" : "Standard box"}
+                    </span>
+                    {isActive && (
+                      <span className="rounded-full bg-black/15 px-2 py-[1px] text-[0.6rem] uppercase tracking-wide">
+                        Active
+                      </span>
+                    )}
+                    {isPerishable && (
+                      <span className="rounded-full bg-black/20 px-2 py-[1px] text-[0.6rem] uppercase tracking-wide">
+                        Perishable
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[0.6rem] text-slate-400">
+                    {isPerishable
+                      ? "Fast delivery, keep an eye on the timer."
+                      : "Relaxed ride, no expiration at all."}
+                  </span>
                 </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      <div className={basePanelClass}>
-        <div className="flex h-full flex-col gap-2 px-3 py-2">
-          <div className="flex items-center justify-between">
-            <span className={titleClass}>Equipment</span>
-            <span className={labelClass}>0/{EQUIPMENT_SLOTS}</span>
-          </div>
-          <div className="flex gap-2">
-            {Array.from({ length: EQUIPMENT_SLOTS }).map((_, i) => (
-              <div
-                key={i}
-                className={`flex h-10 flex-1 items-center justify-center rounded-xl ${slotBorderBase}`}
-              >
-                <span className={emptyTextClass}>Empty</span>
               </div>
-            ))}
-          </div>
+            );
+          })}
         </div>
-      </div>
-
-      <div className={basePanelClass}>
-        <div className="flex h-full flex-col gap-2 px-3 py-2">
-          <div className="flex items-center justify-between">
-            <span className={titleClass}>Modifiers</span>
-            <span className={labelClass}>0/{MODIFIER_SLOTS}</span>
-          </div>
-          <div className="flex gap-2">
-            {Array.from({ length: MODIFIER_SLOTS }).map((_, i) => (
-              <div
-                key={i}
-                className={`flex h-10 flex-1 items-center justify-center rounded-xl ${slotBorderBase}`}
-              >
-                <span className={emptyTextClass}>Empty</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

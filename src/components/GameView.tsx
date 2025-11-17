@@ -3,7 +3,6 @@ import {
   type Direction,
   type Position,
   type TileType,
-  type GameState,
 } from "../engine/localEngine";
 import { useGame } from "../hooks/useGame";
 import { HudBar } from "./HudBar";
@@ -14,7 +13,11 @@ import { PauseOverlay } from "./PauseOverlay";
 import { InventoryPanel } from "./InventoryPanel";
 import { RewardPopupsLayer } from "./RewardPopupsLayer";
 import { RunSummaryOverlay } from "./RunSummaryOverlay";
-import type { PackageItem, PackageColor } from "../types/Package";
+import type {
+  PackageItem,
+  PackageColor,
+  PackageKind,
+} from "../types/Package";
 import { sfx } from "./soundEffects";
 import { bgm } from "./backgroundMusic";
 
@@ -45,16 +48,11 @@ type RunSummary = {
 
 const DELIVERIES_PER_LEVEL = 5;
 const DELIVERY_COIN_REWARD = 3;
+const PERISHABLE_TIMEOUT_PENALTY = 3;
 
 export function GameView() {
-  const {
-    game,
-    move,
-    newMap,
-    addCoins,
-    completeDelivery,
-    resetGame,
-  } = useGame();
+  const { game, move, newMap, addCoins, completeDelivery, resetGame } =
+    useGame();
 
   const tilesX = game.options.width;
   const tilesY = game.options.height;
@@ -67,11 +65,7 @@ export function GameView() {
   const maxMapWidth = viewportWidth - 200;
   const maxMapHeight = viewportHeight - 260;
 
-  const rawTileSize = Math.min(
-    maxMapWidth / tilesX,
-    maxMapHeight / tilesY
-  );
-
+  const rawTileSize = Math.min(maxMapWidth / tilesX, maxMapHeight / tilesY);
   const tileSize = Math.max(24, Math.floor(rawTileSize));
   const mapPixelWidth = tilesX * tileSize;
   const mapPixelHeight = tilesY * tileSize;
@@ -82,15 +76,16 @@ export function GameView() {
   const [uiPhase, setUiPhase] = useState<UiPhase>("intro");
   const [selectedSkin, setSelectedSkin] = useState<Skin>("rider");
 
+  const [activePackageTimer, setActivePackageTimer] =
+    useState<number | null>(null);
+
   const [inventory, setInventory] = useState<PackageItem[]>([]);
   const [houses, setHouses] = useState<HouseMarker[]>([]);
   const [packagesSpawnedThisLevel, setPackagesSpawnedThisLevel] =
     useState(0);
 
   const [rewardPopups, setRewardPopups] = useState<RewardPopup[]>([]);
-  const [runSummary, setRunSummary] = useState<RunSummary | null>(
-    null
-  );
+  const [runSummary, setRunSummary] = useState<RunSummary | null>(null);
   const [sfxEnabled, setSfxEnabled] = useState(true);
   const [musicEnabled, setMusicEnabled] = useState(true);
   const [musicVolume, setMusicVolume] = useState(70);
@@ -99,11 +94,14 @@ export function GameView() {
   const [activeShopPosition, setActiveShopPosition] =
     useState<Position | null>(null);
 
+  const [warningFlash, setWarningFlash] = useState(false);
+
   const prevDeliveriesRef = useRef(game.deliveries);
   const prevLevelRef = useRef(game.level);
   const prevCoinsRef = useRef(game.coinsCollected);
   const prevPositionRef = useRef<Position>(game.riderPosition);
   const levelRef = useRef(game.level);
+  const prevDistanceRef = useRef(game.distance);
 
   const theme: Theme =
     selectedSkin === "dustin" ? "hawkins" : "chill";
@@ -123,7 +121,7 @@ export function GameView() {
     ? houses.find((h) => h.packageId === activePackage.id)
     : null;
   const targetHousePosition = targetHouse ? targetHouse.position : null;
-  
+
   const houseDirection = computeDirectionLabel(
     game.riderPosition,
     targetHousePosition
@@ -201,7 +199,7 @@ export function GameView() {
     return candidates[idx];
   }
 
-  function pickPackage(currentGame: GameState) {
+  function pickPackage(currentGame: typeof game) {
     if (packagesSpawnedThisLevel >= DELIVERIES_PER_LEVEL) return;
     if (inventory.length > 0 || houses.length > 0) return;
 
@@ -223,9 +221,12 @@ export function GameView() {
         ? crypto.randomUUID()
         : `${Date.now()}-${Math.random()}`;
 
+    const kind: PackageKind = decidePackageKind(currentGame.level);
+
     const pkg: PackageItem = {
       id,
       color,
+      kind,
     };
 
     setInventory((prev) => [...prev, pkg]);
@@ -234,6 +235,12 @@ export function GameView() {
       { position, color: pkg.color, packageId: pkg.id },
     ]);
     setPackagesSpawnedThisLevel((count) => count + 1);
+
+    if (kind === "perishable") {
+      setActivePackageTimer(initialPerishableTimer(currentGame.level));
+    } else {
+      setActivePackageTimer(null);
+    }
   }
 
   function deliverPackage(house: HouseMarker) {
@@ -243,6 +250,10 @@ export function GameView() {
     setHouses((prev) =>
       prev.filter((h) => h.packageId !== house.packageId)
     );
+
+    if (activePackage && activePackage.id === house.packageId) {
+      setActivePackageTimer(null);
+    }
 
     addCoins(DELIVERY_COIN_REWARD);
     completeDelivery();
@@ -298,7 +309,7 @@ export function GameView() {
 
       const timeout = setTimeout(() => {
         setRecentLevelUp(false);
-      }, 1100);
+      }, 1400);
 
       prevLevelRef.current = game.level;
       return () => clearTimeout(timeout);
@@ -313,6 +324,7 @@ export function GameView() {
       setHouses([]);
       setInventory([]);
       setActiveShopPosition(null);
+      setActivePackageTimer(null);
     }
   }, [game.level]);
 
@@ -383,6 +395,67 @@ export function GameView() {
     activeShopPosition,
     game.map,
   ]);
+
+  // distance-based perishable timer
+  useEffect(() => {
+    const prev = prevDistanceRef.current;
+    const current = game.distance;
+
+    if (current <= prev) {
+      prevDistanceRef.current = current;
+      return;
+    }
+
+    const movedSteps = current - prev;
+    prevDistanceRef.current = current;
+
+    if (!activePackage) return;
+    if (activePackage.kind !== "perishable") return;
+    if (activePackageTimer === null) return;
+
+    setActivePackageTimer((currentTimer) => {
+      if (currentTimer === null) return currentTimer;
+      const next = currentTimer - movedSteps;
+      return next > 0 ? next : 0;
+    });
+  }, [game.distance, activePackage, activePackageTimer]);
+
+  // subtle red flash when timer is low
+  useEffect(() => {
+    if (!activePackage || activePackage.kind !== "perishable") {
+      setWarningFlash(false);
+      return;
+    }
+
+    if (
+      activePackageTimer !== null &&
+      activePackageTimer > 0 &&
+      activePackageTimer <= 3
+    ) {
+      setWarningFlash(true);
+    } else {
+      setWarningFlash(false);
+    }
+  }, [activePackage, activePackageTimer]);
+
+  // penalty on perishable timeout
+  useEffect(() => {
+    if (!activePackage) return;
+    if (activePackage.kind !== "perishable") return;
+    if (activePackageTimer === null || activePackageTimer > 0) return;
+
+    const expiredId = activePackage.id;
+
+    setInventory((prev) => prev.filter((p) => p.id !== expiredId));
+    setHouses((prev) => prev.filter((h) => h.packageId !== expiredId));
+    setActivePackageTimer(null);
+
+    addCoins(-PERISHABLE_TIMEOUT_PENALTY);
+    spawnRewardPopup(
+      `-${PERISHABLE_TIMEOUT_PENALTY} (expired)`,
+      "coins"
+    );
+  }, [activePackage, activePackageTimer, addCoins]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -487,6 +560,7 @@ export function GameView() {
     setHouses([]);
     setPackagesSpawnedThisLevel(0);
     setActiveShopPosition(null);
+    setActivePackageTimer(null);
   }
 
   function handleEndRun() {
@@ -506,6 +580,7 @@ export function GameView() {
     setPackagesSpawnedThisLevel(0);
     setActiveShopPosition(null);
     setRunSummary(null);
+    setActivePackageTimer(null);
     setUiPhase("playing");
   }
 
@@ -516,6 +591,7 @@ export function GameView() {
     setPackagesSpawnedThisLevel(0);
     setActiveShopPosition(null);
     setRunSummary(null);
+    setActivePackageTimer(null);
     setUiPhase("intro");
   }
 
@@ -523,34 +599,53 @@ export function GameView() {
     <div className={rootClass}>
       <div className={bottomGlowClass} />
 
+      {warningFlash && (
+        <div className="pointer-events-none absolute inset-0 z-0 animate-pulse bg-red-500/8" />
+      )}
+
+      {/* CENTERED LEVEL-UP ANIMATION */}
+      {recentLevelUp && uiPhase === "playing" && (
+        <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center">
+          <div className="animate-[bounce_0.8s_ease-out] rounded-3xl border border-amber-400/80 bg-black/70 px-10 py-6 text-center shadow-2xl backdrop-blur">
+            <div className="text-[0.7rem] uppercase tracking-[0.2em] text-amber-200/80">
+              Level Up
+            </div>
+            <div className="mt-1 text-3xl font-extrabold text-amber-300 drop-shadow">
+              Level {game.level}
+            </div>
+            <div className="mt-1 text-sm text-amber-100/90">
+              New roads, shops and fresh deliveries unlocked.
+            </div>
+          </div>
+        </div>
+      )}
+
       {recentDelivery && uiPhase === "playing" && (
         <div className="pointer-events-none fixed top-6 right-6 z-30 rounded-xl bg-white/90 px-4 py-2 text-sm font-semibold text-emerald-700 shadow-lg backdrop-blur">
           Delivery completed!
         </div>
       )}
 
-      {recentLevelUp && uiPhase === "playing" && (
-        <div className="pointer-events-none fixed top-16 right-6 z-30 rounded-xl bg-sky-500/95 px-4 py-2 text-sm font-semibold text-white shadow-lg backdrop-blur">
-          Level up!
-        </div>
-      )}
-
       <div className="z-10 mb-3 flex w-full max-w-5xl items-start justify-center gap-4">
-      <HudBar
-  level={game.level}
-  distance={game.distance}
-  deliveries={game.deliveries}
-  coins={game.coinsCollected}
-  theme={theme}
-  targetColor={activePackage ? activePackage.color : null}
-  deliveriesThisLevel={deliveriesThisLevel}
-  deliveriesPerLevel={DELIVERIES_PER_LEVEL}
-  housesCount={housesCount}
-  shopsCount={shopsCount}
-  houseDirection={houseDirection}
-  shopDirection={shopDirection}
-/>
-
+        <HudBar
+          level={game.level}
+          distance={game.distance}
+          deliveries={game.deliveries}
+          coins={game.coinsCollected}
+          theme={theme}
+          targetColor={activePackage ? activePackage.color : null}
+          deliveriesThisLevel={deliveriesThisLevel}
+          deliveriesPerLevel={DELIVERIES_PER_LEVEL}
+          housesCount={housesCount}
+          shopsCount={shopsCount}
+          houseDirection={houseDirection}
+          shopDirection={shopDirection}
+          targetTimer={
+            activePackage && activePackage.kind === "perishable"
+              ? activePackageTimer
+              : null
+          }
+        />
 
         <div className="mt-1 rounded-2xl border border-slate-300/70 bg-white/90 px-3 py-3 text-[0.7rem] text-slate-800 shadow-sm backdrop-blur-sm">
           <div className="mb-2 text-center text-[0.6rem] font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -611,7 +706,9 @@ export function GameView() {
       </div>
 
       <div className="z-10 mt-2 mb-2 flex w-full justify-center">
-        <InventoryPanel inventory={inventory} theme={theme} />
+        <div style={{ width: mapPixelWidth }}>
+          <InventoryPanel inventory={inventory} theme={theme} />
+        </div>
       </div>
 
       <HelpPanel visible={showHelp} />
@@ -812,6 +909,23 @@ function pickRandomShop(map: TileType[][]): Position | null {
   if (!shops.length) return null;
   const idx = Math.floor(Math.random() * shops.length);
   return shops[idx];
+}
+
+function decidePackageKind(level: number): PackageKind {
+  const baseChance = 0.25;
+  const perLevel = 0.05;
+  const chance = Math.min(baseChance + (level - 1) * perLevel, 0.7);
+
+  if (Math.random() < chance) {
+    return "perishable";
+  }
+  return "standard";
+}
+
+function initialPerishableTimer(level: number): number {
+  const base = 22;
+  const penalty = Math.min(level - 1, 8);
+  return Math.max(10, base - penalty);
 }
 
 function computeDirectionLabel(
