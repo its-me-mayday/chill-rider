@@ -42,7 +42,7 @@ type RewardPopup = {
   text: string;
   x: number;
   y: number;
-  variant: "coins" | "coffee" | "level";
+  variant: "coins" | "coffee" | "level" | "lucky";
 };
 
 type RunSummary = {
@@ -192,7 +192,7 @@ export function GameView() {
 
   function spawnRewardPopup(
     text: string,
-    variant: "coins" | "coffee" | "level"
+    variant: RewardPopup["variant"]
   ) {
     const centerX = game.riderPosition.x * tileSize + tileSize / 2;
     const centerY = game.riderPosition.y * tileSize + tileSize / 2;
@@ -288,7 +288,6 @@ export function GameView() {
       setActivePackageTimer(null);
     }
 
-    // micro-flash inventory
     setInventoryHighlight(true);
     setTimeout(() => setInventoryHighlight(false), 350);
   }
@@ -519,20 +518,20 @@ export function GameView() {
     }
 
     if (tile === "slow") {
+      // somma la durata del malus ad ogni passaggio
       const duration = Math.floor(Math.random() * 10) + 1; // 1–10 moves
-      setMudStepsRemaining((prevSteps) => Math.max(prevSteps, duration));
+      setMudStepsRemaining((prevSteps) => prevSteps + duration);
 
+      // perdita coin 0–5, ma non andiamo sotto zero
       const rolledLoss = Math.floor(Math.random() * 6); // 0–5
-      const effectiveLoss = Math.min(
-        rolledLoss,
-        Math.max(0, game.coinsCollected)
-      );
+      const maxLoss = Math.min(rolledLoss, Math.max(0, game.coinsCollected));
 
-      if (effectiveLoss > 0) {
-        addCoins(-effectiveLoss);
-        spawnRewardPopup(`-${effectiveLoss} coins`, "coins");
+      if (maxLoss > 0) {
+        addCoins(-maxLoss);
+        spawnRewardPopup(`-${maxLoss} coins`, "coins");
       } else {
-        spawnRewardPopup("Lucky ☘️", "coins");
+        // effetto lucky dedicato
+        spawnRewardPopup("Lucky ☘️", "lucky");
       }
     }
 
