@@ -20,6 +20,7 @@ import type {
 } from "../types/Package";
 import { sfx } from "./soundEffects";
 import { bgm } from "./backgroundMusic";
+import { EquipmentPanel } from "./EquipmentPanel";
 
 type UiPhase = "intro" | "playing" | "paused" | "summary";
 export type Skin = "rider" | "dustin";
@@ -705,9 +706,18 @@ export function GameView() {
         </div>
       </div>
 
+      {/* INVENTORY + EQUIPMENT PANELS SIDE BY SIDE */}
       <div className="z-10 mt-2 mb-2 flex w-full justify-center">
-        <div style={{ width: mapPixelWidth }}>
-          <InventoryPanel inventory={inventory} theme={theme} />
+        <div
+          style={{ width: mapPixelWidth }}
+          className="flex flex-col gap-2 md:flex-row"
+        >
+          <div className="md:flex-1">
+            <InventoryPanel inventory={inventory} theme={theme} />
+          </div>
+          <div className="md:flex-1">
+            <EquipmentPanel theme={theme} />
+          </div>
         </div>
       </div>
 
