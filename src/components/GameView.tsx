@@ -1,3 +1,4 @@
+
 import { useEffect, useRef, useState } from "react";
 import {
   type Direction,
@@ -73,16 +74,10 @@ export function GameView() {
       ? Math.max(180, Math.min(260, window.innerWidth * 0.22))
       : 220;
 
-  const maxMapWidth = Math.max(
-    320,
-    viewportWidth - sidePanelWidth - 80
-  );
+  const maxMapWidth = Math.max(320, viewportWidth - sidePanelWidth - 80);
   const maxMapHeight = viewportHeight - 260;
 
-  const rawTileSize = Math.min(
-    maxMapWidth / tilesX,
-    maxMapHeight / tilesY
-  );
+  const rawTileSize = Math.min(maxMapWidth / tilesX, maxMapHeight / tilesY);
   const tileSize = Math.max(24, Math.floor(rawTileSize));
   const mapPixelWidth = tilesX * tileSize;
   const mapPixelHeight = tilesY * tileSize;
@@ -94,14 +89,13 @@ export function GameView() {
   const [showHelp, setShowHelp] = useState(false);
   const [uiPhase, setUiPhase] = useState<UiPhase>("intro");
   const [selectedSkin, setSelectedSkin] = useState<Skin>("rider");
-  
+
   const [riderShake, setRiderShake] = useState(false);
   const [deliveriesGlow, setDeliveriesGlow] = useState(false);
-  
-  const [globalTime, setGlobalTime] = useState(60);
-const [isGameOver, setIsGameOver] = useState(false);
-const [isLevelFrozen, setIsLevelFrozen] = useState(false);
 
+  const [globalTime, setGlobalTime] = useState(60);
+  const [isGameOver, setIsGameOver] = useState(false);
+  const [isLevelFrozen, setIsLevelFrozen] = useState(false);
 
   const [activePackageTimer, setActivePackageTimer] =
     useState<number | null>(null);
@@ -109,13 +103,10 @@ const [isLevelFrozen, setIsLevelFrozen] = useState(false);
   const [inventory, setInventory] = useState<PackageItem[]>([]);
   const [inventoryHighlight, setInventoryHighlight] = useState(false);
   const [houses, setHouses] = useState<HouseMarker[]>([]);
-  const [packagesSpawnedThisLevel, setPackagesSpawnedThisLevel] =
-    useState(0);
+  const [packagesSpawnedThisLevel, setPackagesSpawnedThisLevel] = useState(0);
 
   const [rewardPopups, setRewardPopups] = useState<RewardPopup[]>([]);
-  const [runSummary, setRunSummary] = useState<RunSummary | null>(
-    null
-  );
+  const [runSummary, setRunSummary] = useState<RunSummary | null>(null);
   const [deliveryBurst, setDeliveryBurst] = useState<Position | null>(null);
 
   const [sfxEnabled, setSfxEnabled] = useState(true);
@@ -128,6 +119,7 @@ const [isLevelFrozen, setIsLevelFrozen] = useState(false);
     useState<Position | null>(null);
 
   const [warningFlash, setWarningFlash] = useState(false);
+  const [mudStepsRemaining, setMudStepsRemaining] = useState(0);
 
   const [equipmentLevels, setEquipmentLevels] = useState<
     Record<EquipmentKey, number>
@@ -296,49 +288,45 @@ const [isLevelFrozen, setIsLevelFrozen] = useState(false);
       setActivePackageTimer(null);
     }
 
-    // micro-flash inventory
     setInventoryHighlight(true);
     setTimeout(() => setInventoryHighlight(false), 350);
   }
 
   function deliverPackage(house: HouseMarker) {
-    // find delivered package to know if it was perishable
     const deliveredPackage = inventory.find(
       (p) => p.id === house.packageId
     );
-  
+
     const timeBonus =
       deliveredPackage && deliveredPackage.kind === "perishable"
         ? 20
         : 15;
-  
+
     setGlobalTime((prev) => prev + timeBonus);
-  
-    // il resto della funzione come ce l’hai
+
     setInventory((prev) =>
       prev.filter((p) => p.id !== house.packageId)
     );
     setHouses((prev) =>
       prev.filter((h) => h.packageId !== house.packageId)
     );
-  
+
     if (activePackage && activePackage.id === house.packageId) {
       setActivePackageTimer(null);
     }
-  
+
     addCoins(DELIVERY_COIN_REWARD);
     completeDelivery();
-  
+
     if (sfxEnabled) {
       sfx.playDelivery(theme);
     }
-  
-    // rider shake + glow consegne + burst sulla casa (se già l’hai messo)
+
     setRiderShake(true);
     setDeliveriesGlow(true);
     setTimeout(() => setRiderShake(false), 220);
     setTimeout(() => setDeliveriesGlow(false), 280);
-  
+
     if (packagesSpawnedThisLevel < DELIVERIES_PER_LEVEL) {
       const nextShop = pickRandomShop(game.map);
       if (nextShop) {
@@ -349,13 +337,12 @@ const [isLevelFrozen, setIsLevelFrozen] = useState(false);
     } else {
       setActiveShopPosition(null);
     }
-  
+
     setDeliveryBurst(house.position);
     setTimeout(() => {
       setDeliveryBurst(null);
     }, 350);
   }
-  
 
   function openEquipmentChoiceOverlay() {
     const allKeys: EquipmentKey[] = [
@@ -410,40 +397,38 @@ const [isLevelFrozen, setIsLevelFrozen] = useState(false);
     setUiPhase("playing");
   }
 
-  // Global timer tick (real time)
-useEffect(() => {
-  if (uiPhase !== "playing") return;
-  if (isGameOver) return;
-  if (isLevelFrozen) return;
-  if (globalTime <= 0) return;
+  useEffect(() => {
+    if (uiPhase !== "playing") return;
+    if (isGameOver) return;
+    if (isLevelFrozen) return;
+    if (globalTime <= 0) return;
 
-  const id = window.setInterval(() => {
-    setGlobalTime((prev) => (prev > 0 ? prev - 1 : 0));
-  }, 1000);
+    const id = window.setInterval(() => {
+      setGlobalTime((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
 
-  return () => window.clearInterval(id);
-}, [uiPhase, isGameOver, isLevelFrozen, globalTime]);
+    return () => window.clearInterval(id);
+  }, [uiPhase, isGameOver, isLevelFrozen, globalTime]);
 
-// When timer reaches 0 -> Game Over
-useEffect(() => {
-  if (globalTime === 0 && !isGameOver) {
-    setIsGameOver(true);
-    setRunSummary({
-      level: game.level,
-      distance: game.distance,
-      deliveries: game.deliveries,
-      coins: game.coinsCollected,
-    });
-    setUiPhase("summary");
-  }
-}, [
-  globalTime,
-  isGameOver,
-  game.level,
-  game.distance,
-  game.deliveries,
-  game.coinsCollected,
-]);
+  useEffect(() => {
+    if (globalTime === 0 && !isGameOver) {
+      setIsGameOver(true);
+      setRunSummary({
+        level: game.level,
+        distance: game.distance,
+        deliveries: game.deliveries,
+        coins: game.coinsCollected,
+      });
+      setUiPhase("summary");
+    }
+  }, [
+    globalTime,
+    isGameOver,
+    game.level,
+    game.distance,
+    game.deliveries,
+    game.coinsCollected,
+  ]);
 
   useEffect(() => {
     if (game.coinsCollected > prevCoinsRef.current) {
@@ -475,7 +460,6 @@ useEffect(() => {
 
       if (completedLevel) {
         openEquipmentChoiceOverlay();
-        setUiPhase("equipment");
       }
 
       prevDeliveriesRef.current = game.deliveries;
@@ -483,7 +467,6 @@ useEffect(() => {
     }
     prevDeliveriesRef.current = game.deliveries;
   }, [game.deliveries]);
-
 
   useEffect(() => {
     if (game.level > prevLevelRef.current) {
@@ -508,7 +491,7 @@ useEffect(() => {
       setInventory([]);
       setActiveShopPosition(null);
       setActivePackageTimer(null);
-      setIsLevelFrozen(true); // ⏸ freeze timer after level up
+      setIsLevelFrozen(true);
     }
   }, [game.level]);
 
@@ -530,6 +513,11 @@ useEffect(() => {
         const bonusCoins = coffeeLevel;
         addCoins(bonusCoins);
       }
+    }
+
+    if (tile === "slow") {
+      const duration = Math.floor(Math.random() * 10) + 1;
+      setMudStepsRemaining((prevSteps) => Math.max(prevSteps, duration));
     }
 
     if (tile === "shop") {
@@ -587,7 +575,6 @@ useEffect(() => {
     activeShopPosition,
     game.map,
   ]);
-  
 
   useEffect(() => {
     const prev = prevDistanceRef.current;
@@ -662,26 +649,21 @@ useEffect(() => {
     spawnRewardPopup(`-${reducedPenalty} (expired)`, "coins");
   }, [activePackage, activePackageTimer, addCoins, equipmentLevels]);
 
-
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      // blocca input se in summary o equipment
       if (uiPhase === "summary" || uiPhase === "equipment") {
         return;
       }
 
-      // toggle help
       if (e.key === "h" || e.key === "H") {
         setShowHelp((prev) => !prev);
         return;
       }
 
-      // se help aperto, ignoriamo il resto
       if (showHelp) {
         return;
       }
 
-      // start dalla intro con Enter / Space
       if (e.key === "Enter" || e.key === " ") {
         if (uiPhase === "intro") {
           setGlobalTime(60);
@@ -692,7 +674,6 @@ useEffect(() => {
         return;
       }
 
-      // pausa
       if (e.key === "p" || e.key === "P" || e.key === "Escape") {
         if (uiPhase === "playing") {
           setUiPhase("paused");
@@ -706,9 +687,15 @@ useEffect(() => {
       if (!direction) return;
       if (uiPhase !== "playing") return;
 
+      let effectiveDirection = direction;
+      if (mudStepsRemaining > 0) {
+        effectiveDirection = invertDirection(direction);
+        setMudStepsRemaining((n) => Math.max(0, n - 1));
+      }
+
       const rawNextPos = getNextPosition(
         game.riderPosition,
-        direction
+        effectiveDirection
       );
       const nextPos = wrapPosition(rawNextPos, game.map);
 
@@ -725,10 +712,8 @@ useEffect(() => {
         }
       }
 
-      // prima mossa dopo il level up -> riattiva timer globale
       setIsLevelFrozen(false);
-
-      move(direction);
+      move(effectiveDirection);
     }
 
     window.addEventListener("keydown", handleKeyDown);
@@ -740,8 +725,8 @@ useEffect(() => {
     game.riderPosition,
     game.map,
     houses,
+    mudStepsRemaining,
   ]);
-
 
   useEffect(() => {
     if (musicEnabled) {
@@ -774,8 +759,6 @@ useEffect(() => {
       prev === "paused" ? "playing" : "paused"
     );
   }
-  
-  
 
   function handleNewMap() {
     newMap();
@@ -797,7 +780,6 @@ useEffect(() => {
     setIsGameOver(false);
     setUiPhase("summary");
   }
-  
 
   function handleSummaryPlayAgain() {
     resetGame();
@@ -812,7 +794,6 @@ useEffect(() => {
     setIsLevelFrozen(false);
     setUiPhase("playing");
   }
-  
 
   function handleSummaryBackToTitle() {
     resetGame();
@@ -827,7 +808,6 @@ useEffect(() => {
     setIsLevelFrozen(false);
     setUiPhase("intro");
   }
-  
 
   return (
     <div className={rootClass}>
@@ -859,33 +839,30 @@ useEffect(() => {
         </div>
       )}
 
-      {/* TOP BAR + mobile hamburger */}
       <div className="z-10 mb-3 flex w-full max-w-6xl items-start justify-center gap-4">
-      <HudBar
-  level={game.level}
-  distance={game.distance}
-  deliveries={game.deliveries}
-  coins={game.coinsCollected}
-  theme={theme}
-  targetColor={activePackage ? activePackage.color : null}
-  deliveriesThisLevel={deliveriesThisLevel}
-  deliveriesPerLevel={DELIVERIES_PER_LEVEL}
-  housesCount={housesCount}
-  shopsCount={shopsCount}
-  houseDirection={houseDirection}
-  shopDirection={shopDirection}
-  targetTimer={
-    activePackage && activePackage.kind === "perishable"
-      ? activePackageTimer
-      : null
-  }
-  globalTime={globalTime}
-  deliveriesGlow={deliveriesGlow}
-/>
+        <HudBar
+          level={game.level}
+          distance={game.distance}
+          deliveries={game.deliveries}
+          coins={game.coinsCollected}
+          theme={theme}
+          targetColor={activePackage ? activePackage.color : null}
+          deliveriesThisLevel={deliveriesThisLevel}
+          deliveriesPerLevel={DELIVERIES_PER_LEVEL}
+          housesCount={housesCount}
+          shopsCount={shopsCount}
+          houseDirection={houseDirection}
+          shopDirection={shopDirection}
+          targetTimer={
+            activePackage && activePackage.kind === "perishable"
+              ? activePackageTimer
+              : null
+          }
+          globalTime={globalTime}
+          deliveriesGlow={deliveriesGlow}
+          mudStepsRemaining={mudStepsRemaining}
+        />
 
-
-
-        {/* mobile-only hamburger */}
         <div className="mt-1 flex flex-col items-end md:hidden">
           <button
             className={
@@ -941,59 +918,54 @@ useEffect(() => {
         </div>
       </div>
 
-      {/* MAP + EQUIPMENT + INVENTORY */}
       <div className="z-10 mt-1 grid w-full max-w-6xl justify-center gap-4 md:grid-cols-[auto_auto]">
         <div
           className="relative md:col-start-1 md:row-start-1"
           style={{ width: mapPixelWidth, height: mapPixelHeight }}
         >
-<MapView
-  map={game.map}
-  riderPosition={game.riderPosition}
-  coins={game.coins}
-  facing={game.facing}
-  skin={selectedSkin}
-  tileSize={tileSize}
-  width={mapPixelWidth}
-  height={mapPixelHeight}
-  theme={theme}
-  houses={houses}
-  targetHousePosition={targetHousePosition}
-  pickupShopPosition={activeShopPosition}
-  shakeRider={riderShake}
-/>
+          <MapView
+            map={game.map}
+            riderPosition={game.riderPosition}
+            coins={game.coins}
+            facing={game.facing}
+            skin={selectedSkin}
+            tileSize={tileSize}
+            width={mapPixelWidth}
+            height={mapPixelHeight}
+            theme={theme}
+            houses={houses}
+            targetHousePosition={targetHousePosition}
+            pickupShopPosition={activeShopPosition}
+            shakeRider={riderShake}
+          />
 
+          {activeShopPosition && (
+            <TileMarker
+              kind="shop"
+              position={activeShopPosition}
+              tileSize={tileSize}
+              theme={theme}
+            />
+          )}
 
-  {/* ACTIVE SHOP MARKER */}
-  {activeShopPosition && (
-    <TileMarker
-      kind="shop"
-      position={activeShopPosition}
-      tileSize={tileSize}
-      theme={theme}
-    />
-  )}
+          {targetHousePosition && targetHouse && (
+            <TileMarker
+              kind="house"
+              position={targetHousePosition}
+              tileSize={tileSize}
+              theme={theme}
+            />
+          )}
 
-  {/* TARGET HOUSE MARKER */}
-  {targetHousePosition && targetHouse && (
-    <TileMarker
-      kind="house"
-      position={targetHousePosition}
-      tileSize={tileSize}
-      theme={theme}
-    />
-  )}
+          {deliveryBurst && (
+            <DeliveryBurstEffect
+              position={deliveryBurst}
+              tileSize={tileSize}
+            />
+          )}
 
-  {/* DELIVERY BURST ON HOUSE */}
-  {deliveryBurst && (
-    <DeliveryBurstEffect
-      position={deliveryBurst}
-      tileSize={tileSize}
-    />
-  )}
-
-  <RewardPopupsLayer popups={rewardPopups} />
-</div>
+          <RewardPopupsLayer popups={rewardPopups} />
+        </div>
 
         <div
           className="md:col-start-2 md:row-start-1 md:row-span-2 flex flex-col gap-3"
@@ -1049,20 +1021,19 @@ useEffect(() => {
         onEndRun={handleEndRun}
       />
 
-<RunSummaryOverlay
-  visible={isSummary && !isGameOver}
-  summary={runSummary}
-  onPlayAgain={handleSummaryPlayAgain}
-  onBackToTitle={handleSummaryBackToTitle}
-/>
+      <RunSummaryOverlay
+        visible={isSummary && !isGameOver}
+        summary={runSummary}
+        onPlayAgain={handleSummaryPlayAgain}
+        onBackToTitle={handleSummaryBackToTitle}
+      />
 
-<GameOverOverlay
-  visible={isSummary && isGameOver}
-  summary={runSummary}
-  onPlayAgain={handleSummaryPlayAgain}
-  onBackToTitle={handleSummaryBackToTitle}
-/>
-
+      <GameOverOverlay
+        visible={isSummary && isGameOver}
+        summary={runSummary}
+        onPlayAgain={handleSummaryPlayAgain}
+        onBackToTitle={handleSummaryBackToTitle}
+      />
 
       <EquipmentChoiceOverlay
         visible={isEquipmentPhase && !!equipmentChoices}
@@ -1249,6 +1220,19 @@ function keyToDirection(key: string): Direction | null {
   }
 }
 
+function invertDirection(dir: Direction): Direction {
+  switch (dir) {
+    case "up":
+      return "down";
+    case "down":
+      return "up";
+    case "left":
+      return "right";
+    case "right":
+      return "left";
+  }
+}
+
 function getNextPosition(pos: Position, dir: Direction): Position {
   switch (dir) {
     case "up":
@@ -1387,11 +1371,9 @@ function TileMarker({
           " animate-ping"
         }
       />
-
     </div>
   );
 }
-
 
 type DeliveryBurstEffectProps = {
   position: Position;
@@ -1423,4 +1405,3 @@ function DeliveryBurstEffect({
     </div>
   );
 }
-

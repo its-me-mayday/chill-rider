@@ -1,3 +1,4 @@
+
 import type { Theme } from "./GameView";
 import type { PackageColor } from "../types/Package";
 
@@ -17,6 +18,7 @@ type HudBarProps = {
   targetTimer?: number | null;
   globalTime: number;
   deliveriesGlow?: boolean;
+  mudStepsRemaining?: number;
 };
 
 export function HudBar({
@@ -35,6 +37,7 @@ export function HudBar({
   targetTimer,
   globalTime,
   deliveriesGlow,
+  mudStepsRemaining,
 }: HudBarProps) {
   const titleClass =
     theme === "hawkins"
@@ -93,7 +96,6 @@ export function HudBar({
     directionText = " • " + parts.join(" • ");
   }
 
-  // global timer format mm:ss
   const totalSeconds = Math.max(0, Math.floor(globalTime));
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
@@ -113,6 +115,17 @@ export function HudBar({
   const deliveriesHighlightClass = deliveriesGlow
     ? " animate-pulse drop-shadow-[0_0_8px_rgba(16,185,129,0.8)] scale-[1.06]"
     : "";
+
+  const mudActive = (mudStepsRemaining ?? 0) > 0;
+
+  const mudColorClass =
+    theme === "hawkins"
+      ? mudActive
+        ? "text-xs font-semibold text-amber-300 animate-pulse"
+        : "text-xs font-semibold text-slate-400"
+      : mudActive
+      ? "text-xs font-semibold text-amber-600 animate-pulse"
+      : "text-xs font-semibold text-slate-500";
 
   return (
     <div className={barClass}>
@@ -193,6 +206,14 @@ export function HudBar({
             Coins
           </div>
           <div className={coinsColorClass}>{coins}</div>
+        </div>
+        <div>
+          <div className="text-[0.6rem] uppercase text-slate-500">
+            Mud
+          </div>
+          <div className={mudColorClass}>
+            {mudActive ? `${mudStepsRemaining} moves` : "—"}
+          </div>
         </div>
         <div>
           <div className="text-[0.6rem] uppercase text-slate-500">
