@@ -6,7 +6,12 @@ export type TileType =
   | "slow"
   | "coffee"
   | "shop"
-  | "void";
+  | "void"
+  // nuovi ostacoli soft
+  | "pothole" // buca
+  | "rock"    // sasso
+  | "bench"   // panchina
+  | "leaf";   // foglie per terra
 
 export interface Position {
   x: number;
@@ -58,7 +63,7 @@ export function createGame(options: GameOptions): GameState {
 
   const goalPosition = pickGoalPosition(map, riderPosition);
   const coins = generateCoins(map, level, options.seed);
-  const score = 0
+  const score = 0;
 
   return {
     score,
@@ -125,33 +130,143 @@ function onDeliveryCompleted(state: GameState): GameState {
   };
 }
 
+// ====== NUOVO helper per deviazione soft ======
+function getDeviationPosition(
+  from: Position,
+  dir: Direction,
+  map: TileType[][]
+): Position | null {
+  // se ti muovi su/giù, devia a sx o dx; se sx/dx, devia su o giù
+  const sideDir: Direction =
+    dir === "up" || dir === "down"
+      ? Math.random() < 0.5
+        ? "left"
+        : "right"
+      : Math.random() < 0.5
+        ? "up"
+        : "down";
+
+  const sidePos = wrapPosition(getNextPosition(from, sideDir), map);
+  const tile = map[sidePos.y][sidePos.x];
+  if (isWalkable(tile)) {
+    return sidePos;
+  }
+  return null;
+}
+
 function moveRider(state: GameState, direction: Direction): GameState {
   const { riderPosition, map, goalPosition } = state;
 
   const rawTarget = getNextPosition(riderPosition, direction);
   const target = wrapPosition(rawTarget, map);
 
-  const tile = map[target.y][target.x];
-  if (!isWalkable(tile)) {
+  const tileAtTarget = map[target.y][target.x];
+
+  if (!isWalkable(tileAtTarget)) {
     return {
       ...state,
       facing: direction,
     };
   }
 
-  const stepCost = tile === "slow" ? 2 : 1;
+  // posizione finale (può essere deviata per soft ostacoli)
+  let nextRiderPosition: Position = target;
+
+  // deviazione per buca/sasso/panchina
+  if (
+    tileAtTarget === "pothole" ||
+    tileAtTarget === "rock" ||
+    tileAtTarget === "bench"
+  ) {
+    const DEVIATION_CHANCE = 0.4;
+    if (Math.random() < DEVIATION_CHANCE) {
+      const deviated = getDeviationPosition(target, direction, map);
+      if (deviated) {
+        nextRiderPosition = deviated;
+      }
+    }
+  }
+
+  const tileAtFinal = map[nextRiderPosition.y][nextRiderPosition.x];
+
+  // costo base del passo
+  let stepCost = 1;
+
+  // terreno lento
+  if (tileAtFinal === "slow") {
+    stepCost = 2;
+  }
+
+  // perishable target aggiornato
+  let nextActiveTarget = state.activeTarget;
+
+  // ---- malus/bonus per tile ----
+  switch (tileAtTarget) {
+    case "pothole": {
+      // soft malus forte
+      stepCost += 2;
+      if (state.activeTarget) {
+        nextActiveTarget = {
+          ...state.activeTarget,
+          remainingTime: Math.max(
+            0,
+            state.activeTarget.remainingTime - 2
+          ),
+        };
+      }
+      break;
+    }
+    case "rock": {
+      // malus medio
+      stepCost += 1;
+      if (state.activeTarget) {
+        nextActiveTarget = {
+          ...state.activeTarget,
+          remainingTime: Math.max(
+            0,
+            state.activeTarget.remainingTime - 1
+          ),
+        };
+      }
+      break;
+    }
+    case "bench": {
+      // solo rallentamento, niente perishable
+      stepCost += 1;
+      break;
+    }
+    case "leaf": {
+      const SLIP_CHANCE = 0.3; // 30% di malus
+      if (Math.random() < SLIP_CHANCE) {
+        stepCost += 1;
+        if (state.activeTarget) {
+          nextActiveTarget = {
+            ...state.activeTarget,
+            remainingTime: Math.max(
+              0,
+              state.activeTarget.remainingTime - 1
+            ),
+          };
+        }
+      }
+      break;
+    }
+    default:
+      break;
+  }
+  // -------------------------------
 
   let nextDistance = state.distance + stepCost;
   let nextDeliveries = state.deliveries;
   let nextLevel = state.level;
   let nextMap = map;
-  let nextRiderPosition = target;
   let nextGoalPosition = goalPosition;
   let nextCoinsPositions = state.coins;
   let nextCoinsCollected = state.coinsCollected;
 
+  // COIN: sulla posizione finale (dopo eventuale deviazione)
   const coinIndex = state.coins.findIndex(
-    (c) => c.x === target.x && c.y === target.y
+    (c) => c.x === nextRiderPosition.x && c.y === nextRiderPosition.y
   );
   if (coinIndex !== -1) {
     const updatedCoins = [...state.coins];
@@ -160,13 +275,15 @@ function moveRider(state: GameState, direction: Direction): GameState {
     nextCoinsCollected = state.coinsCollected + 1;
   }
 
-  if (tile === "coffee") {
+  // COFFEE: bonus se la tile finale è coffee
+  if (tileAtFinal === "coffee") {
     nextDistance = Math.max(0, nextDistance - 4);
     nextCoinsCollected = nextCoinsCollected + 2;
   }
 
   const reachedGoal =
-    target.x === goalPosition.x && target.y === goalPosition.y;
+    nextRiderPosition.x === goalPosition.x &&
+    nextRiderPosition.y === goalPosition.y;
 
   if (reachedGoal) {
     nextDeliveries += 1;
@@ -189,7 +306,7 @@ function moveRider(state: GameState, direction: Direction): GameState {
         state.options.seed
       );
     } else {
-      nextGoalPosition = pickGoalPosition(map, target);
+      nextGoalPosition = pickGoalPosition(map, nextRiderPosition);
     }
   }
 
@@ -204,8 +321,10 @@ function moveRider(state: GameState, direction: Direction): GameState {
     facing: direction,
     coins: nextCoinsPositions,
     coinsCollected: nextCoinsCollected,
+    activeTarget: nextActiveTarget,
   };
 }
+
 
 
 function regenerateMap(state: GameState): GameState {
@@ -316,7 +435,6 @@ function generateMap(options: GameOptions, level: number): TileType[][] {
   }
 
   // fallback paranoico: se per qualche motivo non abbiamo potuto piazzare case
-  // (molto improbabile con le dimensioni attuali), forziamo una casa su un grass qualsiasi
   if (chosenHouses.length === 0) {
     outer: for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
@@ -361,7 +479,6 @@ function generateMap(options: GameOptions, level: number): TileType[][] {
     }
   }
 
-
   // shop: come prima, sempre vicino alla strada
   const shopCandidates: Position[] = [];
   for (let y = 0; y < height; y++) {
@@ -382,8 +499,14 @@ function generateMap(options: GameOptions, level: number): TileType[][] {
 
   if (shopCandidates.length > 0) {
     const minShops = level <= 5 ? 2 : 5;
-    const maxShops = Math.min(level <= 5 ? 3 : 7, shopCandidates.length);
-    const targetShops = Math.min(Math.max(minShops, maxShops), shopCandidates.length);
+    const maxShops = Math.min(
+      level <= 5 ? 3 : 7,
+      shopCandidates.length
+    );
+    const targetShops = Math.min(
+      Math.max(minShops, maxShops),
+      shopCandidates.length
+    );
 
     const chosen: Position[] = [];
     while (chosen.length < targetShops && shopCandidates.length > 0) {
@@ -395,10 +518,46 @@ function generateMap(options: GameOptions, level: number): TileType[][] {
     }
   }
 
+  // ===== NUOVO: ostacoli soft SOLO su road =====
+  // probabilità basse ma scalano leggermente con il livello
+  const softBase = 0.04;
+  const softPerLevel = 0.01;
+  const leafBase = 0.06;
+  const leafPerLevel = 0.005;
+
+  const softChance = Math.min(
+    softBase + Math.max(level - 1, 0) * softPerLevel,
+    0.15
+  );
+  const leafChance = Math.min(
+    leafBase + Math.max(level - 1, 0) * leafPerLevel,
+    0.2
+  );
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (rows[y][x] !== "road") continue;
+
+      const roll = rng();
+
+      if (roll < softChance) {
+        // scegli un ostacolo soft a caso
+        const r2 = rng();
+        if (r2 < 1 / 3) {
+          rows[y][x] = "pothole";
+        } else if (r2 < 2 / 3) {
+          rows[y][x] = "rock";
+        } else {
+          rows[y][x] = "bench";
+        }
+      } else if (roll < softChance + leafChance) {
+        rows[y][x] = "leaf";
+      }
+    }
+  }
+
   return rows;
 }
-
-
 
 function generateCoins(
   map: TileType[][],
@@ -478,7 +637,11 @@ function isWalkable(tile: TileType): boolean {
     tile === "slow" ||
     tile === "coffee" ||
     tile === "shop" ||
-    tile === "building"
+    tile === "building" ||
+    tile === "pothole" ||
+    tile === "rock" ||
+    tile === "bench" ||
+    tile === "leaf"
   );
 }
 
@@ -506,4 +669,52 @@ function createRng(seed: number): () => number {
     state = (state * 16807) % 2147483647;
     return (state - 1) / 2147483646;
   };
+}
+
+export function getStatusMalusMessage(state: GameState): string {
+  const { map, riderPosition } = state;
+  const row = map[riderPosition.y];
+  const tile = row ? row[riderPosition.x] : undefined;
+
+  switch (tile) {
+    case "pothole":
+      return "⚠️ Pothole ahead: small time penalty.";
+    case "rock":
+      return "🪨 Rock on the road: slight slowdown.";
+    case "bench":
+      return "🪑 Bench in the way: small slowdown.";
+    case "leaf":
+      return "🍂 Slippery leaves: small time loss (chance).";
+    case "tree":
+      return "🌳 Tree collision: heavy time and coin penalty.";
+    case "coffee":
+      return "☕ Coffee tile: bonus coins and time.";
+    case "slow":
+      return "🌫️ Slow ground: steps cost more distance.";
+    default:
+      return "✅ No active maluses. Ride safe.";
+  }
+}
+
+export function getTileMalusPopupLabel(
+  tile: TileType | null | undefined
+): string | null {
+  switch (tile) {
+    case "pothole":
+      return "⚠️ Pothole · small time penalty";
+    case "rock":
+      return "🪨 Rock · slight slowdown";
+    case "bench":
+      return "🪑 Bench · small slowdown";
+    case "leaf":
+      return "🍂 Leaves · small time loss (chance)";
+    case "tree":
+      return "🌳 Tree · heavy time & coin loss";
+    case "coffee":
+      return "☕ Coffee · bonus coins & time";
+    case "slow":
+      return "🌫️ Slow ground · slower steps";
+    default:
+      return null;
+  }
 }

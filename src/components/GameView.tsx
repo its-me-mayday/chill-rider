@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  getStatusMalusMessage,
   type Direction,
   type Position,
   type TileType,
@@ -62,6 +63,8 @@ export function GameView() {
   const { game, move, newMap, addCoins, completeDelivery, resetGame } =
     useGame();
 
+  const statusMalusMessage = getStatusMalusMessage(game);
+
   const tilesX = game.options.width;
   const tilesY = game.options.height;
 
@@ -70,11 +73,10 @@ export function GameView() {
   const viewportHeight =
     typeof window !== "undefined" ? window.innerHeight : 768;
 
-    const sidePanelWidth =
+  const sidePanelWidth =
     typeof window !== "undefined"
       ? Math.max(230, Math.min(320, window.innerWidth * 0.28))
       : 260;
-  
 
   const maxMapWidth = Math.max(320, viewportWidth - sidePanelWidth - 80);
   const maxMapHeight = viewportHeight - 260;
@@ -86,6 +88,7 @@ export function GameView() {
 
   const inventoryWidth = Math.min(mapPixelWidth, viewportWidth - 80);
 
+  const [recentDelivery, setRecentDelivery] = useState(false);
   const [recentLevelUp, setRecentLevelUp] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [uiPhase, setUiPhase] = useState<UiPhase>("intro");
@@ -104,6 +107,7 @@ export function GameView() {
   const [inventory, setInventory] = useState<PackageItem[]>([]);
   const [inventoryHighlight, setInventoryHighlight] = useState(false);
   const [houses, setHouses] = useState<HouseMarker[]>([]);
+
   const [rewardPopups, setRewardPopups] = useState<RewardPopup[]>([]);
   const [runSummary, setRunSummary] = useState<RunSummary | null>(null);
   const [deliveryBurst, setDeliveryBurst] = useState<Position | null>(null);
@@ -138,6 +142,7 @@ export function GameView() {
     EquipmentChoice[] | null
   >(null);
 
+  const prevDeliveriesRef = useRef(game.deliveries);
   const prevLevelRef = useRef(game.level);
   const prevCoinsRef = useRef(game.coinsCollected);
   const prevPositionRef = useRef<Position>(game.riderPosition);
@@ -188,64 +193,6 @@ export function GameView() {
       if (tile === "shop") shopsCount++;
     }
   }
-  
-  function deliverPackage(house: HouseMarker) {
-    const deliveredPackage = inventory.find(
-      (p) => p.id === house.packageId
-    );
-
-    const timeBonus =
-      deliveredPackage && deliveredPackage.kind === "perishable"
-        ? 20
-        : 15;
-
-    setGlobalTime((prev) => prev + timeBonus);
-
-    setInventory((prev) =>
-      prev.filter((p) => p.id !== house.packageId)
-    );
-    setHouses((prev) =>
-      prev.filter((h) => h.packageId !== house.packageId)
-    );
-
-    if (activePackage && activePackage.id === house.packageId) {
-      setActivePackageTimer(null);
-    }
-
-    addCoins(DELIVERY_COIN_REWARD);
-    completeDelivery();
-
-    if (sfxEnabled) {
-      sfx.playDelivery(theme);
-    }
-
-    setRiderShake(true);
-    setDeliveriesGlow(true);
-    setTimeout(() => setRiderShake(false), 220);
-    setTimeout(() => setDeliveriesGlow(false), 280);
-
-// quante consegne avremo dopo questa
-const deliveriesAfter = game.deliveries + 1;
-const deliveriesThisLevelAfter =
-  deliveriesAfter % DELIVERIES_PER_LEVEL;
-
-// se NON abbiamo ancora finito il livello, prepara un nuovo shop
-if (deliveriesThisLevelAfter !== 0) {
-  const nextShop = pickRandomShop(game.map);
-  if (nextShop) {
-    setActiveShopPosition(nextShop);
-  } else {
-    setActiveShopPosition(null);
-  }
-} else {
-  // quinta consegna del livello -> stop shop, il level-up penserà al resto
-  setActiveShopPosition(null);
-}
-
-    setTimeout(() => {
-      setDeliveryBurst(null);
-    }, 350);
-  }
 
   function spawnRewardPopup(
     text: string,
@@ -271,7 +218,7 @@ if (deliveriesThisLevelAfter !== 0) {
 
     setTimeout(() => {
       setRewardPopups((prev) => prev.filter((p) => p.id !== id));
-    }, 800);
+    }, 1000);
   }
 
   function findFreeBuildingPosition(
@@ -299,65 +246,112 @@ if (deliveriesThisLevelAfter !== 0) {
     return candidates[idx];
   }
 
-function pickPackage(currentGame: typeof game) {
-// quante consegne ho fatto in questo livello
-const deliveriesThisLevel =
-currentGame.deliveries % DELIVERIES_PER_LEVEL;
+  function pickPackage(currentGame: typeof game) {
+    const deliveriesThisLevelLocal =
+      currentGame.deliveries % DELIVERIES_PER_LEVEL;
 
-// se ho già fatto tutte le consegne del livello, non spawnare altri pacchi
-if (deliveriesThisLevel >= DELIVERIES_PER_LEVEL) return;
+    if (deliveriesThisLevelLocal >= DELIVERIES_PER_LEVEL) return;
+    if (inventory.length > 0 || houses.length > 0) return;
 
-// se ho già un pacco o una casa attiva, non ne creo altri
-if (inventory.length > 0 || houses.length > 0) return;
+    const colors: PackageColor[] = [
+      "red",
+      "blue",
+      "green",
+      "yellow",
+      "purple",
+    ];
+    const color =
+      colors[Math.floor(Math.random() * colors.length)];
 
-const colors: PackageColor[] = [
-"red",
-"blue",
-"green",
-"yellow",
-"purple",
-];
-const color =
-colors[Math.floor(Math.random() * colors.length)];
+    const position = findFreeBuildingPosition(currentGame.map, houses);
+    if (!position) return;
 
-const position = findFreeBuildingPosition(currentGame.map, houses);
-if (!position) return;
+    const id =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random()}`;
 
-const id =
-typeof crypto !== "undefined" && "randomUUID" in crypto
-  ? crypto.randomUUID()
-  : `${Date.now()}-${Math.random()}`;
+    const kind: PackageKind = decidePackageKind(currentGame.level);
 
-const kind: PackageKind = decidePackageKind(currentGame.level);
+    const pkg: PackageItem = {
+      id,
+      color,
+      kind,
+    };
 
-const pkg: PackageItem = {
-id,
-color,
-kind,
-};
+    setInventory((prev) => [...prev, pkg]);
+    setHouses((prev) => [
+      ...prev,
+      { position, color: pkg.color, packageId: pkg.id },
+    ]);
 
-setInventory((prev) => [...prev, pkg]);
-setHouses((prev) => [
-...prev,
-{ position, color: pkg.color, packageId: pkg.id },
-]);
+    if (kind === "perishable") {
+      const backpackLevel = equipmentLevels.backpack ?? 0;
+      const baseTimer = initialPerishableTimer(currentGame.level);
+      const bonus = backpackLevel;
+      setActivePackageTimer(baseTimer + bonus);
+    } else {
+      setActivePackageTimer(null);
+    }
 
-// timer per i deperibili con bonus zaino
-if (kind === "perishable") {
-const backpackLevel = equipmentLevels.backpack ?? 0;
-const baseTimer = initialPerishableTimer(currentGame.level);
-const bonus = backpackLevel;
-setActivePackageTimer(baseTimer + bonus);
-} else {
-setActivePackageTimer(null);
-}
+    setInventoryHighlight(true);
+    setTimeout(() => setInventoryHighlight(false), 350);
+  }
 
-// micro-flash inventory
-setInventoryHighlight(true);
-setTimeout(() => setInventoryHighlight(false), 350);
-}
+  function deliverPackage(house: HouseMarker) {
+    const deliveredPackage = inventory.find(
+      (p) => p.id === house.packageId
+    );
 
+    const timeBonus =
+      deliveredPackage && deliveredPackage.kind === "perishable"
+        ? 6
+        : 3;
+    setGlobalTime((prev) => prev + timeBonus);
 
+    setInventory((prev) =>
+      prev.filter((p) => p.id !== house.packageId)
+    );
+    setHouses((prev) =>
+      prev.filter((h) => h.packageId !== house.packageId)
+    );
+
+    if (activePackage && activePackage.id === house.packageId) {
+      setActivePackageTimer(null);
+    }
+
+    addCoins(DELIVERY_COIN_REWARD);
+    completeDelivery();
+
+    if (sfxEnabled) {
+      sfx.playDelivery(theme);
+    }
+
+    setRiderShake(true);
+    setDeliveriesGlow(true);
+    setTimeout(() => setRiderShake(false), 220);
+    setTimeout(() => setDeliveriesGlow(false), 280);
+
+    const deliveriesAfter = game.deliveries + 1;
+    const deliveriesThisLevelAfter =
+      deliveriesAfter % DELIVERIES_PER_LEVEL;
+
+    if (deliveriesThisLevelAfter !== 0) {
+      const nextShop = pickRandomShop(game.map);
+      if (nextShop) {
+        setActiveShopPosition(nextShop);
+      } else {
+        setActiveShopPosition(null);
+      }
+    } else {
+      setActiveShopPosition(null);
+    }
+
+    setDeliveryBurst(house.position);
+    setTimeout(() => {
+      setDeliveryBurst(null);
+    }, 350);
+  }
 
   function openEquipmentChoiceOverlay() {
     const allKeys: EquipmentKey[] = [
@@ -501,8 +495,6 @@ setTimeout(() => setInventoryHighlight(false), 350);
 
     const tile = game.map[current.y][current.x];
 
-    // Coffee tiles removed – no more bonuses here
-
     if (tile === "shop") {
       const isActiveShop =
         activeShopPosition &&
@@ -539,14 +531,15 @@ setTimeout(() => setInventoryHighlight(false), 350);
     addCoins,
   ]);
 
+  // make sure there is always a shop to pick next package
   useEffect(() => {
-    const deliveriesThisLevel =
+    const deliveriesThisLevelEffect =
       game.deliveries % DELIVERIES_PER_LEVEL;
-  
+
     if (
       inventory.length === 0 &&
       houses.length === 0 &&
-      deliveriesThisLevel < DELIVERIES_PER_LEVEL &&
+      deliveriesThisLevelEffect < DELIVERIES_PER_LEVEL &&
       !activeShopPosition
     ) {
       const shop = pickRandomShop(game.map);
@@ -561,7 +554,6 @@ setTimeout(() => setInventoryHighlight(false), 350);
     game.map,
     game.deliveries,
   ]);
-  
 
   // package perishable decay on distance
   useEffect(() => {
@@ -632,10 +624,13 @@ setTimeout(() => setInventoryHighlight(false), 350);
     setGlobalTime((prev) =>
       Math.max(0, prev - PERISHABLE_TIMEOUT_SECONDS_PENALTY)
     );
-    spawnRewardPopup(`-${PERISHABLE_TIMEOUT_SECONDS_PENALTY}s (expired)`, "coins");
+    spawnRewardPopup(
+      `-${PERISHABLE_TIMEOUT_SECONDS_PENALTY}s (expired)`,
+      "coins"
+    );
   }, [activePackage, activePackageTimer]);
 
-  // Keyboard handling (movement, pause, help, mud)
+  // Keyboard handling (movement, pause, help, mud, trees)
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (uiPhase === "summary" || uiPhase === "equipment") {
@@ -685,6 +680,29 @@ setTimeout(() => setInventoryHighlight(false), 350);
 
       const tile = game.map[nextPos.y][nextPos.x];
 
+      // Tree collision: coin + time malus, single combined popup
+      if (tile === "tree") {
+        const lostCoins = Math.floor(Math.random() * 6); // 0..5
+        const lostSeconds = 1 + Math.floor(Math.random() * 15); // 1..15
+
+        const parts: string[] = [];
+
+        if (lostCoins > 0) {
+          addCoins(-lostCoins);
+          parts.push(`-${lostCoins} coins`);
+        } else {
+          parts.push("Lucky! ☘");
+        }
+
+        setGlobalTime((prev) => Math.max(0, prev - lostSeconds));
+        parts.push(`-${lostSeconds}s`);
+
+        const message = parts.join(" · ") + " (tree)";
+        spawnRewardPopup(message, "coins");
+
+        return;
+      }
+
       if (tile === "building") {
         const hasDeliveryHere = houses.some(
           (h) =>
@@ -722,6 +740,7 @@ setTimeout(() => setInventoryHighlight(false), 350);
     game.map,
     houses,
     mudStepsRemaining,
+    addCoins,
   ]);
 
   useEffect(() => {
@@ -829,12 +848,13 @@ setTimeout(() => setInventoryHighlight(false), 350);
         </div>
       )}
 
-      {uiPhase === "playing" && (
+      {recentDelivery && uiPhase === "playing" && (
         <div className="pointer-events-none fixed top-6 right-6 z-30 rounded-xl bg-white/90 px-4 py-2 text-sm font-semibold text-emerald-700 shadow-lg backdrop-blur">
           Delivery completed!
         </div>
       )}
 
+      {/* TOP BAR */}
       <div className="z-10 mb-3 flex w-full items-start justify-center px-6">
         <HudBar
           level={game.level}
@@ -910,7 +930,7 @@ setTimeout(() => setInventoryHighlight(false), 350);
           <RewardPopupsLayer popups={rewardPopups} />
         </div>
 
-        {/* RIGHT COLUMN: equipment + malus (row 1) */}
+        {/* RIGHT COLUMN: equipment + malus */}
         <div
           className="md:col-start-2 md:row-start-1 flex flex-col gap-3"
           style={{ width: sidePanelWidth, maxHeight: mapPixelHeight }}
@@ -926,6 +946,7 @@ setTimeout(() => setInventoryHighlight(false), 350);
           </div>
 
           <MalusPanel
+            message={statusMalusMessage}
             theme={theme}
             mudStepsRemaining={mudStepsRemaining}
           />
@@ -1007,8 +1028,6 @@ setTimeout(() => setInventoryHighlight(false), 350);
     </div>
   );
 }
-
-/* === SettingsPanel, helpers & visual effects ========================= */
 
 type SettingsPanelProps = {
   visible: boolean;

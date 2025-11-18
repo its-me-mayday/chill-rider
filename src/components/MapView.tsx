@@ -76,6 +76,11 @@ export function MapView({
             const isSlow = tile === "slow";
             const isShop = tile === "shop";
 
+            const isPothole = tile === "pothole";
+            const isRock = tile === "rock";
+            const isBench = tile === "bench";
+            const isLeaf = tile === "leaf";
+
             const isTargetHouse =
               targetHousePosition &&
               targetHousePosition.x === x &&
@@ -91,14 +96,29 @@ export function MapView({
                 h.position.x === x && h.position.y === y
             );
 
+            // tile che hanno effetto (malus o bonus) → piccolo shake del rider
+            const isEffectTile =
+              isPothole ||
+              isRock ||
+              isBench ||
+              isLeaf ||
+              isTree ||
+              isSlow ||
+              tile === "coffee";
+
+            const riderShouldShake =
+              (shakeRider ?? false) || (isRider && isEffectTile);
+
             return (
               <div
                 key={x}
                 className="relative"
                 style={{ width: tileSize, height: tileSize }}
               >
+                {/* sfondo cella */}
                 <div className={tileToClass(tile, theme)} />
 
+                {/* SLOW */}
                 {isSlow && (
                   <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
                     <img
@@ -113,6 +133,7 @@ export function MapView({
                   </div>
                 )}
 
+                {/* BUILDING */}
                 {isBuilding && (
                   <div className="absolute inset-[10%] flex items-center justify-center">
                     <img
@@ -142,6 +163,7 @@ export function MapView({
                   </div>
                 )}
 
+                {/* TREE */}
                 {isTree && (
                   <div className="absolute inset-[12%] flex items-center justify-center">
                     <img
@@ -156,6 +178,7 @@ export function MapView({
                   </div>
                 )}
 
+                {/* SHOP */}
                 {isShop && (
                   <div className="absolute inset-[10%] flex items-center justify-center">
                     <img
@@ -176,29 +199,59 @@ export function MapView({
                   </div>
                 )}
 
+                {/* OSTACOLI SOFT: QUADRATINI PICCOLI */}
+                {isPothole && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    {/* buca: quadratino zinco molto piccolo */}
+                    <div className="w-2/5 h-2/5 rounded-sm bg-zinc-700" />
+                  </div>
+                )}
+
+                {isRock && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    {/* sasso: quadratino grigio chiaro molto piccolo */}
+                    <div className="w-2/5 h-2/5 rounded-sm bg-zinc-300" />
+                  </div>
+                )}
+
+                {isBench && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    {/* panchina: rettangolino marrone sottile */}
+                    <div className="w-3/5 h-1/6 rounded-sm bg-amber-800 shadow-sm" />
+                  </div>
+                )}
+
+                {isLeaf && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    {/* foglie: quadratino arancione molto piccolo */}
+                    <div className="w-2/5 h-2/5 rounded-sm bg-amber-400" />
+                  </div>
+                )}
+
+                {/* COIN */}
                 {isCoin && (
                   <div className="absolute inset-[22%] flex items-center justify-center">
                     <CoinSprite size={tileSize * 0.5} />
                   </div>
                 )}
 
-{isRider && (
-  <div
-    className={
-      "absolute inset-[12%] flex items-center justify-center transition-transform " +
-      (shakeRider
-        ? " animate-[wiggle_0.18s_ease-in-out_2]"
-        : "")
-    }
-  >
-    <RiderSprite
-      size={tileSize * 0.7}
-      direction={facing}
-      skin={skin}
-    />
-  </div>
-)}
-
+                {/* RIDER */}
+                {isRider && (
+                  <div
+                    className={
+                      "absolute inset-[12%] flex items-center justify-center transition-transform " +
+                      (riderShouldShake
+                        ? " animate-[wiggle_0.18s_ease-in-out_2]"
+                        : "")
+                    }
+                  >
+                    <RiderSprite
+                      size={tileSize * 0.7}
+                      direction={facing}
+                      skin={skin}
+                    />
+                  </div>
+                )}
               </div>
             );
           })}
@@ -242,13 +295,15 @@ function tileToClass(tile: TileType, theme: Theme): string {
   if (theme === "hawkins") {
     switch (tile) {
       case "road":
+      case "pothole":
+      case "rock":
+      case "bench":
+      case "leaf":
         return `${base} bg-gradient-to-b from-slate-900 to-slate-800`;
       case "grass":
         return `${base} bg-gradient-to-b from-emerald-950 to-emerald-800`;
       case "tree":
-        return `${base} bg-gradient-to-b from-emerald-900 to-emerald-950`;
       case "shop":
-        return `${base} bg-gradient-to-b from-emerald-900 to-emerald-950`;
       case "building":
         return `${base} bg-gradient-to-b from-emerald-900 to-emerald-950`;
       case "slow":
@@ -262,13 +317,16 @@ function tileToClass(tile: TileType, theme: Theme): string {
 
   switch (tile) {
     case "road":
+    case "pothole":
+    case "rock":
+    case "bench":
+    case "leaf":
       return `${base} bg-gradient-to-b from-slate-100 to-slate-300`;
     case "grass":
       return `${base} bg-gradient-to-b from-emerald-200 to-emerald-300`;
     case "tree":
       return `${base} bg-gradient-to-b from-emerald-300 to-emerald-500`;
     case "shop":
-      return `${base} bg-gradient-to-b from-emerald-300 to-emerald-400`;
     case "building":
       return `${base} bg-gradient-to-b from-emerald-300 to-emerald-400`;
     case "slow":
