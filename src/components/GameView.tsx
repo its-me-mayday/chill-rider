@@ -146,7 +146,6 @@ export function GameView() {
   const prevCoinsRef = useRef(game.coinsCollected);
   const prevPositionRef = useRef<Position>(game.riderPosition);
   const levelRef = useRef(game.level);
-  const prevDistanceRef = useRef(game.distance);
 
   const theme: Theme =
     selectedSkin === "dustin" ? "hawkins" : "chill";
@@ -288,6 +287,7 @@ export function GameView() {
       const backpackLevel = equipmentLevels.backpack ?? 0;
       const baseTimer = initialPerishableTimer(currentGame.level);
       const bonus = backpackLevel;
+      // interpretato come secondi reali
       setActivePackageTimer(baseTimer + bonus);
     } else {
       setActivePackageTimer(null);
@@ -407,7 +407,7 @@ export function GameView() {
     setUiPhase("playing");
   }
 
-  // Global timer tick (real time)
+  // Global timer tick (real time) per la run
   useEffect(() => {
     if (uiPhase !== "playing") return;
     if (isGameOver) return;
@@ -421,7 +421,25 @@ export function GameView() {
     return () => window.clearInterval(id);
   }, [uiPhase, isGameOver, isLevelFrozen, globalTime]);
 
-  // When timer reaches 0 -> Game Over
+  // Perishable timer tick (real time) per il pacco deteriorabile
+  useEffect(() => {
+    if (uiPhase !== "playing") return;
+    if (isGameOver) return;
+    if (isLevelFrozen) return;
+    if (!activePackage || activePackage.kind !== "perishable") return;
+    if (activePackageTimer === null || activePackageTimer <= 0) return;
+
+    const id = window.setInterval(() => {
+      setActivePackageTimer((prev) => {
+        if (prev === null) return prev;
+        return prev > 0 ? prev - 1 : 0;
+      });
+    }, 1000);
+
+    return () => window.clearInterval(id);
+  }, [uiPhase, isGameOver, isLevelFrozen, activePackage, activePackageTimer]);
+
+  // When global timer reaches 0 -> Game Over
   useEffect(() => {
     if (globalTime === 0 && !isGameOver) {
       setIsGameOver(true);
@@ -555,42 +573,6 @@ export function GameView() {
     activeShopPosition,
     game.map,
     game.deliveries,
-  ]);
-
-  // package perishable decay on distance
-  useEffect(() => {
-    const prev = prevDistanceRef.current;
-    const current = game.distance;
-
-    if (current <= prev) {
-      prevDistanceRef.current = current;
-      return;
-    }
-
-    const movedSteps = current - prev;
-    prevDistanceRef.current = current;
-
-    if (!activePackage) return;
-    if (activePackage.kind !== "perishable") return;
-    if (activePackageTimer === null) return;
-
-    const bikeLevel = equipmentLevels.bikeFrame ?? 0;
-    const decayModifier = Math.max(0.5, 1 - bikeLevel * 0.05);
-    const effectiveSteps = Math.max(
-      1,
-      Math.round(movedSteps * decayModifier)
-    );
-
-    setActivePackageTimer((currentTimer) => {
-      if (currentTimer === null) return currentTimer;
-      const next = currentTimer - effectiveSteps;
-      return next > 0 ? next : 0;
-    });
-  }, [
-    game.distance,
-    activePackage,
-    activePackageTimer,
-    equipmentLevels,
   ]);
 
   // perishable warning flash
@@ -1217,6 +1199,7 @@ function decidePackageKind(level: number): PackageKind {
 function initialPerishableTimer(level: number): number {
   const base = 22;
   const penalty = Math.min(level - 1, 8);
+  // ora è interpretato direttamente in secondi
   return Math.max(10, base - penalty);
 }
 
