@@ -29,8 +29,8 @@ export function HudBar({
   deliveriesPerLevel,
   housesCount,
   shopsCount,
-  houseDirection,
-  shopDirection,
+  houseDirection, // ancora nei props ma non usati
+  shopDirection,  // (li usa ora la CompassPanel)
   targetTimer,
   deliveriesGlow = false,
 }: HudBarProps) {
@@ -82,18 +82,6 @@ export function HudBar({
   const hasTarget = Boolean(targetColor);
   const hasPerishableTimer = typeof targetTimer === "number";
 
-  let directionText = "";
-  const parts: string[] = [];
-  if (shopDirection) {
-    parts.push(`Shop: ${shopDirection}`);
-  }
-  if (houseDirection) {
-    parts.push(`House: ${houseDirection}`);
-  }
-  if (parts.length > 0) {
-    directionText = " • " + parts.join(" • ");
-  }
-
   const perishableTimerDisplay =
     typeof targetTimer === "number"
       ? String(Math.max(0, targetTimer)).padStart(2, "0")
@@ -101,7 +89,7 @@ export function HudBar({
 
   return (
     <div className={barClass}>
-      {/* LEFT SIDE: title, subtitle, map info, target info */}
+      {/* LEFT SIDE: Title, subtitle, map info, target info */}
       <div className="min-w-0 flex-1">
         <h1 className={titleClass}>CHILL RIDER</h1>
         <p className={subtitleClass}>
@@ -123,7 +111,9 @@ export function HudBar({
               Target:
               <span
                 className="inline-block h-3 w-3 rounded-sm border border-slate-700"
-                style={{ backgroundColor: targetColorHex[targetColor] }}
+                style={{
+                  backgroundColor: targetColorHex[targetColor],
+                }}
               />
               {hasPerishableTimer && perishableTimerDisplay && (
                 <span className="ml-1 text-[0.65rem] text-slate-600">
@@ -143,7 +133,6 @@ export function HudBar({
               {shopsCount}
             </span>{" "}
             shops
-            {directionText}
           </span>
         </div>
       </div>

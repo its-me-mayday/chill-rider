@@ -287,7 +287,7 @@ export function GameView() {
       const backpackLevel = equipmentLevels.backpack ?? 0;
       const baseTimer = initialPerishableTimer(currentGame.level);
       const bonus = backpackLevel;
-      // interpretato come secondi reali
+      // in secondi reali
       setActivePackageTimer(baseTimer + bonus);
     } else {
       setActivePackageTimer(null);
@@ -407,7 +407,7 @@ export function GameView() {
     setUiPhase("playing");
   }
 
-  // Global timer tick (real time) per la run
+  // Global timer tick (run)
   useEffect(() => {
     if (uiPhase !== "playing") return;
     if (isGameOver) return;
@@ -421,7 +421,7 @@ export function GameView() {
     return () => window.clearInterval(id);
   }, [uiPhase, isGameOver, isLevelFrozen, globalTime]);
 
-  // Perishable timer tick (real time) per il pacco deteriorabile
+  // Perishable timer tick (real-time su pacco)
   useEffect(() => {
     if (uiPhase !== "playing") return;
     if (isGameOver) return;
@@ -439,7 +439,7 @@ export function GameView() {
     return () => window.clearInterval(id);
   }, [uiPhase, isGameOver, isLevelFrozen, activePackage, activePackageTimer]);
 
-  // When global timer reaches 0 -> Game Over
+  // Global timer -> game over
   useEffect(() => {
     if (globalTime === 0 && !isGameOver) {
       setIsGameOver(true);
@@ -551,7 +551,7 @@ export function GameView() {
     addCoins,
   ]);
 
-  // make sure there is always a shop to pick next package
+  // ensure a shop when ready for new package
   useEffect(() => {
     const deliveriesThisLevelEffect =
       game.deliveries % DELIVERIES_PER_LEVEL;
@@ -614,7 +614,7 @@ export function GameView() {
     );
   }, [activePackage, activePackageTimer]);
 
-  // Keyboard handling (movement, pause, help, mud, trees)
+  // Keyboard handling
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (uiPhase === "summary" || uiPhase === "equipment") {
@@ -664,7 +664,7 @@ export function GameView() {
 
       const tile = game.map[nextPos.y][nextPos.x];
 
-      // Tree collision: coin + time malus, single combined popup
+      // Tree collision
       if (tile === "tree") {
         const lostCoins = Math.floor(Math.random() * 6); // 0..5
         const lostSeconds = 1 + Math.floor(Math.random() * 15); // 1..15
@@ -700,15 +700,15 @@ export function GameView() {
 
       // Mud penalty on entering slow tile
       if (tile === "slow") {
-        const addedSteps = 1 + Math.floor(Math.random() * 10); // 1..10 steps
+        const addedSteps = 1 + Math.floor(Math.random() * 10);
         setMudStepsRemaining((prev) => prev + addedSteps);
 
-        const lostSeconds = 1 + Math.floor(Math.random() * 5); // 1..5 seconds
+        const lostSeconds = 1 + Math.floor(Math.random() * 5);
         setGlobalTime((prev) => Math.max(0, prev - lostSeconds));
         spawnRewardPopup(`-${lostSeconds}s (mud)`, "coins");
       }
 
-      // first move after level-up -> unfreeze global timer
+      // unfreeze timer after moving
       setIsLevelFrozen(false);
 
       move(direction);
@@ -791,8 +791,20 @@ export function GameView() {
     setIsGameOver(false);
     setIsLevelFrozen(false);
     setMudStepsRemaining(0);
+  
+    setEquipmentLevels({
+      helmet: 0,
+      bell: 0,
+      bikeFrame: 0,
+      coffeeThermos: 0,
+      backpack: 0,
+    });
+    setRecentUpgradedKey(null);
+    setEquipmentChoices(null);
+  
     setUiPhase("playing");
   }
+  
 
   function handleSummaryBackToTitle() {
     resetGame();
@@ -805,8 +817,20 @@ export function GameView() {
     setIsGameOver(false);
     setIsLevelFrozen(false);
     setMudStepsRemaining(0);
+  
+    setEquipmentLevels({
+      helmet: 0,
+      bell: 0,
+      bikeFrame: 0,
+      coffeeThermos: 0,
+      backpack: 0,
+    });
+    setRecentUpgradedKey(null);
+    setEquipmentChoices(null);
+  
     setUiPhase("intro");
   }
+  
 
   return (
     <div className={rootClass}>
@@ -862,7 +886,7 @@ export function GameView() {
         />
       </div>
 
-      {/* MAP + EQUIPMENT + MALUS + TIME + INVENTORY */}
+      {/* MAP + RIGHT COLUMN */}
       <div className="z-10 mt-1 grid w-full max-w-6xl justify-center gap-4 md:grid-cols-[auto_auto]">
         {/* MAP */}
         <div
@@ -913,34 +937,41 @@ export function GameView() {
           <RewardPopupsLayer popups={rewardPopups} />
         </div>
 
-        {/* RIGHT COLUMN: time + malus + equipment */}
-        <div
-          className="md:col-start-2 md:row-start-1 flex flex-col gap-3"
-          style={{ width: sidePanelWidth, maxHeight: mapPixelHeight }}
-        >
-          {/* Timer in alto */}
-          <TimePanel theme={theme} globalTime={globalTime} />
+{/* RIGHT COLUMN: time + compass + malus + equipment */}
+<div
+  className="md:col-start-2 md:row-start-1 flex flex-col gap-3"
+  style={{ width: sidePanelWidth, maxHeight: mapPixelHeight }}
+>
+  {/* Timer in alto */}
+  <TimePanel theme={theme} globalTime={globalTime} />
 
-          {/* Status & malus subito sotto */}
-          <MalusPanel
-            message={statusMalusMessage}
-            theme={theme}
-            mudStepsRemaining={mudStepsRemaining}
-          />
+  {/* Compass */}
+  <CompassPanel
+    theme={theme}
+    houseDirection={houseDirection}
+    shopDirection={shopDirection}
+  />
 
-          {/* Equipment che occupa il resto */}
-          <div className="flex-1 min-h-0 overflow-hidden">
-            <div className="h-full overflow-y-auto">
-              <EquipmentPanel
-                theme={theme}
-                equipmentLevels={equipmentLevels}
-                highlightedKey={recentUpgradedKey}
-              />
-            </div>
-          </div>
-        </div>
+  {/* Status & malus */}
+  <MalusPanel
+    message={statusMalusMessage}
+    theme={theme}
+    mudStepsRemaining={mudStepsRemaining}
+  />
 
-        {/* BOTTOM ROW: inventory (left) */}
+  {/* Equipment: stessa larghezza degli altri box */}
+  <div className="flex-1 min-h-0 overflow-hidden">
+    <div className="h-full w-full overflow-y-auto">
+      <EquipmentPanel
+        theme={theme}
+        equipmentLevels={equipmentLevels}
+        highlightedKey={recentUpgradedKey}
+      />
+    </div>
+  </div>
+</div>
+
+        {/* BOTTOM ROW: inventory */}
         <div className="md:col-start-1 md:row-start-2 mb-2 flex justify-center">
           <div style={{ width: inventoryWidth }}>
             <InventoryPanel
@@ -1100,6 +1131,71 @@ function SettingsPanel({
   );
 }
 
+/* ----------------- COMPASS PANEL ----------------- */
+
+type CompassPanelProps = {
+  theme: Theme;
+  houseDirection: string | null;
+  shopDirection: string | null;
+};
+
+function formatDirectionLabel(dir: string | null): string {
+  if (!dir) return "--";
+  if (dir === "Here") return "Here";
+  return dir;
+}
+
+function CompassPanel({
+  theme,
+  houseDirection,
+  shopDirection,
+}: CompassPanelProps) {
+  const isHawkins = theme === "hawkins";
+
+  const panelClass = isHawkins
+    ? "w-full rounded-2xl border border-red-500/50 bg-slate-900/90 px-4 py-3 text-[0.7rem] text-slate-100 shadow-lg backdrop-blur-sm"
+    : "w-full rounded-2xl border border-slate-300/70 bg-white/95 px-4 py-3 text-[0.7rem] text-slate-800 shadow-lg backdrop-blur-sm";
+
+  const titleClass =
+    "mb-1 text-[0.6rem] font-semibold uppercase tracking-[0.18em] text-slate-500";
+
+  const labelClass = "text-[0.7rem] text-slate-500";
+  const dirClass = isHawkins
+    ? "text-sm font-semibold text-emerald-300"
+    : "text-sm font-semibold text-emerald-700";
+
+  return (
+    <div className={panelClass}>
+      <div className={titleClass}>Compass</div>
+      <div className="flex items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-2">
+          <span className="text-base">🏪</span>
+          <div className="flex flex-col">
+            <span className={labelClass}>Shop</span>
+            <span className={dirClass}>
+              {formatDirectionLabel(shopDirection)}
+            </span>
+          </div>
+        </div>
+
+        <div className="h-8 w-px bg-slate-600/40" />
+
+        <div className="flex items-center gap-2">
+          <span className="text-base">🏠</span>
+          <div className="flex flex-col">
+            <span className={labelClass}>House</span>
+            <span className={dirClass}>
+              {formatDirectionLabel(houseDirection)}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ----------------- UTILS ----------------- */
+
 function keyToDirection(key: string): Direction | null {
   switch (key) {
     case "ArrowUp":
@@ -1198,7 +1294,7 @@ function decidePackageKind(level: number): PackageKind {
 function initialPerishableTimer(level: number): number {
   const base = 22;
   const penalty = Math.min(level - 1, 8);
-  // ora è interpretato direttamente in secondi
+  // secondi di vita del pacco
   return Math.max(10, base - penalty);
 }
 
