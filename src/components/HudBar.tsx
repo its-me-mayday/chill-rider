@@ -12,8 +12,6 @@ type HudBarProps = {
   deliveriesPerLevel: number;
   housesCount: number;
   shopsCount: number;
-  houseDirection: string | null;
-  shopDirection: string | null;
   targetTimer?: number | null;
   deliveriesGlow?: boolean;
 };
@@ -29,8 +27,6 @@ export function HudBar({
   deliveriesPerLevel,
   housesCount,
   shopsCount,
-  houseDirection, // ancora nei props ma non usati
-  shopDirection,  // (li usa ora la CompassPanel)
   targetTimer,
   deliveriesGlow = false,
 }: HudBarProps) {

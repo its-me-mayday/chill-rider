@@ -875,8 +875,6 @@ export function GameView() {
           deliveriesPerLevel={DELIVERIES_PER_LEVEL}
           housesCount={housesCount}
           shopsCount={shopsCount}
-          houseDirection={houseDirection}
-          shopDirection={shopDirection}
           targetTimer={
             activePackage && activePackage.kind === "perishable"
               ? activePackageTimer
