@@ -73,14 +73,6 @@ export function HudBar({
     ? "text-base font-semibold text-amber-300"
     : "text-base font-semibold text-amber-500";
 
-  const timerPillClass = isHawkins
-    ? "inline-flex items-center gap-1 rounded-full border border-red-500/70 bg-slate-900/90 px-3 py-1 text-[0.7rem] font-semibold text-red-200 shadow-sm"
-    : "inline-flex items-center gap-1 rounded-full border border-slate-300/80 bg-slate-900 text-[0.7rem] font-semibold text-emerald-200 shadow-sm";
-
-  const globalTimeIsLow = globalTime <= 10;
-  const globalTimeClassExtra = globalTimeIsLow
-    ? " animate-pulse text-red-400"
-    : "";
 
   const targetColorHex: Record<PackageColor, string> = {
     red: "#f97373",
@@ -105,7 +97,6 @@ export function HudBar({
     directionText = " • " + parts.join(" • ");
   }
 
-  const globalTimeDisplay = String(globalTime).padStart(2, "0");
   const perishableTimerDisplay =
     typeof targetTimer === "number"
       ? String(Math.max(0, targetTimer)).padStart(2, "0")

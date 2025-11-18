@@ -88,7 +88,6 @@ export function GameView() {
 
   const inventoryWidth = Math.min(mapPixelWidth, viewportWidth - 80);
 
-  const [recentDelivery, setRecentDelivery] = useState(false);
   const [recentLevelUp, setRecentLevelUp] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [uiPhase, setUiPhase] = useState<UiPhase>("intro");
@@ -142,7 +141,6 @@ export function GameView() {
     EquipmentChoice[] | null
   >(null);
 
-  const prevDeliveriesRef = useRef(game.deliveries);
   const prevLevelRef = useRef(game.level);
   const prevCoinsRef = useRef(game.coinsCollected);
   const prevPositionRef = useRef<Position>(game.riderPosition);
