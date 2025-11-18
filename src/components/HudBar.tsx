@@ -15,7 +15,6 @@ type HudBarProps = {
   houseDirection: string | null;
   shopDirection: string | null;
   targetTimer?: number | null;
-  globalTime: number;
   deliveriesGlow?: boolean;
 };
 
@@ -33,7 +32,6 @@ export function HudBar({
   houseDirection,
   shopDirection,
   targetTimer,
-  globalTime,
   deliveriesGlow = false,
 }: HudBarProps) {
   const isHawkins = theme === "hawkins";
@@ -42,7 +40,7 @@ export function HudBar({
     ? "text-xl font-extrabold tracking-[0.25em] text-red-400"
     : "text-xl font-extrabold tracking-[0.25em] text-slate-800";
 
-    const barClass =
+  const barClass =
     "w-full flex items-center justify-between rounded-2xl px-6 py-3 shadow-lg " +
     (isHawkins
       ? "border border-red-500/60 bg-slate-950/95"
@@ -72,7 +70,6 @@ export function HudBar({
   const coinsColorClass = isHawkins
     ? "text-base font-semibold text-amber-300"
     : "text-base font-semibold text-amber-500";
-
 
   const targetColorHex: Record<PackageColor, string> = {
     red: "#f97373",
@@ -104,7 +101,7 @@ export function HudBar({
 
   return (
     <div className={barClass}>
-      {/* LEFT SIDE: Title, subtitle, map info, target info */}
+      {/* LEFT SIDE: title, subtitle, map info, target info */}
       <div className="min-w-0 flex-1">
         <h1 className={titleClass}>CHILL RIDER</h1>
         <p className={subtitleClass}>
@@ -151,10 +148,8 @@ export function HudBar({
         </div>
       </div>
 
-      {/* RIGHT SIDE: global timer + stats */}
+      {/* RIGHT SIDE: stats */}
       <div className="flex flex-col items-end gap-1 text-right text-xs">
-
-        {/* Stats row */}
         <div className="mt-1 flex items-center gap-4">
           <div>
             <div className="text-[0.6rem] uppercase text-slate-500">

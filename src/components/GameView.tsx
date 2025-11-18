@@ -330,10 +330,10 @@ export function GameView() {
     setDeliveriesGlow(true);
     setTimeout(() => setRiderShake(false), 220);
     setTimeout(() => setDeliveriesGlow(false), 280);
-  
+
     setRecentDelivery(true);
     setTimeout(() => setRecentDelivery(false), 1000);
-  
+
     const deliveriesAfter = game.deliveries + 1;
     const deliveriesThisLevelAfter =
       deliveriesAfter % DELIVERIES_PER_LEVEL;
@@ -876,7 +876,6 @@ export function GameView() {
               ? activePackageTimer
               : null
           }
-          globalTime={globalTime}
           deliveriesGlow={deliveriesGlow}
         />
       </div>
