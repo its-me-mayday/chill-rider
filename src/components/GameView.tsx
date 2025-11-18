@@ -913,12 +913,23 @@ export function GameView() {
           <RewardPopupsLayer popups={rewardPopups} />
         </div>
 
-        {/* RIGHT COLUMN: equipment + malus */}
+        {/* RIGHT COLUMN: time + malus + equipment */}
         <div
           className="md:col-start-2 md:row-start-1 flex flex-col gap-3"
           style={{ width: sidePanelWidth, maxHeight: mapPixelHeight }}
         >
-          <div className="h-full min-h-0 overflow-hidden">
+          {/* Timer in alto */}
+          <TimePanel theme={theme} globalTime={globalTime} />
+
+          {/* Status & malus subito sotto */}
+          <MalusPanel
+            message={statusMalusMessage}
+            theme={theme}
+            mudStepsRemaining={mudStepsRemaining}
+          />
+
+          {/* Equipment che occupa il resto */}
+          <div className="flex-1 min-h-0 overflow-hidden">
             <div className="h-full overflow-y-auto">
               <EquipmentPanel
                 theme={theme}
@@ -927,15 +938,9 @@ export function GameView() {
               />
             </div>
           </div>
-
-          <MalusPanel
-            message={statusMalusMessage}
-            theme={theme}
-            mudStepsRemaining={mudStepsRemaining}
-          />
         </div>
 
-        {/* BOTTOM ROW: inventory (left) + time panel (right) */}
+        {/* BOTTOM ROW: inventory (left) */}
         <div className="md:col-start-1 md:row-start-2 mb-2 flex justify-center">
           <div style={{ width: inventoryWidth }}>
             <InventoryPanel
@@ -943,12 +948,6 @@ export function GameView() {
               theme={theme}
               highlight={inventoryHighlight}
             />
-          </div>
-        </div>
-
-        <div className="md:col-start-2 md:row-start-2 mb-2 flex justify-end">
-          <div style={{ width: sidePanelWidth }}>
-            <TimePanel theme={theme} globalTime={globalTime} />
           </div>
         </div>
       </div>
