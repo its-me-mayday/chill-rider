@@ -708,7 +708,7 @@ export function GameView() {
         spawnRewardPopup(`-${lostSeconds}s (mud)`, "coins");
       }
 
-      // unfreeze timer after moving
+      // unfreeze timer dopo il primo movimento
       setIsLevelFrozen(false);
 
       move(direction);
@@ -791,7 +791,7 @@ export function GameView() {
     setIsGameOver(false);
     setIsLevelFrozen(false);
     setMudStepsRemaining(0);
-  
+
     setEquipmentLevels({
       helmet: 0,
       bell: 0,
@@ -801,10 +801,9 @@ export function GameView() {
     });
     setRecentUpgradedKey(null);
     setEquipmentChoices(null);
-  
+
     setUiPhase("playing");
   }
-  
 
   function handleSummaryBackToTitle() {
     resetGame();
@@ -817,7 +816,7 @@ export function GameView() {
     setIsGameOver(false);
     setIsLevelFrozen(false);
     setMudStepsRemaining(0);
-  
+
     setEquipmentLevels({
       helmet: 0,
       bell: 0,
@@ -827,10 +826,9 @@ export function GameView() {
     });
     setRecentUpgradedKey(null);
     setEquipmentChoices(null);
-  
+
     setUiPhase("intro");
   }
-  
 
   return (
     <div className={rootClass}>
@@ -884,7 +882,7 @@ export function GameView() {
         />
       </div>
 
-      {/* MAP + RIGHT COLUMN */}
+      {/* MAP + RIGHT COLUMN + INVENTORY */}
       <div className="z-10 mt-1 grid w-full max-w-6xl justify-center gap-4 md:grid-cols-[auto_auto]">
         {/* MAP */}
         <div
@@ -935,41 +933,53 @@ export function GameView() {
           <RewardPopupsLayer popups={rewardPopups} />
         </div>
 
-{/* RIGHT COLUMN: time + compass + malus + equipment */}
+{/* RIGHT COLUMN: timer + compass affiancati, poi status & malus + equipment */}
 <div
-  className="md:col-start-2 md:row-start-1 flex flex-col gap-3"
+  className="md:col-start-2 md:row-start-1"
   style={{ width: sidePanelWidth, maxHeight: mapPixelHeight }}
 >
-  {/* Timer in alto */}
-  <TimePanel theme={theme} globalTime={globalTime} />
+  <div className="flex h-full flex-col gap-3 overflow-y-auto">
+    {/* TIMER + COMPASS affiancati, leggermente ridotti */}
+    <div className="flex gap-3">
+      <div className="flex-1">
+        <div className="scale-95 origin-top-left">
+          <TimePanel theme={theme} globalTime={globalTime} />
+        </div>
+      </div>
 
-  {/* Compass */}
-  <CompassPanel
-    theme={theme}
-    houseDirection={houseDirection}
-    shopDirection={shopDirection}
-  />
+      <div className="flex-1">
+        <div className="scale-95 origin-top-right">
+          <CompassPanel
+            theme={theme}
+            houseDirection={houseDirection}
+            shopDirection={shopDirection}
+          />
+        </div>
+      </div>
+    </div>
 
-  {/* Status & malus */}
-  <MalusPanel
-    message={statusMalusMessage}
-    theme={theme}
-    mudStepsRemaining={mudStepsRemaining}
-  />
+    {/* STATUS & MALUS a tutta larghezza (stessa width dei due sopra insieme) */}
+    <MalusPanel
+      message={statusMalusMessage}
+      theme={theme}
+      mudStepsRemaining={mudStepsRemaining}
+    />
 
-  {/* Equipment: stessa larghezza degli altri box */}
-  <div className="flex-1 min-h-0 overflow-hidden">
-    <div className="h-full w-full overflow-y-auto">
-      <EquipmentPanel
-        theme={theme}
-        equipmentLevels={equipmentLevels}
-        highlightedKey={recentUpgradedKey}
-      />
+    {/* Equipment scrollabile nello spazio restante */}
+    <div className="flex-1 min-h-0">
+      <div className="h-full overflow-y-auto">
+        <EquipmentPanel
+          theme={theme}
+          equipmentLevels={equipmentLevels}
+          highlightedKey={recentUpgradedKey}
+        />
+      </div>
     </div>
   </div>
 </div>
 
-        {/* BOTTOM ROW: inventory */}
+
+        {/* BOTTOM ROW: inventory (solo sotto la mappa) */}
         <div className="md:col-start-1 md:row-start-2 mb-2 flex justify-center">
           <div style={{ width: inventoryWidth }}>
             <InventoryPanel
