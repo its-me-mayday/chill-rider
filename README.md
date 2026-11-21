@@ -6,6 +6,9 @@ There is no way to lose — just ride.
 
 ## ✨ Features
 
+- **Deliveries** — load parcels at the *Chill Post* office and slow down at each customer's glowing door
+  to hand them over. Tips grow when you're on time and keep fragile parcels (cakes, teapots, telescopes…)
+  safe from rough landings. Miss a house and they'll simply meet you further down the road, for a smaller tip.
 - **Endless side-scrolling road** — procedural hills and kickers, deterministic so every ride is the same world.
 - **Bike physics** — pedal power, gravity on slopes, drag, braking, airtime and flips (lean in the air).
 - **Day cycle** — golden hour → pink dusk → blue night (stars, moon, street lamps, fireflies, headlight) → soft dawn.

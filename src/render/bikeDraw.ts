@@ -110,6 +110,7 @@ function wheel(ctx: CanvasRenderingContext2D, c: V, rot: number, tire: string, r
 export interface BikePose {
   time: number;
   speed: number;
+  cargo?: { color: RGB; fragile: boolean }[];
 }
 
 /**
@@ -151,6 +152,30 @@ export function drawBike(ctx: CanvasRenderingContext2D, bike: Bike, pal: Palette
   const rim = C(BASE.rim);
   wheel(ctx, REAR, bike.wheelRot, tire, rim);
   wheel(ctx, FRONT, bike.wheelRot, tire, rim);
+
+  // ---- rear rack with parcels ----
+  const rack = C(BASE.rim);
+  line(ctx, [[-0.2, 0.8], [-0.78, 0.74]], 0.022, rack);
+  line(ctx, [[-0.7, 0.745], REAR], 0.018, rack);
+  if (pose.cargo && pose.cargo.length) {
+    let y = 0.76;
+    pose.cargo.forEach((b, i) => {
+      const w = 0.36 - i * 0.04;
+      const h = 0.2;
+      const cx = -0.5 + (i % 2 ? 0.02 : -0.02) + Math.sin(pose.time * 6 + i) * 0.004 * Math.min(1, pose.speed / 5);
+      ctx.fillStyle = C(b.color);
+      ctx.fillRect(cx - w / 2, y, w, h);
+      ctx.fillStyle = C(mix(b.color, [90, 50, 40], 0.3));
+      ctx.fillRect(cx - 0.025, y, 0.05, h);
+      if (b.fragile) {
+        ctx.fillStyle = C(BASE.beanie);
+        ctx.fillRect(cx - w / 2, y + h * 0.4, w, h * 0.18);
+      }
+      y += h;
+    });
+    // strap
+    line(ctx, [[-0.62, 0.76], [-0.62, y]], 0.012, C(BASE.tire));
+  }
 
   // ---- frame ----
   ctx.lineCap = 'round';

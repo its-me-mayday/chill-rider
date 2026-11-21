@@ -1,4 +1,5 @@
 import type { Track } from '../audio/radio';
+import type { Deliveries } from '../game/delivery';
 
 const PLACES = [
   'Sunset Boulevard', 'Peach Valley', 'Lavender Hills', 'Old Mill Road', 'Cassette Creek',
@@ -23,7 +24,10 @@ export class Hud {
     key: $('radio-key'),
     toggle: $<HTMLButtonElement>('radio-toggle'),
     tCruise: $('t-cruise'),
+    orders: $('orders'),
+    tips: $('tips'),
   };
+  private ordersKey = '';
   private placeIdx = -1;
   private toastTimer = 0;
   private acc = 0;
@@ -61,6 +65,37 @@ export class Hud {
     }
   }
 
+  updateDeliveries(del: Deliveries, bikeX: number) {
+    const t = del.target;
+    const rows = [...del.orders].sort((a, b) => a.houseX - b.houseX);
+    let html: string;
+    if (!rows.length) {
+      const d = del.depot ? Math.max(0, Math.round(del.depot.x - bikeX)) : 0;
+      html = `<div class="order empty">Ride to Chill Post for new parcels · ${d} m</div>`;
+    } else {
+      html = rows
+        .map((o) => {
+          const d = Math.max(0, Math.round(o.houseX - bikeX));
+          const [r, g, b] = o.color;
+          const cond = o.fragile
+            ? `<span class="cond"><i style="width:${Math.round(o.condition * 100)}%"></i></span>`
+            : '';
+          return `<div class="order${t && t.id === o.id ? ' target' : ''}">
+            <span class="box${o.fragile ? ' fragile' : ''}" style="background:rgb(${r},${g},${b})"></span>
+            <span class="who">n° ${o.houseNo} · ${esc(o.customer)}</span>
+            <span class="what">${esc(o.item)}${o.fragile ? ' · <b>fragile</b>' + cond : ''} · ${d} m</span>
+          </div>`;
+        })
+        .join('');
+    }
+    if (html !== this.ordersKey) {
+      this.ordersKey = html;
+      this.el.orders.innerHTML = html;
+    }
+    const tips = `${del.tips.toFixed(2)} € <small>· ${del.delivered} delivered</small>`;
+    if (this.el.tips.innerHTML !== tips) this.el.tips.innerHTML = tips;
+  }
+
   setCruise(on: boolean) {
     this.el.cruise.classList.toggle('on', on);
     this.el.tCruise.classList.toggle('on', on);
@@ -88,4 +123,8 @@ export class Hud {
     clearTimeout(this.toastTimer);
     this.toastTimer = window.setTimeout(() => this.el.toast.classList.remove('show'), 2200);
   }
+}
+
+function esc(s: string) {
+  return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 }

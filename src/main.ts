@@ -1,6 +1,7 @@
 import './styles.css';
 import { AudioEngine } from './audio/audio';
 import { Bike, type BikeEvent } from './game/bike';
+import { Deliveries, type DeliveryEvent } from './game/delivery';
 import { Input } from './game/input';
 import { paletteAt } from './game/palette';
 import { Renderer } from './render/renderer';
@@ -30,6 +31,7 @@ const bike = new Bike();
 const input = new Input();
 const hud = new Hud();
 const audio = new AudioEngine();
+const deliveries = new Deliveries({ tips: store.get('tips', 0), delivered: store.get('delivered', 0) });
 
 let started = false;
 let paused = false;
@@ -88,6 +90,7 @@ async function start() {
   if (started) return;
   started = true;
   startEl.classList.add('hidden');
+  deliveries.depot = { x: bike.x + 38 };
   await audio.start();
   await audio.radio.play();
   hud.setRadio(true);
@@ -129,11 +132,45 @@ function handle(ev: BikeEvent) {
   }
 }
 
+function handleDelivery(ev: DeliveryEvent) {
+  switch (ev.type) {
+    case 'pickup': {
+      const n = ev.orders.length;
+      const fragile = ev.orders.some((o) => o.fragile);
+      hud.toast(`${n} parcels loaded`, fragile ? 'careful — something fragile' : 'off you go');
+      audio.sparkle();
+      break;
+    }
+    case 'approach':
+      hud.toast(`n° ${ev.order.houseNo} · ${ev.order.customer}`, 'slow down at the glowing door');
+      break;
+    case 'delivered': {
+      const bits = [`+${ev.tip.toFixed(2)} € tip`];
+      if (ev.onTime) bits.push('on time');
+      if (ev.order.fragile && ev.perfect) bits.push('not a scratch');
+      hud.toast(`Delivered to ${ev.order.customer}`, bits.join(' · '));
+      renderer.particles.burst('sparkle', bike.x, bike.y + 1.5, 16);
+      audio.sparkle();
+      store.set('tips', deliveries.tips);
+      store.set('delivered', deliveries.delivered);
+      break;
+    }
+    case 'missed':
+      hud.toast(`${ev.order.customer} will meet you ahead`, `new address · n° ${ev.order.houseNo}`);
+      break;
+    case 'damaged':
+      hud.toast(`careful with ${ev.order.item}!`, `${Math.round(ev.order.condition * 100)}% intact`);
+      break;
+  }
+}
+
 // ------------------------------------------------------------ loop
 const STEP = 1 / 120;
 let acc = 0;
 let last = performance.now();
 const events: BikeEvent[] = [];
+const delEvents: DeliveryEvent[] = [];
+let hudAcc = 0;
 
 function frame(now: number) {
   requestAnimationFrame(frame);
@@ -149,7 +186,13 @@ function frame(now: number) {
     bike.update(STEP, controls, events);
     acc -= STEP;
   }
-  for (const ev of events) if (started) handle(ev);
+  if (started) {
+    deliveries.update(dt, bike, time, events, delEvents);
+    for (const ev of events) handle(ev);
+    // a delivery toast wins over a jump toast in the same frame
+    for (const ev of delEvents) handleDelivery(ev);
+    delEvents.length = 0;
+  }
   events.length = 0;
 
   if (started && bike.distance > best) {
@@ -160,8 +203,13 @@ function frame(now: number) {
   const { pal, name } = paletteAt(time + 20);
   audio.update(dt, bike.displaySpeed, bike.airborne, bike.pedalling);
   renderer.updateCamera(bike, dt);
-  renderer.render(bike, pal, time, dt);
+  renderer.render(bike, pal, time, dt, started ? deliveries : null);
   hud.update(dt, { distance: bike.distance, speed: bike.displaySpeed, phase: name, best });
+  hudAcc += dt;
+  if (hudAcc > 0.15) {
+    hudAcc = 0;
+    hud.updateDeliveries(deliveries, bike.x);
+  }
 }
 
 window.addEventListener('beforeunload', () => store.set('best', best));
@@ -172,5 +220,6 @@ requestAnimationFrame(frame);
   bike,
   renderer,
   audio,
+  deliveries,
   warp: (seconds: number) => (time += seconds),
 };

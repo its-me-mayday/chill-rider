@@ -1,4 +1,5 @@
 import type { Bike } from '../game/bike';
+import type { Deliveries, House } from '../game/delivery';
 import { clamp, css, damp, fbm1, hash, hash2, hex, lerp, mix, type RGB } from '../game/math';
 import type { Palette } from '../game/palette';
 import { groundY } from '../game/terrain';
@@ -105,7 +106,10 @@ export class Renderer {
     this.camY += (ty - this.camY) * damp(2.5, dt);
   }
 
-  render(bike: Bike, pal: Palette, time: number, dt: number) {
+  private reserved: number[] = [];
+
+  render(bike: Bike, pal: Palette, time: number, dt: number, del: Deliveries | null) {
+    this.reserved = del ? del.reserved() : [];
     const { ctx } = this;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.globalCompositeOperation = 'source-over';
@@ -117,9 +121,10 @@ export class Renderer {
     this.drawBirds(pal, time);
     for (const l of LAYERS) this.drawLayer(l, pal, time);
     this.drawProps(pal, time, false);
+    if (del) this.drawDeliveryWorld(del, pal, time);
     this.drawGround(pal);
     this.drawProps(pal, time, true);
-    this.drawRider(bike, pal, time);
+    this.drawRider(bike, pal, time, del);
     this.particles.update(dt, bike, pal, this.camX, this.camY, this.W / this.ppm, this.H / this.ppm);
     this.particles.draw(ctx, pal, (x) => this.sx(x), (y) => this.sy(y), this.ppm, time);
     this.drawForegroundGrass(pal, time);
@@ -466,6 +471,7 @@ export class Renderer {
       const x = c * PROP_CELL + hash(c * 101 + 3) * PROP_CELL * 0.6;
       const isFront = hash(c * 101 + 29) < 0.18;
       if (front !== isFront) continue;
+      if (!front && this.reserved.some((r) => Math.abs(r - x) < 9 || Math.abs(r - c * PROP_CELL) < 9)) continue;
       const kmMark = c % Math.round(1000 / PROP_CELL) === 0;
       if (kmMark && !front) this.kmSign(c * PROP_CELL, pal, Math.round((c * PROP_CELL) / 1000));
       else if (c % 5 === 0 && !front) this.lamp(x, pal, time);
@@ -646,7 +652,7 @@ export class Renderer {
   }
 
   // -------------------------------------------------------------- rider
-  private drawRider(bike: Bike, pal: Palette, time: number) {
+  private drawRider(bike: Bike, pal: Palette, time: number, del: Deliveries | null) {
     const { ctx, ppm } = this;
     const gx = bike.x;
     const gy = groundY(gx);
@@ -681,8 +687,289 @@ export class Renderer {
     ctx.translate(this.sx(bike.x), this.sy(bike.y));
     ctx.scale(ppm, -ppm);
     ctx.rotate(bike.angle);
-    drawBike(ctx, bike, pal, { time, speed: bike.displaySpeed });
+    const cargo = del ? del.orders.slice(0, 3).map((o) => ({ color: o.color, fragile: o.fragile })) : [];
+    drawBike(ctx, bike, pal, { time, speed: bike.displaySpeed, cargo });
     ctx.restore();
+
+    if (del) this.drawDeliveryOverlay(bike, del, pal, time);
+  }
+
+  // ---------------------------------------------------------- deliveries
+  private drawDeliveryWorld(del: Deliveries, pal: Palette, time: number) {
+    const { W, ppm } = this;
+    const x0 = this.camX - W / 2 / ppm - 12;
+    const x1 = this.camX + W / 2 / ppm + 12;
+    for (const dx of [del.depot?.x, del.lastDepotX]) {
+      if (dx !== undefined && dx > x0 && dx < x1) this.postOffice(dx, pal, time);
+    }
+    const target = del.target;
+    for (const h of del.houses) {
+      if (h.x < x0 || h.x > x1) continue;
+      const isTarget = !!target && target.id === h.orderId && Math.abs(target.houseX - h.x) < 0.01;
+      const waiting = !h.delivered && del.orders.some((o) => o.id === h.orderId && Math.abs(o.houseX - h.x) < 0.01);
+      this.house(h, pal, time, isTarget, waiting);
+    }
+  }
+
+  private postOffice(x: number, pal: Palette, time: number) {
+    const { ctx, ppm } = this;
+    const px = this.sx(x);
+    const by = this.base(x, false);
+    const w = 7.5 * ppm;
+    const h = 4 * ppm;
+    const wall = mix(hex('#f6d7b0'), pal.near, 0.25 + pal.night * 0.4);
+    const trim = mix(hex('#e4677b'), pal.near, 0.2 + pal.night * 0.4);
+    // building
+    ctx.fillStyle = css(wall);
+    ctx.fillRect(px - w / 2, by - h, w, h);
+    ctx.fillStyle = css(mix(trim, pal.groundDeep, 0.25));
+    ctx.fillRect(px - w / 2 - ppm * 0.3, by - h - ppm * 0.5, w + ppm * 0.6, ppm * 0.55);
+    // sign
+    ctx.fillStyle = css(mix(hex('#fff6e6'), pal.near, pal.night * 0.3));
+    ctx.beginPath();
+    ctx.roundRect(px - ppm * 2.2, by - h - ppm * 1.6, ppm * 4.4, ppm * 1.05, ppm * 0.2);
+    ctx.fill();
+    ctx.fillStyle = css(trim);
+    ctx.font = `600 ${Math.round(ppm * 0.55)}px Outfit, system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('CHILL POST', px + ppm * 0.25, by - h - ppm * 1.07);
+    this.envelope(px - ppm * 1.75, by - h - ppm * 1.07, ppm * 0.45, trim);
+    // striped awning
+    const aw = w * 0.9;
+    const ay = by - h * 0.62;
+    for (let i = 0; i < 9; i++) {
+      ctx.fillStyle = i % 2 ? css(mix(hex('#fff6e6'), pal.near, 0.2 + pal.night * 0.3)) : css(trim);
+      ctx.beginPath();
+      const sx0 = px - aw / 2 + (aw / 9) * i;
+      ctx.moveTo(sx0, ay);
+      ctx.lineTo(sx0 + aw / 9, ay);
+      ctx.lineTo(sx0 + aw / 9, ay + ppm * 0.5);
+      ctx.arc(sx0 + aw / 18, ay + ppm * 0.5, aw / 18, 0, Math.PI);
+      ctx.fill();
+    }
+    // door + windows
+    const lit = clamp((pal.night - 0.15) / 0.4, 0, 1);
+    const glass = lit > 0 ? `rgba(255,214,140,${0.5 + lit * 0.5})` : css(mix(pal.skyHorizon, pal.near, 0.3));
+    ctx.fillStyle = css(mix(trim, pal.groundDeep, 0.45));
+    ctx.fillRect(px - ppm * 0.6, by - ppm * 2.1, ppm * 1.2, ppm * 2.1);
+    ctx.fillStyle = glass;
+    ctx.fillRect(px - w / 2 + ppm * 0.6, by - ppm * 2.0, ppm * 2.0, ppm * 1.2);
+    ctx.fillRect(px + w / 2 - ppm * 2.6, by - ppm * 2.0, ppm * 2.0, ppm * 1.2);
+    // parcels piled by the door
+    const boxes: [number, number, number][] = [[-1.5, 0, 0.7], [-0.95, 0, 0.5], [-1.25, 0.5, 0.45], [1.0, 0, 0.6]];
+    for (const [bx, byy, s] of boxes) {
+      this.parcel(px + bx * ppm, by - byy * ppm, s * ppm, mix(hex('#d6a870'), pal.near, 0.2 + pal.night * 0.4), false);
+    }
+    // little flag waving on the roof
+    const fx = px + w / 2 - ppm * 0.4;
+    const fy = by - h - ppm * 0.5;
+    ctx.strokeStyle = css(pal.trunk);
+    ctx.lineWidth = Math.max(1.5, ppm * 0.05);
+    ctx.beginPath();
+    ctx.moveTo(fx, fy);
+    ctx.lineTo(fx, fy - ppm * 1.6);
+    ctx.stroke();
+    ctx.fillStyle = css(trim);
+    ctx.beginPath();
+    ctx.moveTo(fx, fy - ppm * 1.6);
+    const wave = Math.sin(time * 4) * ppm * 0.1;
+    ctx.quadraticCurveTo(fx + ppm * 0.4, fy - ppm * 1.5 + wave, fx + ppm * 0.8, fy - ppm * 1.4);
+    ctx.lineTo(fx, fy - ppm * 1.15);
+    ctx.fill();
+  }
+
+  private envelope(cx: number, cy: number, s: number, col: RGB) {
+    const { ctx } = this;
+    ctx.strokeStyle = css(col);
+    ctx.lineWidth = Math.max(1.2, s * 0.12);
+    ctx.strokeRect(cx - s / 2, cy - s * 0.35, s, s * 0.7);
+    ctx.beginPath();
+    ctx.moveTo(cx - s / 2, cy - s * 0.35);
+    ctx.lineTo(cx, cy + s * 0.05);
+    ctx.lineTo(cx + s / 2, cy - s * 0.35);
+    ctx.stroke();
+  }
+
+  private parcel(cx: number, by: number, s: number, col: RGB, fragile: boolean) {
+    const { ctx } = this;
+    ctx.fillStyle = css(col);
+    ctx.fillRect(cx - s / 2, by - s * 0.8, s, s * 0.8);
+    ctx.fillStyle = css(mix(col, [90, 50, 40], 0.25));
+    ctx.fillRect(cx - s * 0.08, by - s * 0.8, s * 0.16, s * 0.8);
+    if (fragile) {
+      ctx.fillStyle = '#e4677b';
+      ctx.fillRect(cx - s / 2, by - s * 0.45, s, s * 0.12);
+    }
+  }
+
+  private house(h: House, pal: Palette, time: number, isTarget: boolean, waiting: boolean) {
+    const { ctx, ppm } = this;
+    const px = this.sx(h.x);
+    const by = this.base(h.x, false);
+    const walls = ['#ffd6c9', '#cfe7d6', '#d9d1f2', '#fbe7a6'];
+    const roofs = ['#c45d6e', '#5f8f8a', '#7a6aa8', '#d98a54'];
+    const tint = 0.2 + pal.night * 0.45;
+    const wall = mix(hex(walls[h.style]), pal.near, tint);
+    const roof = mix(hex(roofs[h.style]), pal.near, tint);
+    const w = 5.6 * ppm;
+    const hh = 3.2 * ppm;
+    ctx.fillStyle = css(wall);
+    ctx.fillRect(px - w / 2, by - hh, w, hh);
+    ctx.fillStyle = css(roof);
+    ctx.beginPath();
+    ctx.moveTo(px - w / 2 - ppm * 0.5, by - hh);
+    ctx.lineTo(px, by - hh - ppm * 2.2);
+    ctx.lineTo(px + w / 2 + ppm * 0.5, by - hh);
+    ctx.closePath();
+    ctx.fill();
+    // chimney
+    ctx.fillRect(px + w * 0.22, by - hh - ppm * 1.9, ppm * 0.5, ppm * 1.0);
+
+    // windows: lit at night, or when someone's waiting for a parcel
+    const night = clamp((pal.night - 0.15) / 0.4, 0, 1);
+    const glow = waiting ? Math.max(0.6, night) : h.delivered ? night : night * 0.4;
+    const glass = glow > 0.05 ? `rgba(255,214,140,${0.35 + glow * 0.65})` : css(mix(pal.skyHorizon, wall, 0.4));
+    ctx.fillStyle = glass;
+    ctx.fillRect(px - w / 2 + ppm * 0.5, by - hh + ppm * 0.7, ppm * 1.2, ppm * 1.0);
+    ctx.fillRect(px + w / 2 - ppm * 1.7, by - hh + ppm * 0.7, ppm * 1.2, ppm * 1.0);
+    // door
+    ctx.fillStyle = css(mix(roof, pal.groundDeep, 0.3));
+    ctx.beginPath();
+    ctx.roundRect(px - ppm * 0.55, by - ppm * 2.0, ppm * 1.1, ppm * 2.0, [ppm * 0.5, ppm * 0.5, 0, 0]);
+    ctx.fill();
+    // house number plate
+    ctx.fillStyle = css(mix(hex('#fff6e6'), pal.near, pal.night * 0.3));
+    ctx.beginPath();
+    ctx.roundRect(px - ppm * 0.42, by - hh - ppm * 0.95, ppm * 0.84, ppm * 0.6, ppm * 0.12);
+    ctx.fill();
+    ctx.fillStyle = css(roof);
+    ctx.font = `600 ${Math.round(ppm * 0.42)}px Outfit, system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(h.no), px, by - hh - ppm * 0.63);
+
+    if (isTarget) {
+      // warm welcome mat glow marking the drop zone
+      const g = ctx.createRadialGradient(px, by, 0, px, by, ppm * 3.6);
+      g.addColorStop(0, `rgba(255,236,170,${0.45 + 0.15 * Math.sin(time * 4)})`);
+      g.addColorStop(1, 'rgba(255,236,170,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(px - ppm * 3.6, by - ppm * 3.6, ppm * 7.2, ppm * 4.2);
+      // bouncing pin above the roof
+      const pinY = by - hh - ppm * 3.2 + Math.sin(time * 3) * ppm * 0.2;
+      this.pin(px, pinY, ppm * 0.55, time);
+    }
+
+    if (h.delivered) {
+      const t = time - h.deliveredAt;
+      // the customer waves from the door for a while
+      if (t < 9) {
+        const skin = css(mix(hex('#f2c4a0'), pal.near, tint));
+        const shirt = css(mix(hex(roofs[(h.style + 1) % 4]), pal.near, tint));
+        const hx = px + ppm * 0.95;
+        ctx.fillStyle = shirt;
+        ctx.beginPath();
+        ctx.roundRect(hx - ppm * 0.25, by - ppm * 1.25, ppm * 0.5, ppm * 0.85, ppm * 0.18);
+        ctx.fill();
+        ctx.fillStyle = css(mix(hex('#5a6fb0'), pal.near, tint));
+        ctx.fillRect(hx - ppm * 0.2, by - ppm * 0.45, ppm * 0.4, ppm * 0.45);
+        ctx.fillStyle = skin;
+        ctx.beginPath();
+        ctx.arc(hx, by - ppm * 1.45, ppm * 0.22, 0, Math.PI * 2);
+        ctx.fill();
+        const wave = Math.sin(time * 9) * 0.5;
+        ctx.strokeStyle = skin;
+        ctx.lineWidth = Math.max(2, ppm * 0.1);
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(hx + ppm * 0.2, by - ppm * 1.1);
+        ctx.lineTo(hx + ppm * (0.45 + wave * 0.2), by - ppm * 1.7);
+        ctx.stroke();
+        // parcel at their feet
+        this.parcel(hx - ppm * 0.6, by, ppm * 0.45, hex('#d6a870'), false);
+      }
+      if (t < 2.5) {
+        // a little heart floats up
+        const a = 1 - t / 2.5;
+        const hy = by - hh - ppm * (1 + t * 1.2);
+        this.heart(px, hy, ppm * 0.35, `rgba(255,120,150,${a})`);
+      }
+    } else if (!waiting) {
+      // nobody home any more — curtains drawn
+      ctx.fillStyle = css(mix(wall, pal.groundDeep, 0.2), 0.6);
+      ctx.fillRect(px - w / 2 + ppm * 0.5, by - hh + ppm * 0.7, ppm * 1.2, ppm * 1.0);
+      ctx.fillRect(px + w / 2 - ppm * 1.7, by - hh + ppm * 0.7, ppm * 1.2, ppm * 1.0);
+    }
+  }
+
+  private heart(cx: number, cy: number, s: number, fill: string) {
+    const { ctx } = this;
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy + s * 0.9);
+    ctx.bezierCurveTo(cx - s * 1.4, cy, cx - s * 0.7, cy - s, cx, cy - s * 0.3);
+    ctx.bezierCurveTo(cx + s * 0.7, cy - s, cx + s * 1.4, cy, cx, cy + s * 0.9);
+    ctx.fill();
+  }
+
+  private pin(cx: number, cy: number, r: number, time: number) {
+    const { ctx } = this;
+    ctx.fillStyle = 'rgba(255,248,236,0.95)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, Math.PI * 0.85, Math.PI * 2.15);
+    ctx.lineTo(cx, cy + r * 1.7);
+    ctx.closePath();
+    ctx.fill();
+    this.parcel(cx, cy + r * 0.38, r * 1.05, hex('#d6a870'), false);
+    void time;
+  }
+
+  private drawDeliveryOverlay(bike: Bike, del: Deliveries, pal: Palette, time: number) {
+    const { ctx, W, ppm } = this;
+    const t = del.target;
+    // hand-over ring above the rider
+    const p = del.handover;
+    if (p > 0) {
+      const cx = this.sx(bike.x);
+      const cy = this.sy(bike.y) - ppm * 2.3;
+      ctx.lineWidth = Math.max(3, ppm * 0.09);
+      ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+      ctx.beginPath();
+      ctx.arc(cx, cy, ppm * 0.4, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,240,200,0.95)';
+      ctx.beginPath();
+      ctx.arc(cx, cy, ppm * 0.4, -Math.PI / 2, -Math.PI / 2 + p * Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // edge arrow towards the next stop (house or post office)
+    const goal = t ? t.houseX : del.depot?.x;
+    if (goal === undefined) return;
+    const gx = this.sx(goal);
+    if (gx < W - 24) return;
+    const dist = Math.max(0, goal - bike.x);
+    const ay = this.sy(groundY(Math.min(goal, this.camX + W / 2 / ppm))) - ppm * 3.4;
+    const ax = W - 26;
+    const bob = Math.sin(time * 4) * 4;
+    ctx.fillStyle = 'rgba(255,248,236,0.92)';
+    ctx.beginPath();
+    ctx.moveTo(ax + 14 + bob, ay);
+    ctx.lineTo(ax - 4 + bob, ay - 12);
+    ctx.lineTo(ax - 4 + bob, ay + 12);
+    ctx.closePath();
+    ctx.fill();
+    ctx.font = '600 14px Outfit, system-ui, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(255,248,236,0.95)';
+    ctx.shadowColor = 'rgba(60,20,50,0.35)';
+    ctx.shadowBlur = 8;
+    const label = t ? `n° ${t.houseNo} · ${Math.round(dist)} m` : `Chill Post · ${Math.round(dist)} m`;
+    ctx.fillText(label, ax - 12 + bob, ay);
+    ctx.shadowBlur = 0;
+    void pal;
   }
 
   private drawForegroundGrass(pal: Palette, time: number) {
