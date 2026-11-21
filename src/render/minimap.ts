@@ -74,7 +74,7 @@ export class Minimap {
     }
     for (const o of orders.carried) {
       const isT = target?.order?.id === o.id;
-      ctx.fillStyle = o.late ? '#ff8f8f' : isT ? '#fff1b8' : 'rgba(255,241,184,0.6)';
+      ctx.fillStyle = `rgb(${o.color.join(',')})`;
       ctx.beginPath();
       ctx.arc(o.house.stopX * scale, o.house.stopY * scale, (isT ? 4.5 : 3.2) * k, 0, Math.PI * 2);
       ctx.fill();

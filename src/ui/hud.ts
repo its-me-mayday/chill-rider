@@ -62,19 +62,20 @@ export class Hud {
       const anyWaiting = [...o.waiting.values()].some(Boolean);
       rows = `<div class="order empty">${anyWaiting ? 'Ride to a shop with a 📦 to pick up an order' : 'Shops are preparing orders…'}</div>`;
     } else {
+      const dist = (x: typeof o.carried[number]) => Math.hypot(x.house.stopX - s.riderX, x.house.stopY - s.riderY);
       rows = [...o.carried]
-        .sort((a, b) => a.deadline - b.deadline)
-        .map((ord) => {
+        .sort((a, b) => dist(a) - dist(b))
+        .map((ord, i) => {
           const left = ord.deadline - s.time;
-          const [r, g, b] = ord.shop.shop!.roof;
+          const [r, g, b] = ord.color;
           const cls = left < 0 ? 'late' : left < 12 ? 'warn' : '';
           const cond = ord.fragile ? ` · <b>fragile</b><span class="cond"><i style="width:${Math.round(ord.condition * 100)}%"></i></span>` : '';
-          const d = Math.round(Math.hypot(ord.house.stopX - s.riderX, ord.house.stopY - s.riderY));
-          return `<div class="order${s.targetId === ord.id ? ' target' : ''}">
-            <span class="sw" style="background:rgb(${r},${g},${b})"></span>
+          const d = Math.round(dist(ord));
+          return `<div class="order${i === 0 ? ' target' : ' small'}" style="--c:rgb(${r},${g},${b})">
+            <span class="sw"></span>
             <span class="addr">${ord.kind === 'rush' ? '⚡ ' : ord.kind === 'vip' ? '★ ' : ''}${ord.house.no} ${esc(ord.house.street)}</span>
             <span class="timer ${cls}">${left < 0 ? 'late' : fmt(left)}</span>
-            <span class="what">${esc(ord.item)} · ${esc(ord.shop.shop!.name)}${cond} · ${d} m</span>
+            <span class="what">${i === 0 ? `${esc(ord.item)} · ${esc(ord.shop.shop!.name)}${cond} · ` : ''}${d} m</span>
           </div>`;
         })
         .join('');

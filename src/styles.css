@@ -82,8 +82,15 @@ canvas#game { display: block; position: fixed; inset: 0; }
   text-shadow: none;
   transition: transform 0.3s, background 0.3s;
 }
-.order.target { background: rgba(60, 30, 60, 0.45); transform: translateX(4px); border-color: rgba(255, 241, 184, 0.7); }
-.order .sw { grid-row: span 2; width: 10px; align-self: stretch; border-radius: 5px; }
+.order.target { background: rgba(60, 30, 60, 0.5); border-color: var(--c, #fff1b8); border-width: 2px; padding: 10px 14px 10px 10px; }
+.order.target .addr { font-size: 1.05rem; }
+.order.target .timer { font-size: 1.4rem; }
+.order.small { padding: 5px 10px 5px 8px; gap: 0 10px; opacity: 0.92; }
+.order.small .addr { font-size: 0.8rem; }
+.order.small .timer { font-size: 0.95rem; }
+.order.small .what { font-size: 0.68rem; }
+.order .sw { grid-row: span 2; width: 10px; align-self: stretch; border-radius: 5px; background: var(--c, #fff1b8); box-shadow: 0 0 10px var(--c, transparent); }
+.order.target .sw { width: 12px; }
 .order .addr { font-size: 0.9rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .order .what { font-size: 0.72rem; opacity: 0.85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .order .what b { color: #ffc2cb; font-weight: 600; }
@@ -171,7 +178,10 @@ canvas#game { display: block; position: fixed; inset: 0; }
 @media (max-width: 640px) {
   .minimap { width: 118px; }
   .orders { width: calc(100vw - 2 * var(--pad) - 130px); }
-  .order:not(.target):not(.empty) { display: none; }
+  .order.small .what { display: none; }
+  .toast { top: 64%; font-size: 1.25rem; }
+  .toast.big { font-size: 2rem; }
+  .order.small .sw { grid-row: auto; }
   .order .timer { font-size: 1rem; }
   .radio-track { max-width: 110px; }
   #radio-key { display: none; }

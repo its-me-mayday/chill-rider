@@ -423,24 +423,26 @@ export class Renderer {
       const isT = target?.order?.id === o.id;
       const x = this.sx(o.house.stopX);
       const y = this.sy(o.house.stopY);
-      const pulse = 0.75 + 0.25 * Math.sin(time * 4);
-      const R = ppm * (isT ? 3.4 * pulse : 2.4);
-      const c = o.late ? '255,140,140' : '255,236,170';
+      const pulse = 0.75 + 0.25 * Math.sin(time * 4 + o.id);
+      const R = ppm * (isT ? 3.6 * pulse : 2.6);
+      const c = o.color.join(',');
       const g = ctx.createRadialGradient(x, y, 0, x, y, R);
-      g.addColorStop(0, `rgba(${c},${isT ? 0.75 : 0.4})`);
+      g.addColorStop(0, `rgba(${c},${isT ? 0.8 : 0.5})`);
       g.addColorStop(1, `rgba(${c},0)`);
       ctx.fillStyle = g;
       ctx.fillRect(x - R, y - R, R * 2, R * 2);
-      ctx.strokeStyle = `rgba(${c},${isT ? 0.95 : 0.5})`;
-      ctx.lineWidth = Math.max(2, ppm * 0.14);
+      ctx.strokeStyle = `rgba(${c},${isT ? 1 : 0.75})`;
+      ctx.lineWidth = Math.max(2, ppm * (isT ? 0.2 : 0.13));
+      if (o.late) ctx.setLineDash([ppm * 0.4, ppm * 0.3]);
       ctx.beginPath();
       ctx.arc(x, y, ppm * 1.6, 0, Math.PI * 2);
       ctx.stroke();
+      ctx.setLineDash([]);
     }
   }
 
   private drawGuides(r: Rider, orders: Orders | null, target: Target | null, time: number) {
-    const { ctx, ppm, W, H } = this;
+    const { ctx, ppm } = this;
     if (!orders) return;
     const rx = this.sx(r.x);
     const ry = this.sy(r.y);
@@ -458,22 +460,40 @@ export class Renderer {
       ctx.stroke();
     }
 
-    if (!target) return;
-    const dx = target.x - r.x;
-    const dy = target.y - r.y;
+    // one arrow per carried delivery, each in its own colour; the nearest is the big one
+    const nearestId = target?.order?.id ?? -1;
+    if (orders.carried.length) {
+      const list = orders.byDistance(r);
+      // far ones first so the nearest is drawn on top
+      for (let i = list.length - 1; i >= 0; i--) {
+        const o = list[i];
+        this.guide(r, o.house.stopX, o.house.stopY, `rgb(${o.color.join(',')})`, o.id === nearestId, time, o.late, i);
+      }
+      return;
+    }
+    if (target) this.guide(r, target.x, target.y, 'rgba(255,255,255,0.95)', true, time, false, 0);
+  }
+
+  private guide(r: Rider, gx: number, gy: number, col: string, main: boolean, time: number, late: boolean, slot: number) {
+    const { ctx, ppm, W, H } = this;
+    const rx = this.sx(r.x);
+    const ry = this.sy(r.y);
+    const dx = gx - r.x;
+    const dy = gy - r.y;
     const d = Math.hypot(dx, dy);
     const a = Math.atan2(dy, dx);
-    const col = target.kind === 'shop' ? 'rgba(255,255,255,0.95)' : target.order?.late ? 'rgba(255,150,150,0.95)' : 'rgba(255,240,190,0.98)';
 
-    if (d > 6) {
-      const R = ppm * 2.4;
+    if (d > 5) {
+      const R = ppm * (main ? 2.6 : 2.0 + slot * 0.25);
       ctx.save();
       ctx.translate(rx + Math.cos(a) * R, ry + Math.sin(a) * R);
       ctx.rotate(a);
+      const s = Math.max(main ? 9 : 6, ppm * (main ? 0.62 : 0.38)) * (main ? 1 + 0.1 * Math.sin(time * 5) : 1);
+      ctx.shadowColor = 'rgba(50,20,50,0.45)';
+      ctx.shadowBlur = main ? 8 : 4;
       ctx.fillStyle = col;
-      ctx.shadowColor = 'rgba(60,20,50,0.35)';
-      ctx.shadowBlur = 6;
-      const s = Math.max(7, ppm * 0.45) * (1 + 0.08 * Math.sin(time * 5));
+      ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+      ctx.lineWidth = main ? 2 : 1.2;
       ctx.beginPath();
       ctx.moveTo(s, 0);
       ctx.lineTo(-s * 0.6, -s * 0.75);
@@ -481,11 +501,14 @@ export class Renderer {
       ctx.lineTo(-s * 0.6, s * 0.75);
       ctx.closePath();
       ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.stroke();
       ctx.restore();
     }
 
-    const tx = this.sx(target.x);
-    const ty = this.sy(target.y);
+    // edge pill with the distance when the door is off screen
+    const tx = this.sx(gx);
+    const ty = this.sy(gy);
     const m = 34;
     if (tx < m || tx > W - m || ty < m + 40 || ty > H - m - 40) {
       const cx = W / 2;
@@ -495,15 +518,26 @@ export class Renderer {
       const k = Math.min((W / 2 - m - 10) / Math.abs(ddx || 1), (H / 2 - m - 60) / Math.abs(ddy || 1));
       const ex = cx + ddx * k;
       const ey = cy + ddy * k;
-      ctx.fillStyle = 'rgba(40,20,45,0.45)';
+      const w = main ? 74 : 58;
+      const h = main ? 30 : 24;
+      ctx.fillStyle = 'rgba(40,20,45,0.55)';
+      ctx.strokeStyle = col;
+      ctx.lineWidth = main ? 2.5 : 1.5;
       ctx.beginPath();
-      ctx.roundRect(ex - 34, ey - 14, 68, 28, 14);
+      ctx.roundRect(ex - w / 2, ey - h / 2, w, h, h / 2);
       ctx.fill();
-      ctx.fillStyle = col;
-      ctx.font = '600 13px Outfit, system-ui, sans-serif';
+      ctx.stroke();
+      ctx.fillStyle = late ? '#ffb3b3' : '#fff8f0';
+      ctx.font = `600 ${main ? 14 : 11}px Outfit, system-ui, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(`${Math.round(d)} m`, ex, ey + 1);
+    } else if (!main) {
+      // small coloured pin over the door when it is on screen
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      ctx.arc(tx, ty - ppm * 2.4, Math.max(4, ppm * 0.35), 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 

@@ -21,7 +21,18 @@ export interface Order {
   near: boolean;
   late: boolean;
   customer: string;
+  /** guide colour while carried: arrow, doormat, card and minimap dot share it */
+  color: [number, number, number];
 }
+
+/** Distinct, friendly colours for the deliveries you carry. */
+export const GUIDE_COLORS: [number, number, number][] = [
+  [255, 209, 102], // butter
+  [123, 223, 242], // sky
+  [255, 143, 171], // pink
+  [168, 230, 140], // mint
+  [195, 166, 255], // lilac
+];
 
 export type OrderEvent =
   | { type: 'pickup'; order: Order }
@@ -83,9 +94,15 @@ export class Orders {
   }
 
   /** What the rider should head to next. */
+  /** Carried orders sorted by distance from the rider — nearest first. */
+  byDistance(rider: Rider): Order[] {
+    const d = (o: Order) => Math.hypot(o.house.stopX - rider.x, o.house.stopY - rider.y);
+    return [...this.carried].sort((a, b) => d(a) - d(b));
+  }
+
   target(rider: Rider): { x: number; y: number; kind: 'house' | 'shop'; order?: Order } | null {
     if (this.carried.length) {
-      const o = [...this.carried].sort((a, b) => a.deadline - b.deadline)[0];
+      const o = this.byDistance(rider)[0];
       return { x: o.house.stopX, y: o.house.stopY, kind: 'house', order: o };
     }
     let best: Building | null = null;
@@ -157,6 +174,8 @@ export class Orders {
         if (o.kind === 'rush') limit *= 0.62;
         o.limit = Math.round(limit);
         o.deadline = time + o.limit;
+        const used = new Set(this.carried.map((c) => c.color));
+        o.color = GUIDE_COLORS.find((c) => !used.has(c)) ?? GUIDE_COLORS[o.id % GUIDE_COLORS.length];
         this.carried.push(o);
         this.waiting.set(s.id, null);
         const fast = this.opt.level >= 5 ? 0.6 : 1;
@@ -244,6 +263,7 @@ export class Orders {
       near: false,
       late: false,
       customer: R.pick(NAMES),
+      color: GUIDE_COLORS[0],
     };
   }
 
