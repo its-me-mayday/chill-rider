@@ -6,6 +6,7 @@ import type { Rider } from '../game/rider';
 import type { Joystick } from '../game/input';
 import type { Critters, Walker } from '../game/critters';
 import { drawRider, type Cargo, type RiderStyle } from './riderDraw';
+import { drawShop, type Painter } from './shops';
 
 interface Particle {
   kind: 'petal' | 'dust' | 'sparkle' | 'firefly' | 'leaf' | 'butterfly' | 'confetti';
@@ -199,7 +200,10 @@ export class Renderer {
     this.shakeY = (Math.random() - 0.5) * sh;
 
     const view = this.view();
+    this.night = light.night;
+    this.lastTime = time;
     this.drawTiles(map, view, time);
+    this.drawStreetDetails(map, view);
     this.updateTracks(r, dt);
     this.drawTracks();
     if (sc.rain) this.drawPuddles(map, view, dt);
@@ -636,8 +640,67 @@ export class Renderer {
     ctx.strokeStyle = 'rgba(50,20,40,0.35)';
     ctx.lineWidth = Math.max(1, ppm * 0.08);
     ctx.strokeRect(x, y, w, h);
+    const chx = x + w * (ridgeH ? 0.72 : 0.25);
+    const chy = y + h * (ridgeH ? 0.22 : 0.7);
     ctx.fillStyle = css(mix(roof, [80, 40, 50], 0.4));
-    ctx.fillRect(x + w * (ridgeH ? 0.72 : 0.25), y + h * (ridgeH ? 0.22 : 0.7), ppm * 0.8, ppm * 0.8);
+    ctx.fillRect(chx, chy, ppm * 0.8, ppm * 0.8);
+    const dec = hash(b.id * 13);
+    if (dec < 0.3) {
+      // solar panels on the sunny half
+      ctx.fillStyle = 'rgba(60,80,130,0.85)';
+      const pw = ppm * 1.0;
+      const ph = ppm * 0.7;
+      const ox = ridgeH ? x + w * 0.15 : x + w * 0.58;
+      const oy = ridgeH ? y + h * 0.58 : y + h * 0.15;
+      for (let i = 0; i < 3; i++) {
+        const px2 = ridgeH ? ox + i * (pw + 2) : ox;
+        const py2 = ridgeH ? oy : oy + i * (ph + 2);
+        ctx.fillRect(px2, py2, ridgeH ? pw : ph, ridgeH ? ph : pw);
+      }
+      ctx.strokeStyle = 'rgba(200,220,255,0.35)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(ox, oy, ridgeH ? pw * 3 + 4 : ph, ridgeH ? ph : pw * 3 + 4);
+    } else if (dec < 0.55) {
+      // skylights
+      ctx.fillStyle = this.night > 0.3 ? `rgba(255,214,140,${0.4 + this.night * 0.5})` : 'rgba(180,215,235,0.85)';
+      ctx.fillRect(x + w * 0.3, y + h * 0.62, ppm * 0.9, ppm * 0.7);
+      ctx.fillRect(x + w * 0.55, y + h * 0.62, ppm * 0.9, ppm * 0.7);
+    }
+    // smoke from the chimney in the evening
+    if (this.night > 0.25 && hash(b.id * 31) < 0.5) {
+      for (let k = 0; k < 4; k++) {
+        const life = (this.lastTime * 0.4 + k / 4 + b.id * 0.37) % 1;
+        ctx.fillStyle = `rgba(235,230,240,${0.35 * (1 - life)})`;
+        ctx.beginPath();
+        ctx.arc(chx + ppm * 0.4 + life * ppm * 1.8, chy + ppm * 0.4 - life * ppm * 1.2, ppm * (0.3 + life * 0.7), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    // mailbox and a little flower bed by the door
+    const mb = { x: b.doorX + b.nx * 1.3 - b.ny * 1.6, y: b.doorY + b.ny * 1.3 + b.nx * 1.6 };
+    ctx.fillStyle = '#6b5a6a';
+    ctx.fillRect(this.sx(mb.x) - ppm * 0.06, this.sy(mb.y) - ppm * 0.06, ppm * 0.12, ppm * 0.12);
+    ctx.fillStyle = ['#e4677b', '#7fc4e6', '#f4c063', '#7cbf86'][b.id % 4];
+    ctx.beginPath();
+    ctx.roundRect(this.sx(mb.x) - ppm * 0.25, this.sy(mb.y) - ppm * 0.18, ppm * 0.5, ppm * 0.36, ppm * 0.1);
+    ctx.fill();
+    const fb = { x: b.doorX + b.nx * 0.6 + b.ny * 2.2, y: b.doorY + b.ny * 0.6 - b.nx * 2.2 };
+    if (hash(b.id * 5) < 0.75) {
+      ctx.fillStyle = '#8a6a4a';
+      ctx.beginPath();
+      ctx.ellipse(this.sx(fb.x), this.sy(fb.y), ppm * 0.9, ppm * 0.45, b.nx === 0 ? 0 : Math.PI / 2, 0, Math.PI * 2);
+      ctx.fill();
+      const fc = ['#ff8fab', '#ffd166', '#ffffff', '#c3a6ff'];
+      for (let k = 0; k < 6; k++) {
+        const u = (k / 5 - 0.5) * 1.4;
+        const fx = fb.x - b.ny * u;
+        const fy = fb.y + b.nx * u;
+        ctx.fillStyle = fc[(k + b.id) % 4];
+        ctx.beginPath();
+        ctx.arc(this.sx(fx), this.sy(fy), ppm * 0.14, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
 
     // house number near the door
     const px = this.sx(b.doorX - b.nx * 1.4);
@@ -656,63 +719,21 @@ export class Renderer {
     ctx.fillText(label, px, py + 1);
   }
 
-  private shop(b: Building, orders: Orders | null, time: number) {
-    const { ctx, ppm } = this;
-    const st = b.shop!;
-    const x = this.sx(b.x);
-    const y = this.sy(b.y);
-    const w = b.w * ppm;
-    const h = b.h * ppm;
-    this.door(b, css(mix(st.roof, [40, 20, 30], 0.5)));
-    ctx.fillStyle = css(mix(st.roof, [50, 20, 40], 0.12));
-    ctx.fillRect(x, y, w, h);
-    ctx.fillStyle = css(mix(st.roof, [255, 245, 230], 0.12));
-    ctx.fillRect(x + ppm * 0.4, y + ppm * 0.4, w - ppm * 0.8, h - ppm * 0.8);
-    // striped awning over the door wall
-    const n = 7;
-    const along = b.nx === 0;
-    const len = (along ? b.w : b.h) * 0.85;
-    const depth = 1.3;
-    const ax = along ? b.x + (b.w - len) / 2 : b.nx > 0 ? b.x + b.w : b.x - depth;
-    const ay = along ? (b.ny > 0 ? b.y + b.h : b.y - depth) : b.y + (b.h - len) / 2;
-    for (let i = 0; i < n; i++) {
-      ctx.fillStyle = i % 2 ? 'rgba(255,250,240,0.95)' : css(st.awning);
-      if (along) ctx.fillRect(this.sx(ax + (len / n) * i), this.sy(ay), (len / n) * ppm + 0.5, depth * ppm);
-      else ctx.fillRect(this.sx(ax), this.sy(ay + (len / n) * i), depth * ppm, (len / n) * ppm + 0.5);
-    }
-    // sign on the roof
-    const fs = Math.max(10, Math.round(ppm * 0.78));
-    ctx.font = `600 ${fs}px Outfit, system-ui, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    const tw = ctx.measureText(st.name).width + fs;
-    const cx = x + w / 2;
-    const cy = y + h / 2;
-    ctx.fillStyle = 'rgba(255,250,240,0.95)';
-    ctx.beginPath();
-    ctx.roundRect(cx - tw / 2, cy - fs * 0.8, tw, fs * 1.6, fs * 0.4);
-    ctx.fill();
-    ctx.fillStyle = css(mix(st.roof, [40, 20, 30], 0.35));
-    ctx.fillText(st.name, cx, cy + 1);
+  private night = 0;
+  private lastTime = 0;
 
-    if (orders && orders.waiting.get(b.id)) {
-      const bx = cx;
-      const by = y - ppm * 1.4 + Math.sin(time * 3 + b.id) * ppm * 0.25;
-      const r = ppm * 0.95;
-      ctx.fillStyle = 'rgba(255,250,240,0.97)';
-      ctx.beginPath();
-      ctx.arc(bx, by, r, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.moveTo(bx - r * 0.35, by + r * 0.8);
-      ctx.lineTo(bx, by + r * 1.45);
-      ctx.lineTo(bx + r * 0.35, by + r * 0.8);
-      ctx.fill();
-      ctx.fillStyle = '#d6a870';
-      ctx.fillRect(bx - r * 0.5, by - r * 0.42, r, r * 0.84);
-      ctx.fillStyle = 'rgba(110,70,40,0.4)';
-      ctx.fillRect(bx - r * 0.08, by - r * 0.42, r * 0.16, r * 0.84);
-    }
+  private painter(): Painter {
+    return {
+      ctx: this.ctx,
+      ppm: this.ppm,
+      sx: (x) => this.sx(x),
+      sy: (y) => this.sy(y),
+      person: (x, y, f, ph, shirt, hair, wave) => this.person(x, y, f, ph, shirt, hair, wave),
+    };
+  }
+
+  private shop(b: Building, orders: Orders | null, time: number) {
+    drawShop(this.painter(), b, time, this.night, !!orders && !!orders.waiting.get(b.id));
   }
 
   // ------------------------------------------------------------- trees
@@ -1008,6 +1029,98 @@ export class Renderer {
       ctx.arc(this.sx(l.x), this.sy(l.y), Math.max(1.5, ppm * (n > 0.05 ? 0.35 : 0.22)), 0, Math.PI * 2);
       ctx.fill();
     }
+  }
+
+  // ------------------------------------------------------ street details
+  private drawStreetDetails(map: GameMap, v: View) {
+    const { ctx, ppm } = this;
+    const at = (x: number, y: number) => (x < 0 || y < 0 || x >= map.cols || y >= map.rows ? T.GRASS : (map.tiles[y * map.cols + x] as T));
+    const nodeOn = (i: number, j: number) => at(map.roadCols[i], map.roadRows[j]) === T.ROAD;
+
+    // zebra crossings on each road arm leaving an intersection
+    ctx.fillStyle = 'rgba(255,250,240,0.75)';
+    for (let j = 0; j < map.roadRows.length; j++)
+      for (let i = 0; i < map.roadCols.length; i++) {
+        if (!nodeOn(i, j)) continue;
+        const cx = map.roadCols[i] * TILE;
+        const cy = map.roadRows[j] * TILE;
+        if (!this.inView(cx + TILE, cy + TILE, 14, v)) continue;
+        const S = TILE * 2;
+        const stripes = (x0: number, y0: number, horiz: boolean) => {
+          for (let k = 0; k < 6; k++) {
+            const o = 0.5 + k * 1.2;
+            if (horiz) ctx.fillRect(this.sx(x0 + o), this.sy(y0), ppm * 0.6, ppm * 1.4);
+            else ctx.fillRect(this.sx(x0), this.sy(y0 + o), ppm * 1.4, ppm * 0.6);
+          }
+        };
+        const tx = map.roadCols[i];
+        const ty = map.roadRows[j];
+        if (at(tx, ty - 1) === T.ROAD) stripes(cx, cy - 1.8, true);
+        if (at(tx, ty + 2) === T.ROAD) stripes(cx, cy + S + 0.4, true);
+        if (at(tx - 1, ty) === T.ROAD) stripes(cx - 1.8, cy, false);
+        if (at(tx + 2, ty) === T.ROAD) stripes(cx + S + 0.4, cy, false);
+        // manhole
+        ctx.fillStyle = 'rgba(60,50,70,0.35)';
+        ctx.beginPath();
+        ctx.arc(this.sx(cx + S * 0.7), this.sy(cy + S * 0.3), ppm * 0.4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,250,240,0.75)';
+      }
+
+    // street names painted along the roads, between intersections
+    const fs = Math.max(10, Math.round(ppm * 0.85));
+    ctx.font = `600 ${fs}px Outfit, system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(255,248,236,0.5)';
+    const streets = this.streetNames(map);
+    for (const s of streets) {
+      if (!this.inView(s.x, s.y, 20, v)) continue;
+      ctx.save();
+      ctx.translate(this.sx(s.x), this.sy(s.y));
+      if (s.vertical) ctx.rotate(-Math.PI / 2);
+      ctx.fillText(s.name.toUpperCase(), 0, 0);
+      ctx.restore();
+    }
+  }
+
+  private streetCache: { seed: number; list: { x: number; y: number; name: string; vertical: boolean }[] } | null = null;
+
+  private streetNames(map: GameMap) {
+    if (this.streetCache && this.streetCache.seed === map.seed) return this.streetCache.list;
+    const list: { x: number; y: number; name: string; vertical: boolean }[] = [];
+    // read names back from the houses that face each road
+    const byRow = new Map<number, string>();
+    const byCol = new Map<number, string>();
+    for (const b of map.buildings) {
+      if (!b.street) continue;
+      if (b.nx === 0) {
+        const r = Math.floor((b.stopY + b.ny * 1.5) / TILE);
+        const row = map.roadRows.find((rr) => rr === r || rr + 1 === r);
+        if (row !== undefined) byRow.set(row, b.street);
+      } else {
+        const c = Math.floor((b.stopX + b.nx * 1.5) / TILE);
+        const col = map.roadCols.find((cc) => cc === c || cc + 1 === c);
+        if (col !== undefined) byCol.set(col, b.street);
+      }
+    }
+    const at = (x: number, y: number) => (x < 0 || y < 0 || x >= map.cols || y >= map.rows ? T.GRASS : (map.tiles[y * map.cols + x] as T));
+    for (const [row, name] of byRow) {
+      for (let i = 0; i < map.roadCols.length - 1; i++) {
+        const mid = Math.floor((map.roadCols[i] + map.roadCols[i + 1] + 2) / 2);
+        if (at(mid, row) !== T.ROAD || at(mid, row + 1) !== T.ROAD) continue;
+        list.push({ x: mid * TILE, y: (row + 1) * TILE - TILE * 0.5, name, vertical: false });
+      }
+    }
+    for (const [col, name] of byCol) {
+      for (let j = 0; j < map.roadRows.length - 1; j++) {
+        const mid = Math.floor((map.roadRows[j] + map.roadRows[j + 1] + 2) / 2);
+        if (at(col, mid) !== T.ROAD || at(col + 1, mid) !== T.ROAD) continue;
+        list.push({ x: (col + 1) * TILE - TILE * 0.5, y: mid * TILE, name, vertical: true });
+      }
+    }
+    this.streetCache = { seed: map.seed, list };
+    return list;
   }
 
   // ------------------------------------------------------- tracks & rain

@@ -385,8 +385,11 @@ export function generateMap(theme: Theme, seed: number): GameMap {
 
   // ---- shops: spread out over the map
   const houses = buildings.filter((b) => b.kind === 'house');
-  const shopCount = Math.min(houses.length > 30 ? 5 : 4, houses.length);
-  const types = [...SHOPS].sort(() => R.next() - 0.5);
+  const shopCount = Math.min(houses.length > 40 ? 6 : houses.length > 26 ? 5 : 4, houses.length);
+  // pizzeria, café and comic shop are in every town; the rest rotate
+  const core = SHOPS.filter((s) => s.id === 'pizza' || s.id === 'cafe' || s.id === 'comics').sort(() => R.next() - 0.5);
+  const rest = SHOPS.filter((s) => !core.includes(s)).sort(() => R.next() - 0.5);
+  const types = [...core, ...rest];
   const chosen: Building[] = [];
   if (houses.length) chosen.push(R.pick(houses));
   while (chosen.length < shopCount) {
@@ -406,7 +409,43 @@ export function generateMap(theme: Theme, seed: number): GameMap {
   chosen.forEach((b, k) => {
     b.kind = 'shop';
     b.shop = types[k % types.length];
+    // shops are a bit wider than houses where the street allows it
+    const along = b.nx === 0;
+    for (const grow of [3, 2, 1]) {
+      const nx = along ? b.x - grow / 2 : b.x;
+      const ny = along ? b.y : b.y - grow / 2;
+      const nw = along ? b.w + grow : b.w;
+      const nh = along ? b.h : b.h + grow;
+      const others = buildings.filter((o) => o !== b);
+      const clash = others.some((o) => nx < o.x + o.w + 1 && nx + nw > o.x - 1 && ny < o.y + o.h + 1 && ny + nh > o.y - 1);
+      const t0 = get(Math.floor(nx / TILE), Math.floor(ny / TILE));
+      const t1 = get(Math.floor((nx + nw) / TILE), Math.floor((ny + nh) / TILE));
+      if (!clash && t0 !== T.ROAD && t1 !== T.ROAD && t0 !== T.WATER && t1 !== T.WATER) {
+        b.x = nx; b.y = ny; b.w = nw; b.h = nh;
+        break;
+      }
+    }
   });
+  // shops sit back from the street to leave a paved forecourt for tables, crates and flowers
+  for (const b of chosen) {
+    const depth = b.nx === 0 ? b.h : b.w;
+    const cut = Math.min(1.8, depth - 4.4);
+    if (cut <= 0.3) continue;
+    if (b.nx === 0) {
+      if (b.ny < 0) b.y += cut;
+      b.h -= cut;
+    } else {
+      if (b.nx < 0) b.x += cut;
+      b.w -= cut;
+    }
+    b.doorX -= b.nx * cut;
+    b.doorY -= b.ny * cut;
+  }
+  // trees must not overlap the grown shops
+  for (let k = trees.length - 1; k >= 0; k--) {
+    const t = trees[k];
+    if (chosen.some((b) => t.x > b.x - t.r * 0.6 && t.x < b.x + b.w + t.r * 0.6 && t.y > b.y - t.r * 0.6 && t.y < b.y + b.h + t.r * 0.6)) trees.splice(k, 1);
+  }
 
   // ---- lamps at intersections
   const lamps: Lamp[] = [];

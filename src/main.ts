@@ -251,7 +251,7 @@ function handle(ev: OrderEvent, nightNow: number) {
     case 'pickup': {
       const o = ev.order;
       const tag = o.kind === 'rush' ? '⚡ rush · ' : o.kind === 'vip' ? '★ VIP · ' : '';
-      hud.toast(`${o.item} for ${o.house.no} ${o.house.street}`, `${tag}${o.limit}s · ${o.fragile ? 'fragile — mind the trees' : o.hot ? 'still warm — hurry for a bonus' : 'from ' + o.shop.shop!.name}`, 3000);
+      hud.toast(`${o.item} for ${o.house.no} ${o.house.street}`, `${tag}${o.limit}s · ${o.fragile ? 'fragile — mind the trees' : o.hot ? `${o.shop.shop!.hotWord} — hurry for a bonus` : 'from ' + o.shop.shop!.name}`, 3000);
       renderer.toss(o.shop.doorX, o.shop.doorY, rider.x, rider.y, o.shop.shop!.roof);
       if (o.kind !== 'normal') renderer.floatText(rider.x, rider.y, o.kind === 'rush' ? '⚡ Rush!' : '★ VIP', '#ffe08a');
       audio.pop();

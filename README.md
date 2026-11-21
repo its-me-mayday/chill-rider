@@ -10,8 +10,12 @@ generative lo-fi radio plays.
   (with a beach and the sea), *Pine Hollow* (dense woods) and *Old Town* (tight streets, plazas and fountains).
 - **Streets and addresses** — every road has a name, every house a number: deliver to *“12 Lemon Street”*.
 - **Obstacles** — trees, ponds, fountains and buildings block the way; roads are fastest, grass and sand slow you down.
-- **Different shops** — Forno Pesca (bakery), Petali (florist), Da Mayday (pizza), Side B Records, Dog-ear Books,
-  Lo-Fi Café — each with its own goods. A 📦 bubble means an order is waiting.
+- **Real shops** — Pizzeria Da Mayday (wood oven smoke, checkered awning, tables with umbrellas, delivery scooter),
+  Caffè Lo-Fi (steaming cups, chalkboard), Nuvola Comics (comic-bubble sign, POW! sticker), Gelateria Luna,
+  Forno Pesca, Petali Fiori, Side B Records and Dog-ear Books — each with its own sign, awning, forecourt and goods.
+  The shopkeeper waits at the door when an order is ready; signs glow at night.
+- **Town details** — street names painted on the roads, zebra crossings, manholes, mailboxes, flower beds,
+  skylights and solar panels, chimney smoke in the evening.
 - **Deliver in time** — each order has a countdown. Tips grow with the time you have left; hot food pays a bonus
   when it arrives warm, fragile goods lose value every time you bump into something. Late orders can still be
   delivered for a small tip.

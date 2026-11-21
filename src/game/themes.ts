@@ -88,59 +88,98 @@ export const THEMES: Theme[] = [
   },
 ];
 
-export type ShopId = 'bakery' | 'florist' | 'pizza' | 'records' | 'books' | 'cafe';
+export type ShopId = 'bakery' | 'florist' | 'pizza' | 'records' | 'books' | 'cafe' | 'comics' | 'gelato';
+
+export interface ShopItem {
+  name: string;
+  fragile: boolean;
+  /** time-sensitive: hot food or melting gelato pays a bonus when it arrives quickly */
+  hot?: boolean;
+}
 
 export interface ShopType {
   id: ShopId;
   name: string;
   roof: RGB;
   awning: RGB;
-  items: { name: string; fragile: boolean; hot?: boolean }[];
+  awning2: RGB;
+  /** how the time-sensitive items are described */
+  hotWord: string;
+  items: ShopItem[];
 }
 
 export const SHOPS: ShopType[] = [
   {
-    id: 'bakery', name: 'Forno Pesca', roof: hex('#f2b56b'), awning: hex('#e4677b'),
+    id: 'pizza', name: 'Pizzeria Da Mayday', roof: hex('#e86a5a'), awning: hex('#d94a3d'), awning2: hex('#fff6e6'), hotWord: 'piping hot',
+    items: [
+      { name: 'a margherita', fragile: false, hot: true },
+      { name: 'a spicy diavola', fragile: false, hot: true },
+      { name: 'two calzoni', fragile: false, hot: true },
+      { name: 'a family pizza tower', fragile: true, hot: true },
+      { name: 'a tiramisù', fragile: true },
+    ],
+  },
+  {
+    id: 'cafe', name: 'Caffè Lo-Fi', roof: hex('#9b6b4f'), awning: hex('#6b4a3a'), awning2: hex('#f4d6b0'), hotWord: 'still steaming',
+    items: [
+      { name: 'two cappuccini', fragile: true, hot: true },
+      { name: 'a flat white', fragile: true, hot: true },
+      { name: 'warm cornetti', fragile: false, hot: true },
+      { name: 'a box of biscotti', fragile: false },
+      { name: 'a bag of coffee beans', fragile: false },
+    ],
+  },
+  {
+    id: 'comics', name: 'Nuvola Comics', roof: hex('#6f6ad1'), awning: hex('#ffd23f'), awning2: hex('#3d3a8f'), hotWord: 'release day',
+    items: [
+      { name: 'a stack of manga', fragile: false },
+      { name: 'a comic bundle', fragile: false },
+      { name: 'a collector figure', fragile: true },
+      { name: 'a board game', fragile: false },
+      { name: 'a first-edition variant', fragile: true },
+    ],
+  },
+  {
+    id: 'gelato', name: 'Gelateria Luna', roof: hex('#f7b2c4'), awning: hex('#8fd6c8'), awning2: hex('#fff4f7'), hotWord: 'melting',
+    items: [
+      { name: 'a tub of pistachio gelato', fragile: false, hot: true },
+      { name: 'four gelato cones', fragile: true, hot: true },
+      { name: 'an ice-cream cake', fragile: true, hot: true },
+      { name: 'a box of granita', fragile: false, hot: true },
+    ],
+  },
+  {
+    id: 'bakery', name: 'Forno Pesca', roof: hex('#f2b56b'), awning: hex('#e4677b'), awning2: hex('#fff6e6'), hotWord: 'fresh from the oven',
     items: [
       { name: 'warm croissants', fragile: false, hot: true },
       { name: 'a sourdough loaf', fragile: false },
       { name: 'a birthday cake', fragile: true },
+      { name: 'a focaccia', fragile: false, hot: true },
     ],
   },
   {
-    id: 'florist', name: 'Petali', roof: hex('#f3a6bd'), awning: hex('#7cbf86'),
+    id: 'florist', name: 'Petali Fiori', roof: hex('#f3a6bd'), awning: hex('#5fa68a'), awning2: hex('#eaf7ef'), hotWord: 'freshly cut',
     items: [
       { name: 'a bunch of tulips', fragile: false },
       { name: 'a potted fern', fragile: true },
       { name: 'sunflowers', fragile: false },
+      { name: 'a little bonsai', fragile: true },
     ],
   },
   {
-    id: 'pizza', name: 'Da Mayday', roof: hex('#e86a5a'), awning: hex('#f6f1e4'),
-    items: [
-      { name: 'a margherita', fragile: false, hot: true },
-      { name: 'two calzoni', fragile: false, hot: true },
-    ],
-  },
-  {
-    id: 'records', name: 'Side B Records', roof: hex('#6f6ad1'), awning: hex('#f4c063'),
+    id: 'records', name: 'Side B Records', roof: hex('#4b4a7a'), awning: hex('#f4c063'), awning2: hex('#2e2a46'), hotWord: 'just pressed',
     items: [
       { name: 'vinyl records', fragile: true },
       { name: 'a cassette box', fragile: false },
+      { name: 'a turntable', fragile: true },
     ],
   },
   {
-    id: 'books', name: 'Dog-ear Books', roof: hex('#4f9a8a'), awning: hex('#f3e0b5'),
+    id: 'books', name: 'Dog-ear Books', roof: hex('#4f9a8a'), awning: hex('#2f6b5f'), awning2: hex('#f3e0b5'), hotWord: 'hot off the press',
     items: [
       { name: 'a stack of novels', fragile: false },
       { name: 'a poetry book', fragile: false },
-    ],
-  },
-  {
-    id: 'cafe', name: 'Lo-Fi Café', roof: hex('#9b6b4f'), awning: hex('#f4d6b0'),
-    items: [
-      { name: 'two flat whites', fragile: true, hot: true },
-      { name: 'a box of biscotti', fragile: false },
+      { name: 'an atlas', fragile: false },
     ],
   },
 ];
