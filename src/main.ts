@@ -15,6 +15,7 @@ import { Minimap } from './render/minimap';
 import { Renderer } from './render/renderer';
 import { Garage } from './ui/garage';
 import { Hud } from './ui/hud';
+import { Portrait } from './ui/portrait';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const renderer = new Renderer(canvas);
@@ -25,6 +26,8 @@ const audio = new AudioEngine();
 const rider = new Rider();
 const profile = loadProfile();
 const garage = new Garage(profile);
+const portrait = new Portrait(document.getElementById('portrait') as HTMLCanvasElement);
+let restingToast = false;
 
 // one-time migration of tips from the previous version
 try {
@@ -222,6 +225,7 @@ function gainXp(n: number) {
       renderer.confetti(rider.x, rider.y);
       audio.fanfare();
     }, 700);
+    rider.health = 100;
     void before;
   }
 }
@@ -397,11 +401,23 @@ function frame(now: number) {
     orders.update(dt, rider, time, bumps, events);
     for (const b of bumps) {
       audio.land(b.power / 3);
-      renderer.burst('dust', b.x, b.y, 6);
-      renderer.shake(Math.min(0.6, b.power / 8));
+      renderer.burst('dust', b.x, b.y, b.type === 'slip' ? 12 : 6);
+      renderer.shake(Math.min(0.7, b.power / (b.type === 'slip' ? 6 : 8)));
       reset(challenges, 'nobump');
-      if (b.person) hud.toast('oops — sorry!', 'try the bell 🔔');
+      if (b.type === 'slip') {
+        hud.toast('whoops — slipped!', rider.wet ? 'wet grass is slippery, ease off the turns' : 'loose ground — take the corner slower');
+        renderer.floatText(rider.x, rider.y, 'ouch!', '#ffb3b3');
+      } else if (b.person) hud.toast('oops — sorry!', 'try the bell 🔔');
+      else if (b.power > 3.5) renderer.floatText(rider.x, rider.y, 'bonk!', '#ffd27a');
+      if (rider.health < 35 && !restingToast) {
+        restingToast = true;
+        hud.toast('Feeling bruised', 'stop at the café to rest and heal ☕', 3200);
+      }
     }
+    // resting at a café heals you
+    const cafe = orders.shops.find((s) => s.shop!.id === 'cafe' && Math.hypot(s.stopX - rider.x, s.stopY - rider.y) < 4);
+    rider.resting = !!cafe && rider.speed < 0.6;
+    if (rider.health > 70) restingToast = false;
     for (const ev of events) handle(ev, light.night);
     collectPostcards();
   }
@@ -421,6 +437,8 @@ function frame(now: number) {
     },
     headlight: rider.stats.light,
   });
+
+  portrait.draw(rider, time, { beanie: cosmeticColor(profile.equipped.beanie), scarf: cosmeticColor(profile.equipped.scarf) }, rain);
 
   hudAcc += dt;
   if (hudAcc > 0.1) {

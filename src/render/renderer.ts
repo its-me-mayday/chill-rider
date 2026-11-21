@@ -578,11 +578,33 @@ export class Renderer {
     ctx.fill();
     ctx.save();
     ctx.translate(x, y);
-    ctx.rotate(r.heading);
-    ctx.scale(ppm * 1.15, ppm * 1.15);
+    // after a slip the bike lies on its side and the rider sits beside it
+    const fall = r.fallen > 0 ? Math.min(1, (1.3 - r.fallen) * 6) : 0;
+    ctx.rotate(r.heading + fall * r.fallAngle * 0.9);
+    ctx.scale(ppm * 1.15, ppm * 1.15 * (1 - fall * 0.35));
+    if (fall > 0) ctx.translate(0, r.fallAngle * 0.35 * fall);
     const cargo: Cargo[] = orders ? orders.carried.map((o) => ({ color: o.shop.shop!.roof, fragile: o.fragile })) : [];
     drawRider(ctx, r, time, cargo, style);
     ctx.restore();
+    // stars circling the head when dizzy or fallen
+    if (r.dizzy > 0 || r.fallen > 0) {
+      ctx.fillStyle = '#ffe08a';
+      for (let k = 0; k < 3; k++) {
+        const a = time * 5 + (k / 3) * Math.PI * 2;
+        const sx = x + Math.cos(a) * ppm * 0.7;
+        const sy = y - ppm * 0.9 + Math.sin(a) * ppm * 0.25;
+        const rr = Math.max(3, ppm * 0.22);
+        ctx.beginPath();
+        for (let i = 0; i < 10; i++) {
+          const b = (i / 10) * Math.PI * 2 - Math.PI / 2;
+          const q = i % 2 ? rr * 0.45 : rr;
+          if (i === 0) ctx.moveTo(sx + Math.cos(b) * q, sy + Math.sin(b) * q);
+          else ctx.lineTo(sx + Math.cos(b) * q, sy + Math.sin(b) * q);
+        }
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
   }
 
   // -------------------------------------------------------- buildings

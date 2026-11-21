@@ -20,8 +20,14 @@
     <div id="hud">
       <header class="top">
         <div class="left">
-          <div class="title">Chill Rider</div>
-          <div class="place"><span id="place">Peach Village</span><span class="sep"> · </span><span id="phase">Golden Hour</span></div>
+          <div class="rider-row">
+            <div class="rider-card" id="rider-card"><canvas id="portrait" class="portrait"></canvas></div>
+            <div class="rider-info">
+              <div class="title">Chill Rider</div>
+              <div class="place"><span id="place">Peach Village</span><span class="sep"> · </span><span id="phase">Golden Hour</span></div>
+              <div class="hp"><i><b id="hp-bar"></b></i><span id="hp-label">feeling good</span></div>
+            </div>
+          </div>
           <div class="goal" id="goal"></div>
           <div class="xp"><span id="lvl">Lv 1</span><i><b id="xpbar"></b></i></div>
           <div class="orders" id="orders"></div>
@@ -41,7 +47,7 @@
       <footer class="bottom">
         <div class="hint" id="hint">
           W pedal · S brake · A/D steer · B bell (people step aside) · G garage · R radio · N next song · H hide · P pause<br />
-          Pick up at shops, slow down at the glowing door to deliver
+          Pick up at shops, slow down at the glowing door to deliver · bruised? rest at the café
         </div>
         <div class="radio glass" id="radio">
           <button id="radio-toggle" class="radio-btn" aria-label="Toggle radio">▶</button>

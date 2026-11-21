@@ -18,12 +18,14 @@ export interface Controls {
 }
 
 export interface BumpEvent {
-  type: 'bump';
+  type: 'bump' | 'slip';
   power: number; // impact speed m/s
   x: number;
   y: number;
   person: boolean;
 }
+
+export type Mood = 'happy' | 'focused' | 'dizzy' | 'hurt' | 'fallen' | 'tired' | 'resting';
 
 const DEFAULT_STATS = { speedMul: 1, offroadMul: 1, grip: 1, capacity: 3, fragileMul: 1, light: 1 };
 
@@ -55,6 +57,29 @@ export class Rider {
   lean = 0;
   stats: BikeStats = DEFAULT_STATS;
   wet = false;
+  /** 0..100 — bruises from bumps and falls; heals while resting */
+  health = 100;
+  dizzy = 0; // seconds of seeing stars after a knock
+  fallen = 0; // seconds lying on the ground after a slip
+  fallAngle = 0;
+  hurtFlash = 0; // drives the portrait shake
+  private slipRisk = 0;
+  resting = false; // set by the game while recovering at a café
+
+  get mood(): Mood {
+    if (this.fallen > 0) return 'fallen';
+    if (this.dizzy > 0) return 'dizzy';
+    if (this.resting && this.health < 100) return 'resting';
+    if (this.health < 35) return 'hurt';
+    if (this.health < 65) return 'tired';
+    if (this.speed > 7) return 'focused';
+    return 'happy';
+  }
+
+  hurt(amount: number) {
+    this.health = Math.max(5, this.health - amount);
+    this.hurtFlash = 0.6;
+  }
 
   place(x: number, y: number, heading: number) {
     this.x = x;
@@ -68,10 +93,31 @@ export class Rider {
     const st = this.stats;
     const onRoad = this.surface === T.ROAD || this.surface === T.PLAZA;
     const base = TOP[this.surface] ?? 5;
-    const top = (onRoad ? base : Math.min(base * st.offroadMul, 9)) * st.speedMul * (this.wet ? 0.95 : 1);
+    const hurtMul = this.health < 35 ? 0.85 : 1;
+    const top = (onRoad ? base : Math.min(base * st.offroadMul, 9)) * st.speedMul * (this.wet ? 0.95 : 1) * hurtMul;
     this.braking = c.brake;
     this.bumpCooldown = Math.max(0, this.bumpCooldown - dt);
     this.wobble = Math.max(0, this.wobble - dt * 2);
+    this.dizzy = Math.max(0, this.dizzy - dt);
+    this.hurtFlash = Math.max(0, this.hurtFlash - dt);
+
+    // healing: fast while resting, slow while cruising gently
+    const heal = this.resting ? 14 : this.speed < 0.5 ? 1.6 : this.speed < 6 ? 0.45 : 0.15;
+    this.health = Math.min(100, this.health + heal * dt);
+
+    // lying on the ground after a slip: no control until we get back up
+    if (this.fallen > 0) {
+      this.fallen -= dt;
+      this.speed = Math.max(0, this.speed - 12 * dt);
+      this.x += Math.cos(this.heading) * this.speed * dt;
+      this.y += Math.sin(this.heading) * this.speed * dt;
+      if (this.fallen <= 0) this.dizzy = Math.max(this.dizzy, 0.8);
+      return;
+    }
+    if (this.dizzy > 0) {
+      // seeing stars: steering wanders a little
+      c = { ...c, steer: c.steer + Math.sin(this.dizzy * 9) * 0.35 };
+    }
 
     // ---- steering
     let steer = c.steer;
@@ -81,6 +127,22 @@ export class Rider {
     this.heading += steer * turnRate * dt;
     this.steerVis += (steer - this.steerVis) * damp(10, dt);
     this.lean += (steer * clamp(this.speed / 7, 0, 1) - this.lean) * damp(6, dt);
+
+    // slipping: sharp turns at speed on wet grass, sand or gravel paths
+    const slippery = this.surface === T.SAND || (this.wet && !onRoad) || (this.wet && this.surface === T.PLAZA) || this.surface === T.PATH;
+    const risk = slippery && this.speed > 5.2 && Math.abs(steer) > 0.75 ? (this.speed - 5) * Math.abs(steer) * (this.surface === T.SAND ? 1.3 : 1) / st.grip : 0;
+    this.slipRisk = risk > 0 ? this.slipRisk + risk * dt : Math.max(0, this.slipRisk - dt * 2);
+    if (this.slipRisk > 2.2) {
+      this.slipRisk = 0;
+      this.fallen = 1.3;
+      this.fallAngle = steer > 0 ? 1 : -1;
+      const power = this.speed;
+      this.speed *= 0.45;
+      this.heading += steer * 0.5;
+      this.hurt(6 + power * 1.2);
+      events.push({ type: 'slip', power, x: this.x, y: this.y, person: false });
+      return;
+    }
 
     // ---- speed
     this.pedalling = c.pedal > 0 && !c.brake;
@@ -181,6 +243,8 @@ export class Rider {
         this.bumpCooldown = 0.5;
         this.wobble = Math.min(1, into / 6);
         (person as Mover | null)?.onHit?.();
+        this.hurt(person ? 3 + into : into * 3.2);
+        if (into > 3) this.dizzy = Math.min(2, 0.6 + into * 0.18);
         events.push({ type: 'bump', power: into, x: this.x - nx * RIDER_R, y: this.y - ny * RIDER_R, person: !!person });
       }
     }

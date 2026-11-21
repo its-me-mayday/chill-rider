@@ -19,6 +19,10 @@ generative lo-fi radio plays.
 - **Deliver in time** — each order has a countdown. Tips grow with the time you have left; hot food pays a bonus
   when it arrives warm, fragile goods lose value every time you bump into something. Late orders can still be
   delivered for a small tip.
+- **Your rider's face in the HUD** — the portrait reacts to what happens: happy, focused at speed, seeing stars after
+  a knock, lying down after a slip, plasters and bruises as health drops. Bumps and slips (sharp turns on wet grass,
+  sand or gravel) hurt; when badly bruised you ride slower. Health comes back slowly while riding calmly, quickly when
+  you stop to rest at the café, and fully on level-up.
 - **Carry up to 3 orders** and plan your route with the minimap and the guide arrow.
 - **8+ deliveries per town**, rated with up to three stars, then on to the next town — each one a bit busier and tighter on time.
 - **Progression** — XP and levels unlock ⚡ rush orders, ★ VIP customers and other perks; on-time streaks multiply tips.
