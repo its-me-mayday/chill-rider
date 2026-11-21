@@ -127,7 +127,7 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyG' && started) openGarage();
 });
 
-document.querySelectorAll<HTMLElement>('[data-act]').forEach((el) => input.bindButton(el, el.dataset.act as 'brake'));
+document.querySelectorAll<HTMLElement>('[data-act]').forEach((el) => input.bindButton(el, el.dataset.act as 'brake' | 'pedal'));
 document.getElementById('t-bell')!.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   e.stopPropagation();
@@ -149,6 +149,7 @@ const pauseEl = document.getElementById('pause')!;
 const completeEl = document.getElementById('complete')!;
 const touchHint = document.getElementById('touch-hint')!;
 const garageBtn = document.getElementById('garage-btn')!;
+const pedalBtn = document.querySelector<HTMLElement>('.tbtn.pedal')!;
 
 document.getElementById('start-profile')!.textContent =
   profile.stats.deliveries > 0
@@ -503,7 +504,10 @@ function frame(now: number) {
       targetId: target?.order?.id ?? null,
       riderX: rider.x,
       riderY: rider.y,
+      surface: ['grass', 'road', 'water', 'sand', 'plaza', 'gravel'][rider.surface] ?? '',
+      braking: rider.braking && rider.speed > 0.5,
     });
+    pedalBtn.classList.toggle('spin', rider.pedalling && rider.speed > 0.5);
     hud.setChallenges(challenges);
     hud.setStreak(orders.streak, orders.streakMul);
     garageBtn.classList.toggle('has-new', garage.hasAffordable());

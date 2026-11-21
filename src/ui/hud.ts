@@ -29,7 +29,11 @@ export class Hud {
     toggle: $<HTMLButtonElement>('radio-toggle'),
     lvl: $('lvl'),
     xpbar: $('xpbar'),
-    xp: $('lvl').parentElement!,
+    xp: $('lvl'),
+    xpLabel: $('xp-label'),
+    gauge: $('gauge-fill'),
+    gaugeState: $('gauge-state'),
+    keys: $('hint'),
     challenges: $('challenges'),
     streak: $('streak'),
     badge: $('badge'),
@@ -49,8 +53,15 @@ export class Hud {
     this.el.place.textContent = name;
   }
 
-  update(s: { speed: number; phase: string; orders: Orders; time: number; tips: number; targetId: number | null; riderX: number; riderY: number }) {
-    this.el.speed.textContent = String(Math.round(s.speed * 3.6));
+  update(s: { speed: number; phase: string; orders: Orders; time: number; tips: number; targetId: number | null; riderX: number; riderY: number; surface?: string; braking?: boolean }) {
+    const kmh = Math.round(s.speed * 3.6);
+    this.el.speed.textContent = String(kmh);
+    const frac = Math.min(1, kmh / 40);
+    this.el.gauge.style.strokeDasharray = `${(frac * 75).toFixed(1)} 100`;
+    this.el.gauge.style.stroke = s.braking ? '#ff9aa8' : kmh > 30 ? '#ffd27a' : '#fff1b8';
+    const state = s.braking ? 'braking' : s.surface ?? '';
+    if (this.el.gaugeState.textContent !== state) this.el.gaugeState.textContent = state;
+    if (s.time > 25 && !this.el.keys.classList.contains('fade')) this.el.keys.classList.add('fade');
     if (this.el.phase.textContent !== s.phase) this.el.phase.textContent = s.phase;
 
     const o = s.orders;
@@ -93,6 +104,7 @@ export class Hud {
   setXp(level: number, xp: number, need: number, pulse = false) {
     this.el.lvl.textContent = `Lv ${level}`;
     this.el.xpbar.style.width = `${Math.round((xp / need) * 100)}%`;
+    this.el.xpLabel.textContent = `${Math.round(xp)}/${need} xp`;
     if (pulse) {
       this.el.xp.classList.remove('pulse');
       void this.el.xp.offsetWidth;

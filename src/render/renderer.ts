@@ -523,7 +523,9 @@ export class Renderer {
       const cy = H / 2;
       const ddx = tx - cx;
       const ddy = ty - cy;
-      const k = Math.min((W / 2 - m - 10) / Math.abs(ddx || 1), (H / 2 - m - 60) / Math.abs(ddy || 1));
+      // keep the pills clear of the HUD panels and the thumb controls at the bottom
+      const vLimit = ddy > 0 ? H / 2 - 140 : H / 2 - m - 60;
+      const k = Math.min((W / 2 - m - 10) / Math.abs(ddx || 1), vLimit / Math.abs(ddy || 1));
       const ex = cx + ddx * k;
       const ey = cy + ddy * k;
       const w = main ? 74 : 58;

@@ -60,7 +60,11 @@ export class Input {
       if (e.pointerType === 'mouse' || this.joyId !== null) return;
       e.preventDefault();
       this.joyId = e.pointerId;
-      surface.setPointerCapture?.(e.pointerId);
+      try {
+        surface.setPointerCapture?.(e.pointerId);
+      } catch {
+        /* ignore */
+      }
       this.joy = { active: true, ox: e.clientX, oy: e.clientY, x: e.clientX, y: e.clientY };
     });
     surface.addEventListener('pointermove', (e) => {
@@ -92,9 +96,18 @@ export class Input {
     const down = (e: PointerEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      el.setPointerCapture?.(e.pointerId);
+      try {
+        el.setPointerCapture?.(e.pointerId);
+      } catch {
+        /* synthetic or already-released pointer */
+      }
       this.buttons.set(e.pointerId, action);
       el.classList.add('active');
+      try {
+        navigator.vibrate?.(action === 'brake' ? 18 : 8);
+      } catch {
+        /* no haptics */
+      }
     };
     const up = (e: PointerEvent) => {
       this.buttons.delete(e.pointerId);
@@ -119,10 +132,11 @@ export class Input {
       const dx = this.joy.x - this.joy.ox;
       const dy = this.joy.y - this.joy.oy;
       const d = Math.hypot(dx, dy);
+      const btn = this.has('pedal') ? 1 : 0;
       if (d > 12) {
-        return { pedal: Math.min(1, d / JOY_MAX), brake, steer: 0, aim: Math.atan2(dy, dx) };
+        return { pedal: Math.max(btn, Math.min(1, d / JOY_MAX)), brake, steer: 0, aim: Math.atan2(dy, dx) };
       }
-      return { pedal: 0, brake, steer: 0, aim: null };
+      return { pedal: btn, brake, steer: 0, aim: null };
     }
     return {
       pedal: this.has('pedal') ? 1 : 0,
