@@ -207,6 +207,7 @@ export class Renderer {
     this.lastTime = time;
     this.drawTiles(map, view, time);
     this.drawStreetDetails(map, view);
+    this.drawPotholes(map, view, sc.rain, time);
     this.updateTracks(r, dt);
     this.drawTracks();
     if (sc.rain) this.drawPuddles(map, view, dt);
@@ -277,6 +278,7 @@ export class Renderer {
         }
         ctx.fillStyle = css(col);
         ctx.fillRect(px - 0.5, py - 0.5, ts + 1, ts + 1);
+        if (t === T.ROAD) this.roadWear(tx, ty, px, py, ts, col);
 
         if (t === T.GRASS && ppm > 9) {
           for (let k = 0; k < 3; k++) {
@@ -1338,6 +1340,92 @@ export class Renderer {
     ctx.restore();
     if (c.wave > 4.8) this.bubble(c.x, c.y, '👋');
     else if (c.honk > 3.4) this.bubble(c.x, c.y, '🔔');
+  }
+
+  /** patched asphalt and cracks, deterministic per tile */
+  private roadWear(tx: number, ty: number, px: number, py: number, ts: number, road: RGB) {
+    const { ctx, ppm } = this;
+    const h1 = hash(tx * 7919 + ty * 104729);
+    const h2 = hash(tx * 31 + ty * 1237 + 5);
+    if (h1 < 0.2) {
+      // a repair patch: slightly different shade with a sealed seam
+      const w = ts * (0.35 + hash(tx + ty * 3) * 0.45);
+      const hgt = ts * (0.25 + hash(tx * 5 + ty) * 0.4);
+      const x = px + hash(tx * 9 + ty) * (ts - w);
+      const y = py + hash(tx + ty * 11) * (ts - hgt);
+      ctx.fillStyle = css(mix(road, h1 < 0.1 ? [20, 15, 30] : [255, 240, 230], 0.09));
+      ctx.fillRect(x, y, w, hgt);
+      ctx.strokeStyle = css(mix(road, [10, 5, 15], 0.3), 0.6);
+      ctx.lineWidth = Math.max(1, ppm * 0.05);
+      ctx.strokeRect(x, y, w, hgt);
+    }
+    if (h2 < 0.22) {
+      // a branching crack
+      ctx.strokeStyle = css(mix(road, [10, 5, 15], 0.5), 0.85);
+      ctx.lineWidth = Math.max(1, ppm * 0.06);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      let x = px + hash(tx * 3 + ty * 7) * ts;
+      let y = py + hash(tx * 13 + ty * 5) * ts;
+      let a = hash(tx + ty) * Math.PI * 2;
+      ctx.moveTo(x, y);
+      for (let k = 0; k < 6; k++) {
+        a += (hash(tx * 17 + ty * 19 + k) - 0.5) * 1.6;
+        x += Math.cos(a) * ppm * 0.45;
+        y += Math.sin(a) * ppm * 0.45;
+        ctx.lineTo(x, y);
+        if (k === 2) {
+          ctx.moveTo(x, y);
+          ctx.lineTo(x + Math.cos(a + 1.2) * ppm * 0.5, y + Math.sin(a + 1.2) * ppm * 0.5);
+          ctx.moveTo(x, y);
+        }
+      }
+      ctx.stroke();
+    }
+  }
+
+  private drawPotholes(map: GameMap, v: View, wet: boolean, time: number) {
+    const { ctx, ppm } = this;
+    for (const h of map.potholes) {
+      if (!this.inView(h.x, h.y, 2, v)) continue;
+      const x = this.sx(h.x);
+      const y = this.sy(h.y);
+      const r = h.r * ppm;
+      const rot = h.x * 0.7;
+      // broken rim
+      ctx.fillStyle = 'rgba(150,130,140,0.55)';
+      ctx.beginPath();
+      ctx.ellipse(x, y, r * 1.35, r * 1.05, rot, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = wet ? 'rgba(90,110,160,0.85)' : 'rgba(35,25,40,0.82)';
+      ctx.beginPath();
+      for (let k = 0; k <= 9; k++) {
+        const a = (k / 9) * Math.PI * 2;
+        const rr = r * (0.8 + hash(h.x * 10 + k) * 0.35);
+        const px = x + Math.cos(a + rot) * rr * 1.2;
+        const py = y + Math.sin(a + rot) * rr * 0.9;
+        if (k === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+      if (wet) {
+        const t = (time * 0.8 + h.y) % 1;
+        ctx.strokeStyle = `rgba(230,240,255,${0.5 * (1 - t)})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.ellipse(x, y, r * t, r * t * 0.7, rot, 0, Math.PI * 2);
+        ctx.stroke();
+      } else {
+        // loose gravel
+        ctx.fillStyle = 'rgba(200,185,180,0.7)';
+        for (let k = 0; k < 4; k++) {
+          ctx.beginPath();
+          ctx.arc(x + (hash(h.y * 10 + k) - 0.5) * r * 3, y + (hash(h.x * 7 + k) - 0.5) * r * 2.4, Math.max(1, ppm * 0.06), 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
   }
 
   // ------------------------------------------------------ street details

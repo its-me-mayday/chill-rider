@@ -29,6 +29,7 @@ const profile = loadProfile();
 const garage = new Garage(profile);
 const portrait = new Portrait(document.getElementById('portrait') as HTMLCanvasElement);
 let restingToast = false;
+let potholeTip = false;
 
 // one-time migration of tips from the previous version
 try {
@@ -449,7 +450,13 @@ function frame(now: number) {
       renderer.burst('dust', b.x, b.y, b.type === 'slip' ? 12 : 6);
       renderer.shake(Math.min(0.7, b.power / (b.type === 'slip' ? 6 : 8)));
       reset(challenges, 'nobump');
-      if (b.type === 'slip') {
+      if (b.what === 'pothole') {
+        renderer.floatText(rider.x, rider.y, 'bump!', '#ffd27a');
+        if (!potholeTip) {
+          potholeTip = true;
+          hud.toast('Pothole!', 'patched-up streets are bumpy — slow down or ride around them');
+        }
+      } else if (b.type === 'slip') {
         hud.toast('whoops — slipped!', rider.wet ? 'wet grass is slippery, ease off the turns' : 'loose ground — take the corner slower');
         renderer.floatText(rider.x, rider.y, 'ouch!', '#ffb3b3');
       } else if (b.what === 'car') {

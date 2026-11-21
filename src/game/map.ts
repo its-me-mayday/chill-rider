@@ -86,6 +86,8 @@ export interface GameMap {
   spawn: { x: number; y: number; heading: number };
   /** hidden collectibles */
   postcards: Spot[];
+  /** potholes in the asphalt: a jolt if you ride over them fast */
+  potholes: (Spot & { r: number })[];
   /** pond centres (for ducks) and garden spots (for cats) */
   ponds: (Spot & { r: number })[];
   catSpots: Spot[];
@@ -176,11 +178,22 @@ export function generateMap(theme: Theme, seed: number): GameMap {
     }
     return count === nodes;
   };
+  // Drop some segments for variety, but never leave a dead end: every
+  // junction keeps at least two roads, so streets always lead somewhere.
+  const degree = (n: number) => segs.reduce((d, sg) => d + (sg.on && (sg.a === n || sg.b === n) ? 1 : 0), 0);
   const order = segs.map((_, k) => k).sort(() => R.next() - 0.5);
   for (const k of order) {
     if (!R.chance(theme.removeRoads)) continue;
-    segs[k].on = false;
-    if (!connected()) segs[k].on = true;
+    const sg = segs[k];
+    if (degree(sg.a) <= 2 || degree(sg.b) <= 2) continue;
+    sg.on = false;
+    if (!connected()) sg.on = true;
+  }
+  // safety net: re-open a road at any junction that still ended up alone
+  for (let n = 0; n < nodes; n++) {
+    if (degree(n) >= 2) continue;
+    const back = segs.find((sg) => !sg.on && (sg.a === n || sg.b === n));
+    if (back) back.on = true;
   }
 
   const paint = (x0: number, y0: number, x1: number, y1: number, t: T) => {
@@ -583,6 +596,23 @@ export function generateMap(theme: Theme, seed: number): GameMap {
     }
   }
 
+  // ---- potholes: worn asphalt, more of them in the old town
+  const potholes: (Spot & { r: number })[] = [];
+  const wantHoles = theme.id === 'oldtown' ? 26 : theme.id === 'woods' ? 18 : 16;
+  for (let k = 0; k < 600 && potholes.length < wantHoles; k++) {
+    const tx = R.int(0, cols - 1);
+    const ty = R.int(0, rows - 1);
+    if (get(tx, ty) !== T.ROAD) continue;
+    const x = tx * TILE + R.range(0.9, 3.1);
+    const y = ty * TILE + R.range(0.9, 3.1);
+    if (nearStop(x, y, 3.5)) continue;
+    const home = chosen[0];
+    if (home && Math.hypot(x - home.stopX, y - home.stopY) < 14) continue;
+    if (props.some((p) => Math.hypot(p.x - x, p.y - y) < 2.5)) continue;
+    if (potholes.some((p) => Math.hypot(p.x - x, p.y - y) < 6)) continue;
+    potholes.push({ x, y, r: R.range(0.5, 0.85) });
+  }
+
   const postcards: Spot[] = [];
   const candidates = [...parkSpots].sort(() => R.next() - 0.5);
   for (let k = 0; k < 400 && postcards.length < 3; k++) {
@@ -630,6 +660,6 @@ export function generateMap(theme: Theme, seed: number): GameMap {
   return {
     seed, theme, cols, rows,
     width: cols * TILE, height: rows * TILE,
-    tiles, buildings, trees, lamps, props, roadRows, roadCols, spawn, treeGrid, postcards, ponds, catSpots,
+    tiles, buildings, trees, lamps, props, roadRows, roadCols, spawn, treeGrid, postcards, ponds, catSpots, potholes,
   };
 }

@@ -27,7 +27,7 @@ export interface BumpEvent {
   x: number;
   y: number;
   person: boolean;
-  what: 'obstacle' | 'person' | 'car' | 'rider' | 'ground';
+  what: 'obstacle' | 'person' | 'car' | 'rider' | 'ground' | 'pothole';
 }
 
 export type Mood = 'happy' | 'focused' | 'dizzy' | 'hurt' | 'fallen' | 'tired' | 'resting';
@@ -70,6 +70,7 @@ export class Rider {
   hurtFlash = 0; // drives the portrait shake
   private slipRisk = 0;
   resting = false; // set by the game while recovering at a café
+  private lastHole = -1;
 
   get mood(): Mood {
     if (this.fallen > 0) return 'fallen';
@@ -164,11 +165,38 @@ export class Rider {
     this.x += vx * dt;
     this.y += vy * dt;
     this.collide(map, vx, vy, events, movers);
+    this.potholes(map, events);
 
     const dist = this.speed * dt;
     this.odometer += dist;
     this.wheel += dist / 0.34;
     if (this.pedalling) this.crank += Math.max(3, this.speed * 1.3) * dt;
+  }
+
+  /** riding through a pothole jolts the bike: small hurt, a wobble and lost speed */
+  private potholes(map: GameMap, events: BumpEvent[]) {
+    let inside = -1;
+    for (let k = 0; k < map.potholes.length; k++) {
+      const h = map.potholes[k];
+      if (Math.abs(h.x - this.x) > 1.5 || Math.abs(h.y - this.y) > 1.5) continue;
+      if (Math.hypot(h.x - this.x, h.y - this.y) < h.r + 0.15) {
+        inside = k;
+        break;
+      }
+    }
+    if (inside === -1) {
+      this.lastHole = -1;
+      return;
+    }
+    if (inside === this.lastHole) return;
+    this.lastHole = inside;
+    if (this.speed < 2.2) return;
+    const power = this.speed * 0.45;
+    this.speed *= 0.78;
+    this.wobble = Math.min(1, 0.4 + this.speed / 12);
+    this.hurt(1.5 + this.speed * 0.35);
+    const h = map.potholes[inside];
+    events.push({ type: 'bump', power, x: h.x, y: h.y, person: false, what: 'pothole' });
   }
 
   private collide(map: GameMap, vx: number, vy: number, events: BumpEvent[], movers: Mover[]) {
