@@ -113,6 +113,26 @@ export class AudioEngine {
     this.rainGain?.gain.rampTo(on ? 0.5 : 0, 2);
   }
 
+  private hornSynth: Tone.Synth | null = null;
+
+  /** a little two-tone car horn, quieter when far away */
+  horn(dist: number) {
+    if (!this.ready) return;
+    if (!this.hornSynth) this.hornSynth = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.005, decay: 0.05, sustain: 0.6, release: 0.08 }, volume: -22 }).connect(this.master);
+    const now = Tone.now();
+    const v = Math.max(0.15, 1 - dist / 25);
+    this.hornSynth.triggerAttackRelease('A4', 0.12, now, v);
+    this.hornSynth.triggerAttackRelease('F4', 0.18, now + 0.16, v);
+  }
+
+  /** another rider's bell, a little further away */
+  otherBell() {
+    if (!this.ready) return;
+    const now = Tone.now();
+    this.chime.triggerAttackRelease(['D6', 'A6'], '16n', now, 0.25);
+    this.chime.triggerAttackRelease(['D6', 'A6'], '16n', now + 0.14, 0.2);
+  }
+
   /** soft "pop" when a parcel changes hands */
   pop() {
     if (!this.ready) return;

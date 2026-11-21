@@ -48,12 +48,20 @@ export interface Lamp {
   y: number;
 }
 
+export type PropKind =
+  | 'fountain' | 'bench' | 'boat'
+  | 'cone' | 'barrier' | 'workSign' | 'bin' | 'pcar' | 'picnic' | 'bale' | 'log' | 'umbrella' | 'sandcastle';
+
 export interface Prop {
-  kind: 'fountain' | 'bench' | 'boat';
+  kind: PropKind;
   x: number;
   y: number;
+  /** collision radius (0 = not solid) */
   r: number;
   angle: number;
+  /** half length of a capsule along `angle` (0 = circle) */
+  len?: number;
+  color?: string;
 }
 
 export interface Spot {
@@ -465,6 +473,116 @@ export function generateMap(theme: Theme, seed: number): GameMap {
     for (const p of props) if (Math.hypot(p.x - x, p.y - y) < p.r + 1.5) return false;
     return true;
   };
+  // ---- extra obstacles -------------------------------------------------
+  const stops = buildings.map((b) => ({ x: b.stopX, y: b.stopY }));
+  const nearStop = (x: number, y: number, d: number) => stops.some((p) => Math.hypot(p.x - x, p.y - y) < d);
+  const CAR_COLORS = ['#e86a5a', '#7fc4e6', '#f4c063', '#9fd3c7', '#c9b3f2', '#f6f1e4', '#5a6fb0'];
+
+  // roadworks along the curb of a few streets
+  const kept = segs.filter((sg) => sg.on);
+  const works = kept.sort(() => R.next() - 0.5);
+  const wantWorks = Math.min(4, Math.floor(kept.length / 6) + 2);
+  let placedWorks = 0;
+  for (const sg of works) {
+    if (placedWorks >= wantWorks) break;
+    const side = R.chance(0.5) ? -1 : 1;
+    if (sg.horiz) {
+      const xa = (roadCols[sg.i] + 2) * TILE + 4;
+      const xb = roadCols[sg.i + 1] * TILE - 4;
+      if (xb - xa < 12) continue;
+      const mid = R.range(xa + 6, xb - 6);
+      const y = side < 0 ? roadRows[sg.j] * TILE + 0.7 : (roadRows[sg.j] + 2) * TILE - 0.7;
+      if (nearStop(mid, y, 9)) continue;
+      placedWorks++;
+      for (let x = mid - 5; x <= mid + 5; x += 1.7) props.push({ kind: 'cone', x, y, r: 0.28, angle: 0 });
+      props.push({ kind: 'barrier', x: mid, y: y + side * -0.2, r: 0.22, angle: 0, len: 1.2 });
+      props.push({ kind: 'workSign', x: mid - 7, y, r: 0.35, angle: 0 });
+    } else {
+      const ya = (roadRows[sg.j] + 2) * TILE + 4;
+      const yb = roadRows[sg.j + 1] * TILE - 4;
+      if (yb - ya < 12) continue;
+      const mid = R.range(ya + 6, yb - 6);
+      const x = side < 0 ? roadCols[sg.i] * TILE + 0.7 : (roadCols[sg.i] + 2) * TILE - 0.7;
+      if (nearStop(x, mid, 9)) continue;
+      placedWorks++;
+      for (let y = mid - 5; y <= mid + 5; y += 1.7) props.push({ kind: 'cone', x, y, r: 0.28, angle: 0 });
+      props.push({ kind: 'barrier', x: x + side * -0.2, y: mid, r: 0.22, angle: Math.PI / 2, len: 1.2 });
+      props.push({ kind: 'workSign', x, y: mid - 7, r: 0.35, angle: 0 });
+    }
+  }
+
+  const free = (x: number, y: number, r: number) => {
+    const t = get(Math.floor(x / TILE), Math.floor(y / TILE));
+    if (t === T.WATER || t === T.ROAD) return false;
+    if (x < 3 || y < 3 || x > cols * TILE - 3 || y > rows * TILE - 3) return false;
+    if (overlapsBuilding(x - r, y - r, r * 2, r * 2, 0.3)) return false;
+    if (nearStop(x, y, r + 2.4)) return false;
+    for (const o of trees) if (Math.hypot(o.x - x, o.y - y) < o.r * 0.6 + r + 0.6) return false;
+    for (const p of props) if (Math.hypot(p.x - x, p.y - y) < p.r + (p.len ?? 0) + r + 0.6) return false;
+    return true;
+  };
+
+  // bins and parked cars around the houses
+  for (const b of buildings) {
+    if (b.kind !== 'house') continue;
+    const L = b.nx === 0 ? b.w : b.h;
+    const tx = -b.ny;
+    const ty = b.nx;
+    const sideU = R.chance(0.5) ? 1 : -1;
+    if (R.chance(0.45)) {
+      const u = sideU * (L / 2 - 0.6);
+      const x = b.doorX + tx * u + b.nx * 0.7;
+      const y = b.doorY + ty * u + b.ny * 0.7;
+      if (free(x, y, 0.35)) props.push({ kind: 'bin', x, y, r: 0.35, angle: 0, color: R.pick(['#5a8f6a', '#4b6a9a', '#7a7a8a']) });
+    }
+    if (R.chance(0.4)) {
+      const u = -sideU * (L / 2 + 1.5);
+      const x = b.doorX + tx * u - b.nx * 1.0;
+      const y = b.doorY + ty * u - b.ny * 1.0;
+      const ax = b.nx * 1.15;
+      const ay = b.ny * 1.15;
+      const ok = [[0, 0], [ax, ay], [-ax, -ay]].every(([ox, oy]) => free(x + ox, y + oy, 1.0)) && !roadNear(x, y, 2.2) && !roadNear(x + ax, y + ay, 1.0);
+      if (ok) {
+        props.push({ kind: 'pcar', x, y, r: 0.95, angle: Math.atan2(b.ny, b.nx), len: 1.15, color: R.pick(CAR_COLORS) });
+      }
+    }
+  }
+
+  // park furniture, woodland clutter, beach life
+  for (const sp of parkSpots) {
+    for (let k = 0; k < 3; k++) {
+      const x = sp.x + R.range(-8, 8);
+      const y = sp.y + R.range(-8, 8);
+      if (R.chance(0.5)) {
+        if (free(x, y, 1.3)) props.push({ kind: 'picnic', x, y, r: 0.75, angle: R.range(0, Math.PI), len: 0.55 });
+      } else if (free(x, y, 1.0)) props.push({ kind: 'bench', x, y, r: 0.45, angle: R.range(0, Math.PI), len: 0.55 });
+    }
+  }
+  if (theme.id === 'woods' || theme.id === 'village') {
+    const n = theme.id === 'woods' ? 26 : 10;
+    for (let k = 0; k < n * 4 && n > 0; k++) {
+      const x = R.range(6, cols * TILE - 6);
+      const y = R.range(6, rows * TILE - 6);
+      if (!free(x, y, 1.6) || roadNear(x, y, 2)) continue;
+      if (R.chance(theme.id === 'woods' ? 0.65 : 0.3)) props.push({ kind: 'log', x, y, r: 0.38, angle: R.range(0, Math.PI), len: 1.1 });
+      else props.push({ kind: 'bale', x, y, r: 0.85, angle: 0 });
+      if (props.filter((p) => p.kind === 'log' || p.kind === 'bale').length >= n) break;
+    }
+  }
+  if (theme.sea) {
+    for (let k = 0; k < 120; k++) {
+      const tx = R.int(1, cols - 2);
+      const ty = R.int(0, rows - 1);
+      if (get(tx, ty) !== T.SAND) continue;
+      const x = tx * TILE + R.range(0.5, 3.5);
+      const y = ty * TILE + R.range(0.5, 3.5);
+      if (!free(x, y, 1.2)) continue;
+      if (R.chance(0.6)) props.push({ kind: 'umbrella', x, y, r: 0.25, angle: 0, color: R.pick(['#e4677b', '#7fc4e6', '#f4c063', '#8fd6c8']) });
+      else props.push({ kind: 'sandcastle', x, y, r: 0.6, angle: 0 });
+      if (props.filter((p) => p.kind === 'umbrella' || p.kind === 'sandcastle').length > 14) break;
+    }
+  }
+
   const postcards: Spot[] = [];
   const candidates = [...parkSpots].sort(() => R.next() - 0.5);
   for (let k = 0; k < 400 && postcards.length < 3; k++) {

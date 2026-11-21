@@ -6,6 +6,10 @@ export interface Mover {
   x: number;
   y: number;
   r: number;
+  /** capsule half-length along `angle` */
+  len?: number;
+  angle?: number;
+  kind?: 'person' | 'car' | 'rider';
   onHit?: () => void;
 }
 
@@ -23,6 +27,7 @@ export interface BumpEvent {
   x: number;
   y: number;
   person: boolean;
+  what: 'obstacle' | 'person' | 'car' | 'rider' | 'ground';
 }
 
 export type Mood = 'happy' | 'focused' | 'dizzy' | 'hurt' | 'fallen' | 'tired' | 'resting';
@@ -140,7 +145,7 @@ export class Rider {
       this.speed *= 0.45;
       this.heading += steer * 0.5;
       this.hurt(6 + power * 1.2);
-      events.push({ type: 'slip', power, x: this.x, y: this.y, person: false });
+      events.push({ type: 'slip', power, x: this.x, y: this.y, person: false, what: 'ground' });
       return;
     }
 
@@ -190,8 +195,18 @@ export class Rider {
     }
     for (const m of movers) {
       const rr = m.r + RIDER_R;
-      const dx = this.x - m.x;
-      const dy = this.y - m.y;
+      let mx = m.x;
+      let my = m.y;
+      if (m.len && m.angle !== undefined) {
+        const ax = Math.cos(m.angle);
+        const ay = Math.sin(m.angle);
+        const t = clamp((this.x - m.x) * ax + (this.y - m.y) * ay, -m.len, m.len);
+        mx = m.x + ax * t;
+        my = m.y + ay * t;
+      }
+      if (Math.abs(this.x - mx) > rr || Math.abs(this.y - my) > rr) continue;
+      const dx = this.x - mx;
+      const dy = this.y - my;
       const d = Math.hypot(dx, dy);
       if (d < rr && d > 1e-4) {
         push(dx / d, dy / d, rr - d);
@@ -200,9 +215,21 @@ export class Rider {
     }
     for (const p of map.props) {
       if (p.r <= 0) continue;
+      const len = p.len ?? 0;
+      if (Math.abs(this.x - p.x) > p.r + len + 2 || Math.abs(this.y - p.y) > p.r + len + 2) continue;
+      // capsule: closest point on the segment, then a circle test
+      let cx = p.x;
+      let cy = p.y;
+      if (len > 0) {
+        const ax = Math.cos(p.angle);
+        const ay = Math.sin(p.angle);
+        const t = clamp((this.x - p.x) * ax + (this.y - p.y) * ay, -len, len);
+        cx = p.x + ax * t;
+        cy = p.y + ay * t;
+      }
       const rr = p.r + RIDER_R;
-      const dx = this.x - p.x;
-      const dy = this.y - p.y;
+      const dx = this.x - cx;
+      const dy = this.y - cy;
       const d = Math.hypot(dx, dy);
       if (d < rr && d > 1e-4) push(dx / d, dy / d, rr - d);
     }
@@ -239,13 +266,17 @@ export class Rider {
       const keep = Math.hypot(tx, ty);
       this.speed = keep * 0.85 + into * 0.1;
       if (keep > 0.3) this.heading = Math.atan2(ty, tx);
-      if ((into > 1.8 || (person && into > 0.6)) && this.bumpCooldown <= 0) {
+      const car = (person as Mover | null)?.kind === 'car';
+      if ((into > 1.8 || (person && into > 0.6) || car) && this.bumpCooldown <= 0) {
         this.bumpCooldown = 0.5;
         this.wobble = Math.min(1, into / 6);
         (person as Mover | null)?.onHit?.();
-        this.hurt(person ? 3 + into : into * 3.2);
-        if (into > 3) this.dizzy = Math.min(2, 0.6 + into * 0.18);
-        events.push({ type: 'bump', power: into, x: this.x - nx * RIDER_R, y: this.y - ny * RIDER_R, person: !!person });
+        const pm = person as Mover | null;
+        const what = pm ? (pm.kind ?? 'person') : 'obstacle';
+        const dmg = what === 'car' ? 12 + into * 2.5 : what === 'rider' ? 2 + into : pm ? 3 + into : into * 3.2;
+        this.hurt(dmg);
+        if (into > 3 || what === 'car') this.dizzy = Math.min(2.2, 0.6 + into * 0.18 + (what === 'car' ? 0.8 : 0));
+        events.push({ type: 'bump', power: what === 'car' ? into + 3 : into, x: this.x - nx * RIDER_R, y: this.y - ny * RIDER_R, person: !!pm, what });
       }
     }
   }

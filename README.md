@@ -9,7 +9,12 @@ generative lo-fi radio plays.
 - **Top-down towns, always different** — every map is generated: *Peach Village*, *Seashell Bay*
   (with a beach and the sea), *Pine Hollow* (dense woods) and *Old Town* (tight streets, plazas and fountains).
 - **Streets and addresses** — every road has a name, every house a number: deliver to *“12 Lemon Street”*.
-- **Obstacles** — trees, ponds, fountains and buildings block the way; roads are fastest, grass and sand slow you down.
+- **Obstacles** — trees, ponds, fountains and buildings, plus roadworks with cones and barriers, bins, cars parked in
+  driveways, park benches and picnic tables, hay bales and logs in the woods, umbrellas and sandcastles on the beach.
+  Roads are fastest; grass and sand slow you down.
+- **Traffic** — cars and delivery vans drive on the right, turn at junctions, keep their distance, stop and honk if
+  you're in their lane — and getting hit hurts.
+- **Other chill riders** — cyclists in colourful outfits ride around town, ring their bells and greet you as you pass.
 - **Real shops** — Pizzeria Da Mayday (wood oven smoke, checkered awning, tables with umbrellas, delivery scooter),
   Caffè Lo-Fi (steaming cups, chalkboard), Nuvola Comics (comic-bubble sign, POW! sticker), Gelateria Luna,
   Forno Pesca, Petali Fiori, Side B Records and Dog-ear Books — each with its own sign, awning, forecourt and goods.

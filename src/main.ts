@@ -11,6 +11,7 @@ import {
 } from './game/profile';
 import { Rider, type BumpEvent, type Mover } from './game/rider';
 import { THEMES } from './game/themes';
+import { Traffic, type TrafficEvent } from './game/traffic';
 import { Minimap } from './render/minimap';
 import { Renderer } from './render/renderer';
 import { Garage } from './ui/garage';
@@ -43,6 +44,7 @@ try {
 let map: GameMap;
 let orders: Orders;
 let critters: Critters;
+let traffic: Traffic;
 let challenges: Challenge[] = [];
 let postcards: { x: number; y: number; got: boolean }[] = [];
 let rain = false;
@@ -68,6 +70,8 @@ function loadMap() {
   const st = bikeStats(profile);
   orders = new Orders(map, { level: profile.level, town: profile.stats.towns, stats: st, rain });
   critters = new Critters(map, 8 + Math.min(10, profile.level));
+  const woods = theme.id === 'woods';
+  traffic = new Traffic(map, (woods ? 2 : 4) + Math.min(5, profile.stats.towns), 4 + Math.min(4, profile.level), map.spawn);
   challenges = pickChallenges(seed, profile.level);
   postcards = map.postcards.map((p) => ({ ...p, got: false }));
   townMeters = 0;
@@ -374,6 +378,42 @@ let hudAcc = 0;
 let saveAcc = 0;
 const bumps: BumpEvent[] = [];
 const events: OrderEvent[] = [];
+const tEvents: TrafficEvent[] = [];
+const GREETINGS = ['ciao!', 'nice basket!', 'chill ride!', 'buona giornata!', 'love the scarf!', 'see you around!'];
+
+function handleTraffic(ev: TrafficEvent) {
+  const d = Math.hypot(ev.v.x - rider.x, ev.v.y - rider.y);
+  switch (ev.type) {
+    case 'honk':
+      audio.horn(d);
+      break;
+    case 'ring':
+      audio.otherBell();
+      break;
+    case 'wave':
+      renderer.floatText(ev.v.x, ev.v.y, GREETINGS[Math.floor(Math.random() * GREETINGS.length)], '#c9f2d0');
+      if (Math.random() < 0.5) audio.otherBell();
+      break;
+    case 'hit': {
+      const a = ev.v.heading;
+      rider.x += Math.cos(a) * 1.2;
+      rider.y += Math.sin(a) * 1.2;
+      rider.heading = a + (Math.random() - 0.5);
+      rider.speed = Math.min(6, ev.power * 0.6);
+      rider.hurt(14 + ev.power * 1.5);
+      rider.dizzy = 2;
+      rider.wobble = 1;
+      audio.horn(0);
+      audio.land(1);
+      renderer.shake(0.8);
+      renderer.burst('dust', rider.x, rider.y, 10);
+      renderer.floatText(rider.x, rider.y, 'beep! ouch!', '#ffb3b3', true);
+      hud.toast('Watch the traffic!', 'cars drive on the right — keep to the edge', 3000);
+      reset(challenges, 'nobump');
+      break;
+    }
+  }
+}
 
 function frame(now: number) {
   requestAnimationFrame(frame);
@@ -385,7 +425,11 @@ function frame(now: number) {
   acc += dt;
   const controls = started ? input.read() : { pedal: 0, brake: false, steer: 0, aim: null };
   critters.update(dt, rider.x, rider.y, rider.speed);
-  const movers: Mover[] = critters.obstacles().map((o) => ({ x: o.x, y: o.y, r: o.r, onHit: () => (o.w.bumped = 1.4) }));
+  const movers: Mover[] = critters.obstacles().map((o) => ({ x: o.x, y: o.y, r: o.r, kind: 'person' as const, onHit: () => (o.w.bumped = 1.4) }));
+  if (started) {
+    traffic.update(dt, rider.x, rider.y, rider.speed, tEvents);
+    for (const m of traffic.movers()) movers.push({ ...m, onHit: () => (m.v.honk = 4) });
+  }
   const odo = rider.odometer;
   while (acc >= STEP) {
     rider.update(STEP, controls, map, bumps, movers);
@@ -407,7 +451,11 @@ function frame(now: number) {
       if (b.type === 'slip') {
         hud.toast('whoops — slipped!', rider.wet ? 'wet grass is slippery, ease off the turns' : 'loose ground — take the corner slower');
         renderer.floatText(rider.x, rider.y, 'ouch!', '#ffb3b3');
-      } else if (b.person) hud.toast('oops — sorry!', 'try the bell 🔔');
+      } else if (b.what === 'car') {
+        hud.toast('bonk! into a car', 'ouch — mind the traffic');
+        renderer.floatText(rider.x, rider.y, 'ouch!', '#ffb3b3');
+      } else if (b.what === 'rider') hud.toast('sorry, fellow rider!', 'ring the bell to say hi instead 🔔');
+      else if (b.person) hud.toast('oops — sorry!', 'try the bell 🔔');
       else if (b.power > 3.5) renderer.floatText(rider.x, rider.y, 'bonk!', '#ffd27a');
       if (rider.health < 35 && !restingToast) {
         restingToast = true;
@@ -419,10 +467,12 @@ function frame(now: number) {
     rider.resting = !!cafe && rider.speed < 0.6;
     if (rider.health > 70) restingToast = false;
     for (const ev of events) handle(ev, light.night);
+    for (const ev of tEvents) handleTraffic(ev);
     collectPostcards();
   }
   bumps.length = 0;
   events.length = 0;
+  tEvents.length = 0;
 
   const target = started ? orders.target(rider) : null;
   audio.update(dt, rider.speed, false, rider.pedalling);
@@ -436,6 +486,7 @@ function frame(now: number) {
       scarf: cosmeticColor(profile.equipped.scarf),
     },
     headlight: rider.stats.light,
+    traffic,
   });
 
   portrait.draw(rider, time, { beanie: cosmeticColor(profile.equipped.beanie), scarf: cosmeticColor(profile.equipped.scarf) }, rain);
@@ -481,6 +532,9 @@ requestAnimationFrame(frame);
   },
   get critters() {
     return critters;
+  },
+  get traffic() {
+    return traffic;
   },
   get postcards() {
     return postcards;
