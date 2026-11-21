@@ -6,6 +6,7 @@ export class AudioEngine {
   radio: Radio;
   private master: Tone.Volume;
   private started = false;
+  private ready = false;
   private wind!: Tone.Noise;
   private windFilter!: Tone.Filter;
   private windGain!: Tone.Gain;
@@ -24,6 +25,11 @@ export class AudioEngine {
     if (this.started) return;
     this.started = true;
     await Tone.start();
+    this.build();
+    this.ready = true;
+  }
+
+  private build() {
     this.windFilter = new Tone.Filter({ frequency: 400, type: 'bandpass', Q: 0.6 });
     this.windGain = new Tone.Gain(0);
     this.wind = new Tone.Noise({ type: 'pink', volume: -6 });
@@ -53,7 +59,7 @@ export class AudioEngine {
   }
 
   get isStarted() {
-    return this.started;
+    return this.ready;
   }
 
   setVolume(v: number) {
@@ -62,7 +68,7 @@ export class AudioEngine {
 
   /** Called every frame with the bike state. */
   update(dt: number, speed: number, airborne: boolean, pedalling: boolean) {
-    if (!this.started) return;
+    if (!this.ready) return;
     const s = Math.min(1, speed / 16);
     const target = 0.02 + s * s * 0.35 + (airborne ? 0.1 : 0);
     this.windGain.gain.rampTo(target, 0.15);
@@ -81,19 +87,19 @@ export class AudioEngine {
   }
 
   land(power: number) {
-    if (!this.started) return;
+    if (!this.ready) return;
     this.thump.triggerAttackRelease('A1', '16n', Tone.now(), Math.min(1, 0.3 + power * 0.25));
   }
 
   bell() {
-    if (!this.started) return;
+    if (!this.ready) return;
     const now = Tone.now();
     this.chime.triggerAttackRelease(['E6', 'B6'], '8n', now, 0.6);
     this.chime.triggerAttackRelease(['E6', 'B6'], '8n', now + 0.16, 0.5);
   }
 
   sparkle() {
-    if (!this.started) return;
+    if (!this.ready) return;
     const now = Tone.now();
     ['C6', 'E6', 'G6', 'C7'].forEach((n, i) => this.chime.triggerAttackRelease(n, '16n', now + i * 0.07, 0.35));
   }

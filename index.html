@@ -3,8 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
-    <meta name="theme-color" content="#ff9a8b" />
-    <meta name="description" content="Chill Rider — a lo-fi bicycle ride through an endless sunset." />
+    <meta name="theme-color" content="#a9c98a" />
+    <meta name="description" content="Chill Rider — a lo-fi bike courier game seen from above." />
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -12,22 +12,21 @@
       href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&family=Playfair+Display:ital,wght@1,600&display=swap"
       rel="stylesheet"
     />
-    <title>Chill Rider — lo-fi bicycle journey</title>
+    <title>Chill Rider — lo-fi bike courier</title>
   </head>
   <body>
     <canvas id="game"></canvas>
 
     <div id="hud">
       <header class="top">
-        <div>
+        <div class="left">
           <div class="title">Chill Rider</div>
-          <div class="place" id="place">Sunset Boulevard</div>
+          <div class="place"><span id="place">Peach Village</span><span class="sep"> · </span><span id="phase">Golden Hour</span></div>
+          <div class="goal" id="goal"></div>
           <div class="orders" id="orders"></div>
         </div>
-        <div class="stats">
-          <div><span id="dist">0.00</span> <small>km</small></div>
-          <div class="sub" id="phase">Golden Hour</div>
-          <div class="sub" id="best"></div>
+        <div class="right">
+          <canvas id="minimap" class="minimap"></canvas>
           <div class="tips" id="tips"></div>
         </div>
       </header>
@@ -36,7 +35,8 @@
 
       <footer class="bottom">
         <div class="hint" id="hint">
-          Slow down at the glowing door to deliver<br />W pedal · S brake · A/D lean · C cruise · B bell · R radio · N next · H hide
+          W pedal · S brake · A/D steer · B bell · R radio · N next song · H hide · P pause<br />
+          Pick up at shops, slow down at the glowing door to deliver
         </div>
         <div class="radio glass" id="radio">
           <button id="radio-toggle" class="radio-btn" aria-label="Toggle radio">▶</button>
@@ -47,40 +47,39 @@
           <button id="radio-next" class="radio-btn small" aria-label="Next track">⏭</button>
           <input id="volume" type="range" min="0" max="1" step="0.01" value="0.8" aria-label="Volume" />
         </div>
-        <div class="speed">
-          <div class="cruise" id="cruise">CRUISE</div>
-          <span id="speed">0</span><small>km/h</small>
-        </div>
+        <div class="speed"><span id="speed">0</span><small>km/h</small></div>
       </footer>
     </div>
 
     <div id="touch" class="touch">
-      <div class="touch-left">
-        <button data-act="back" class="tbtn" aria-label="Lean back">⟲</button>
-        <button data-act="forward" class="tbtn" aria-label="Lean forward">⟳</button>
-      </div>
-      <div class="touch-right">
-        <button data-act="brake" class="tbtn" aria-label="Brake">■</button>
-        <button data-act="pedal" class="tbtn big" aria-label="Pedal">▲</button>
-      </div>
-      <button id="t-cruise" class="tbtn mini" aria-label="Cruise control">C</button>
-      <button id="t-bell" class="tbtn mini bell" aria-label="Bell">🔔</button>
+      <button data-act="brake" class="tbtn big" aria-label="Brake">■</button>
+      <button id="t-bell" class="tbtn mini" aria-label="Bell">🔔</button>
+      <div class="touch-hint" id="touch-hint">drag anywhere to ride</div>
     </div>
 
-    <div id="start" class="start">
-      <div class="start-card">
+    <div id="start" class="overlay-card">
+      <div class="card">
         <h1>Chill Rider</h1>
-        <p>Pick up parcels at Chill Post, ride the endless golden hour,<br />slow down at the glowing door to deliver.</p>
+        <p>A lo-fi bike courier. Pick up orders at the little shops,<br />ride them to the right address before the timer runs out.</p>
         <button id="start-btn" class="start-btn">Start riding</button>
-        <p class="small" id="start-hint">Headphones recommended 🎧</p>
+        <p class="small">Trees, ponds and walls are in the way — roads are fastest. Headphones recommended 🎧</p>
       </div>
     </div>
 
-    <div id="pause" class="start hidden">
-      <div class="start-card">
+    <div id="pause" class="overlay-card hidden">
+      <div class="card">
         <h1>Paused</h1>
         <p>Take a breath.</p>
         <button id="resume-btn" class="start-btn">Keep riding</button>
+      </div>
+    </div>
+
+    <div id="complete" class="overlay-card hidden">
+      <div class="card">
+        <div class="stars" id="stars">★★★</div>
+        <h1 id="complete-title">Map complete</h1>
+        <p id="complete-text"></p>
+        <button id="next-map" class="start-btn">Next map</button>
       </div>
     </div>
 

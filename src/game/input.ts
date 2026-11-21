@@ -1,29 +1,39 @@
-import type { Controls } from './bike';
+import type { Controls } from './rider';
 
-type Action = 'pedal' | 'brake' | 'back' | 'forward';
+type Action = 'pedal' | 'brake' | 'left' | 'right';
+export type Toggle = 'radio' | 'next' | 'hud' | 'pause' | 'bell';
 
 const KEYMAP: Record<string, Action> = {
   KeyW: 'pedal',
   ArrowUp: 'pedal',
-  ArrowRight: 'forward',
   KeyS: 'brake',
   ArrowDown: 'brake',
   Space: 'brake',
-  KeyA: 'back',
-  ArrowLeft: 'back',
-  KeyD: 'forward',
+  KeyA: 'left',
+  ArrowLeft: 'left',
+  KeyD: 'right',
+  ArrowRight: 'right',
 };
+
+export interface Joystick {
+  active: boolean;
+  ox: number;
+  oy: number;
+  x: number;
+  y: number;
+}
+
+const JOY_MAX = 60;
 
 export class Input {
   private held = new Set<Action>();
-  private touch = new Map<number, Action>();
-  cruise = false;
-  onToggle: ((what: 'cruise' | 'radio' | 'next' | 'hud' | 'pause' | 'bell') => void) | null = null;
-  onFirstGesture: (() => void) | null = null;
+  private buttons = new Map<number, Action>();
+  joy: Joystick = { active: false, ox: 0, oy: 0, x: 0, y: 0 };
+  private joyId: number | null = null;
+  onToggle: ((what: Toggle) => void) | null = null;
 
-  constructor() {
+  constructor(surface: HTMLElement) {
     window.addEventListener('keydown', (e) => {
-      this.gesture();
       const a = KEYMAP[e.code];
       if (a) {
         this.held.add(a);
@@ -31,15 +41,8 @@ export class Input {
         return;
       }
       if (e.repeat) return;
-      switch (e.code) {
-        case 'KeyC': this.cruise = !this.cruise; this.onToggle?.('cruise'); break;
-        case 'KeyR': this.onToggle?.('radio'); break;
-        case 'KeyN': this.onToggle?.('next'); break;
-        case 'KeyH': this.onToggle?.('hud'); break;
-        case 'KeyB': this.onToggle?.('bell'); break;
-        case 'KeyP':
-        case 'Escape': this.onToggle?.('pause'); break;
-      }
+      const map: Record<string, Toggle> = { KeyR: 'radio', KeyN: 'next', KeyH: 'hud', KeyP: 'pause', Escape: 'pause', KeyB: 'bell' };
+      if (map[e.code]) this.onToggle?.(map[e.code]);
     });
     window.addEventListener('keyup', (e) => {
       const a = KEYMAP[e.code];
@@ -47,30 +50,55 @@ export class Input {
     });
     window.addEventListener('blur', () => {
       this.held.clear();
-      this.touch.clear();
+      this.buttons.clear();
+      this.joy.active = false;
+      this.joyId = null;
     });
+
+    // floating joystick: touch anywhere on the play surface
+    surface.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' || this.joyId !== null) return;
+      e.preventDefault();
+      this.joyId = e.pointerId;
+      surface.setPointerCapture?.(e.pointerId);
+      this.joy = { active: true, ox: e.clientX, oy: e.clientY, x: e.clientX, y: e.clientY };
+    });
+    surface.addEventListener('pointermove', (e) => {
+      if (e.pointerId !== this.joyId) return;
+      let dx = e.clientX - this.joy.ox;
+      let dy = e.clientY - this.joy.oy;
+      const d = Math.hypot(dx, dy);
+      if (d > JOY_MAX * 1.6) {
+        // drag the origin along so the stick never feels stuck
+        const k = (d - JOY_MAX * 1.6) / d;
+        this.joy.ox += dx * k;
+        this.joy.oy += dy * k;
+        dx = e.clientX - this.joy.ox;
+        dy = e.clientY - this.joy.oy;
+      }
+      this.joy.x = e.clientX;
+      this.joy.y = e.clientY;
+    });
+    const end = (e: PointerEvent) => {
+      if (e.pointerId !== this.joyId) return;
+      this.joyId = null;
+      this.joy.active = false;
+    };
+    surface.addEventListener('pointerup', end);
+    surface.addEventListener('pointercancel', end);
   }
 
-  private gesture() {
-    if (this.onFirstGesture) {
-      const cb = this.onFirstGesture;
-      this.onFirstGesture = null;
-      cb();
-    }
-  }
-
-  /** Wire a DOM button to an action (pointer events, multi-touch safe). */
   bindButton(el: HTMLElement, action: Action) {
     const down = (e: PointerEvent) => {
       e.preventDefault();
-      this.gesture();
+      e.stopPropagation();
       el.setPointerCapture?.(e.pointerId);
-      this.touch.set(e.pointerId, action);
+      this.buttons.set(e.pointerId, action);
       el.classList.add('active');
     };
     const up = (e: PointerEvent) => {
-      this.touch.delete(e.pointerId);
-      if (![...this.touch.values()].includes(action)) el.classList.remove('active');
+      this.buttons.delete(e.pointerId);
+      if (![...this.buttons.values()].includes(action)) el.classList.remove('active');
     };
     el.addEventListener('pointerdown', down);
     el.addEventListener('pointerup', up);
@@ -81,21 +109,26 @@ export class Input {
 
   private has(a: Action) {
     if (this.held.has(a)) return true;
-    for (const v of this.touch.values()) if (v === a) return true;
+    for (const v of this.buttons.values()) if (v === a) return true;
     return false;
   }
 
   read(): Controls {
     const brake = this.has('brake');
-    if (brake && this.cruise) {
-      this.cruise = false;
-      this.onToggle?.('cruise');
+    if (this.joy.active) {
+      const dx = this.joy.x - this.joy.ox;
+      const dy = this.joy.y - this.joy.oy;
+      const d = Math.hypot(dx, dy);
+      if (d > 12) {
+        return { pedal: Math.min(1, d / JOY_MAX), brake, steer: 0, aim: Math.atan2(dy, dx) };
+      }
+      return { pedal: 0, brake, steer: 0, aim: null };
     }
     return {
-      pedal: this.has('pedal'),
+      pedal: this.has('pedal') ? 1 : 0,
       brake,
-      lean: (this.has('forward') ? 1 : 0) - (this.has('back') ? 1 : 0),
-      cruise: this.cruise,
+      steer: (this.has('right') ? 1 : 0) - (this.has('left') ? 1 : 0),
+      aim: null,
     };
   }
 }

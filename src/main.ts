@@ -1,9 +1,12 @@
 import './styles.css';
 import { AudioEngine } from './audio/audio';
-import { Bike, type BikeEvent } from './game/bike';
-import { Deliveries, type DeliveryEvent } from './game/delivery';
+import { lightAt } from './game/daylight';
 import { Input } from './game/input';
-import { paletteAt } from './game/palette';
+import { generateMap, type GameMap } from './game/map';
+import { Orders, type OrderEvent } from './game/orders';
+import { Rider, type BumpEvent } from './game/rider';
+import { THEMES } from './game/themes';
+import { Minimap } from './render/minimap';
 import { Renderer } from './render/renderer';
 import { Hud } from './ui/hud';
 
@@ -27,17 +30,33 @@ const store = {
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const renderer = new Renderer(canvas);
-const bike = new Bike();
-const input = new Input();
+const minimap = new Minimap(document.getElementById('minimap') as HTMLCanvasElement);
+const input = new Input(canvas);
 const hud = new Hud();
 const audio = new AudioEngine();
-const deliveries = new Deliveries({ tips: store.get('tips', 0), delivered: store.get('delivered', 0) });
+const rider = new Rider();
 
+let mapIndex = store.get('maps', 0);
+let totalTips = store.get('tips2', 0);
+let map: GameMap;
+let orders: Orders;
 let started = false;
 let paused = false;
 let hudVisible = true;
 let time = 0;
-let best = store.get('best', 0);
+
+function loadMap(index: number) {
+  const theme = THEMES[index % THEMES.length];
+  const seed = (Math.random() * 1e9) | 0;
+  map = generateMap(theme, seed);
+  orders = new Orders(map);
+  rider.place(map.spawn.x, map.spawn.y, map.spawn.heading);
+  renderer.reset();
+  minimap.setMap(map);
+  hud.setPlace(theme.name);
+}
+loadMap(mapIndex);
+
 const volume = document.getElementById('volume') as HTMLInputElement;
 volume.value = String(store.get('volume', 0.8));
 audio.setVolume(Number(volume.value));
@@ -54,7 +73,6 @@ const toggleRadio = async () => {
 
 input.onToggle = (what) => {
   switch (what) {
-    case 'cruise': hud.setCruise(input.cruise); break;
     case 'radio': void toggleRadio(); break;
     case 'next': audio.radio.next(); break;
     case 'hud': hudVisible = !hudVisible; hud.setVisible(hudVisible); break;
@@ -63,16 +81,10 @@ input.onToggle = (what) => {
   }
 };
 
-document.querySelectorAll<HTMLElement>('[data-act]').forEach((el) => {
-  input.bindButton(el, el.dataset.act as 'pedal' | 'brake' | 'back' | 'forward');
-});
-document.getElementById('t-cruise')!.addEventListener('pointerdown', (e) => {
-  e.preventDefault();
-  input.cruise = !input.cruise;
-  hud.setCruise(input.cruise);
-});
+document.querySelectorAll<HTMLElement>('[data-act]').forEach((el) => input.bindButton(el, el.dataset.act as 'brake'));
 document.getElementById('t-bell')!.addEventListener('pointerdown', (e) => {
   e.preventDefault();
+  e.stopPropagation();
   audio.bell();
 });
 document.getElementById('radio-toggle')!.addEventListener('click', () => void toggleRadio());
@@ -85,82 +97,87 @@ volume.addEventListener('input', () => {
 
 const startEl = document.getElementById('start')!;
 const pauseEl = document.getElementById('pause')!;
+const completeEl = document.getElementById('complete')!;
+const touchHint = document.getElementById('touch-hint')!;
 
 async function start() {
   if (started) return;
   started = true;
   startEl.classList.add('hidden');
-  deliveries.depot = { x: bike.x + 38 };
+  hud.toast(map.theme.name, 'pick up your first order at a shop');
   await audio.start();
   await audio.radio.play();
   hud.setRadio(true);
-  hud.toast('Sunset Boulevard', 'enjoy the ride');
 }
 
 function setPaused(p: boolean) {
-  if (!started) return;
+  if (!started || !completeEl.classList.contains('hidden')) return;
   paused = p;
   pauseEl.classList.toggle('hidden', !p);
 }
 
 document.getElementById('start-btn')!.addEventListener('click', () => void start());
 document.getElementById('resume-btn')!.addEventListener('click', () => setPaused(false));
+document.getElementById('next-map')!.addEventListener('click', () => {
+  completeEl.classList.add('hidden');
+  mapIndex++;
+  store.set('maps', mapIndex);
+  loadMap(mapIndex);
+  paused = false;
+  hud.toast(map.theme.name, 'new town, new shops');
+});
 window.addEventListener('keydown', (e) => {
-  if (!started && (e.code === 'Enter' || e.code === 'Space' || e.code === 'KeyW')) void start();
+  if (!started && (e.code === 'Enter' || e.code === 'KeyW')) void start();
 });
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) setPaused(true);
 });
+canvas.addEventListener('pointerdown', () => touchHint.classList.add('gone'));
 
 // ------------------------------------------------------------ events
-function handle(ev: BikeEvent) {
-  if (ev.type === 'takeoff') return;
-  audio.land(ev.airtime);
-  renderer.particles.burst('dust', bike.x, bike.y, 6 + Math.round(ev.airtime * 8), 0.8 + ev.airtime);
-  if (!ev.clean) {
-    hud.toast('wobbly landing', 'no worries');
-    return;
-  }
-  if (ev.flips > 0) {
-    const kind = bike.airSpin > 0 ? 'backflip' : 'frontflip';
-    const label = ev.flips > 1 ? `${ev.flips}× ${kind}` : kind;
-    hud.toast(label, `${ev.airtime.toFixed(1)}s of air`);
-    renderer.particles.burst('sparkle', bike.x, bike.y + 1, 18);
-    audio.sparkle();
-  } else if (ev.airtime > 0.7) {
-    hud.toast('nice air', `${ev.airtime.toFixed(1)}s`);
-  }
-}
-
-function handleDelivery(ev: DeliveryEvent) {
+function handle(ev: OrderEvent) {
   switch (ev.type) {
     case 'pickup': {
-      const n = ev.orders.length;
-      const fragile = ev.orders.some((o) => o.fragile);
-      hud.toast(`${n} parcels loaded`, fragile ? 'careful — something fragile' : 'off you go');
+      const o = ev.order;
+      hud.toast(`${o.item} for ${o.house.no} ${o.house.street}`, `${o.limit}s · ${o.fragile ? 'fragile — mind the trees' : o.hot ? 'still warm — hurry for a bonus' : 'from ' + o.shop.shop!.name}`, 3000);
       audio.sparkle();
       break;
     }
-    case 'approach':
-      hud.toast(`n° ${ev.order.houseNo} · ${ev.order.customer}`, 'slow down at the glowing door');
+    case 'full':
+      hud.toast('Basket full', 'deliver something first');
       break;
-    case 'delivered': {
-      const bits = [`+${ev.tip.toFixed(2)} € tip`];
-      if (ev.onTime) bits.push('on time');
-      if (ev.order.fragile && ev.perfect) bits.push('not a scratch');
-      hud.toast(`Delivered to ${ev.order.customer}`, bits.join(' · '));
-      renderer.particles.burst('sparkle', bike.x, bike.y + 1.5, 16);
-      audio.sparkle();
-      store.set('tips', deliveries.tips);
-      store.set('delivered', deliveries.delivered);
+    case 'near':
+      hud.toast(`${ev.order.house.no} ${ev.order.house.street}`, 'slow down at the glowing door');
       break;
-    }
-    case 'missed':
-      hud.toast(`${ev.order.customer} will meet you ahead`, `new address · n° ${ev.order.houseNo}`);
+    case 'late':
+      hud.toast(`Running late for ${ev.order.house.no} ${ev.order.house.street}`, 'deliver anyway — smaller tip');
       break;
     case 'damaged':
       hud.toast(`careful with ${ev.order.item}!`, `${Math.round(ev.order.condition * 100)}% intact`);
       break;
+    case 'delivered': {
+      totalTips = Math.round((totalTips + ev.tip) * 100) / 100;
+      store.set('tips2', totalTips);
+      const bits = [`+${ev.tip.toFixed(2)} €`];
+      bits.push(ev.onTime ? `${Math.round(ev.left)}s to spare` : 'late');
+      if (ev.order.fragile && ev.order.condition > 0.97) bits.push('not a scratch');
+      hud.toast(`Delivered to ${ev.order.house.no} ${ev.order.house.street}`, bits.join(' · '));
+      renderer.burst('sparkle', ev.order.house.stopX, ev.order.house.stopY, 18);
+      audio.sparkle();
+      break;
+    }
+    case 'complete': {
+      const stars = Array.from({ length: 3 }, (_, i) => `<span class="${i < ev.stars ? '' : 'off'}">★</span>`).join('');
+      document.getElementById('stars')!.innerHTML = stars;
+      document.getElementById('complete-title')!.textContent = `${map.theme.name} done`;
+      document.getElementById('complete-text')!.textContent =
+        `${ev.onTime}/${ev.total} on time · ${ev.tips.toFixed(2)} € in tips. Next stop: ${THEMES[(mapIndex + 1) % THEMES.length].name}.`;
+      setTimeout(() => {
+        completeEl.classList.remove('hidden');
+        paused = true;
+      }, 1200);
+      break;
+    }
   }
 }
 
@@ -168,9 +185,9 @@ function handleDelivery(ev: DeliveryEvent) {
 const STEP = 1 / 120;
 let acc = 0;
 let last = performance.now();
-const events: BikeEvent[] = [];
-const delEvents: DeliveryEvent[] = [];
 let hudAcc = 0;
+const bumps: BumpEvent[] = [];
+const events: OrderEvent[] = [];
 
 function frame(now: number) {
   requestAnimationFrame(frame);
@@ -180,46 +197,61 @@ function frame(now: number) {
 
   time += dt;
   acc += dt;
-  // before the player starts, the rider cruises gently in the background
-  const controls = started ? input.read() : { pedal: false, brake: false, lean: 0, cruise: true };
+  const controls = started ? input.read() : { pedal: 0, brake: false, steer: 0, aim: null };
   while (acc >= STEP) {
-    bike.update(STEP, controls, events);
+    rider.update(STEP, controls, map, bumps);
     acc -= STEP;
   }
   if (started) {
-    deliveries.update(dt, bike, time, events, delEvents);
+    orders.update(dt, rider, time, bumps, events);
+    for (const b of bumps) {
+      audio.land(b.power / 3);
+      renderer.burst('dust', b.x, b.y, 6);
+    }
     for (const ev of events) handle(ev);
-    // a delivery toast wins over a jump toast in the same frame
-    for (const ev of delEvents) handleDelivery(ev);
-    delEvents.length = 0;
   }
+  bumps.length = 0;
   events.length = 0;
 
-  if (started && bike.distance > best) {
-    best = bike.distance;
-    if (Math.floor(time * 2) % 10 === 0) store.set('best', best);
-  }
+  const light = lightAt(time + 15);
+  const target = started ? orders.target(rider) : null;
+  audio.update(dt, rider.speed, false, rider.pedalling);
+  renderer.updateCamera(rider, map, dt);
+  renderer.render(map, rider, started ? orders : null, target, light, time, dt, input.joy);
 
-  const { pal, name } = paletteAt(time + 20);
-  audio.update(dt, bike.displaySpeed, bike.airborne, bike.pedalling);
-  renderer.updateCamera(bike, dt);
-  renderer.render(bike, pal, time, dt, started ? deliveries : null);
-  hud.update(dt, { distance: bike.distance, speed: bike.displaySpeed, phase: name, best });
   hudAcc += dt;
-  if (hudAcc > 0.15) {
+  if (hudAcc > 0.1) {
     hudAcc = 0;
-    hud.updateDeliveries(deliveries, bike.x);
+    hud.update({
+      speed: rider.speed,
+      phase: light.name,
+      orders,
+      time,
+      tips: totalTips,
+      targetId: target?.order?.id ?? null,
+      riderX: rider.x,
+      riderY: rider.y,
+    });
+    minimap.draw(rider, orders, target, time);
   }
 }
 
-window.addEventListener('beforeunload', () => store.set('best', best));
 requestAnimationFrame(frame);
 
-// expose a tiny debug handle for tinkering in the console
+// tiny debug handle for tinkering from the console
 (window as unknown as { chill: unknown }).chill = {
-  bike,
+  rider,
   renderer,
   audio,
-  deliveries,
-  warp: (seconds: number) => (time += seconds),
+  get map() {
+    return map;
+  },
+  get orders() {
+    return orders;
+  },
+  warp: (s: number) => (time += s),
+  next: () => {
+    mapIndex++;
+    loadMap(mapIndex);
+  },
 };

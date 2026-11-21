@@ -1,0 +1,432 @@
+import { rng, type Rng } from './math';
+import { SHOPS, type ShopType, type Theme } from './themes';
+
+/** World units are meters, x → right, y → down. The map is a grid of 4 m tiles. */
+export const TILE = 4;
+
+export const enum T {
+  GRASS = 0,
+  ROAD = 1,
+  WATER = 2,
+  SAND = 3,
+  PLAZA = 4,
+  PATH = 5,
+}
+
+export interface Building {
+  id: number;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  kind: 'house' | 'shop';
+  /** point on the wall where the door is */
+  doorX: number;
+  doorY: number;
+  /** outward unit normal of the door wall (towards the street) */
+  nx: number;
+  ny: number;
+  /** where the rider stops to hand over / pick up */
+  stopX: number;
+  stopY: number;
+  no: number;
+  street: string;
+  style: number;
+  shop?: ShopType;
+}
+
+export interface Tree {
+  x: number;
+  y: number;
+  r: number;
+  kind: number; // 0 round, 1 pine, 2 blossom
+  color: number;
+}
+
+export interface Lamp {
+  x: number;
+  y: number;
+}
+
+export interface Prop {
+  kind: 'fountain' | 'bench' | 'boat';
+  x: number;
+  y: number;
+  r: number;
+  angle: number;
+}
+
+export interface GameMap {
+  seed: number;
+  theme: Theme;
+  cols: number;
+  rows: number;
+  width: number;
+  height: number;
+  tiles: Uint8Array;
+  buildings: Building[];
+  trees: Tree[];
+  lamps: Lamp[];
+  props: Prop[];
+  roadRows: number[];
+  roadCols: number[];
+  spawn: { x: number; y: number; heading: number };
+  /** spatial hash of tree indices, 8 m cells */
+  treeGrid: Map<number, number[]>;
+}
+
+const CELL = 8;
+
+export function tileAt(m: GameMap, x: number, y: number): T {
+  const tx = Math.floor(x / TILE);
+  const ty = Math.floor(y / TILE);
+  if (tx < 0 || ty < 0 || tx >= m.cols || ty >= m.rows) return T.WATER;
+  return m.tiles[ty * m.cols + tx] as T;
+}
+
+export function nearbyTrees(m: GameMap, x: number, y: number): number[] {
+  const cx = Math.floor(x / CELL);
+  const cy = Math.floor(y / CELL);
+  const out: number[] = [];
+  for (let dy = -1; dy <= 1; dy++)
+    for (let dx = -1; dx <= 1; dx++) {
+      const l = m.treeGrid.get((cy + dy) * 1000 + cx + dx);
+      if (l) out.push(...l);
+    }
+  return out;
+}
+
+// ---------------------------------------------------------------- generation
+
+export function generateMap(theme: Theme, seed: number): GameMap {
+  const R = rng(seed);
+  const cols = 46;
+  const rows = 38;
+  const tiles = new Uint8Array(cols * rows);
+  const set = (tx: number, ty: number, t: T) => {
+    if (tx >= 0 && ty >= 0 && tx < cols && ty < rows) tiles[ty * cols + tx] = t;
+  };
+  const get = (tx: number, ty: number) =>
+    tx >= 0 && ty >= 0 && tx < cols && ty < rows ? (tiles[ty * cols + tx] as T) : T.WATER;
+
+  // ---- sea along the bottom edge (seaside)
+  let usableRows = rows;
+  if (theme.sea) {
+    const seaTop = rows - 7;
+    for (let tx = 0; tx < cols; tx++) {
+      const wobble = Math.round(Math.sin(tx * 0.35 + seed) * 0.8);
+      for (let ty = seaTop + wobble; ty < rows; ty++) set(tx, ty, T.WATER);
+      set(tx, seaTop + wobble - 1, T.SAND);
+      set(tx, seaTop + wobble - 2, T.SAND);
+    }
+    usableRows = seaTop - 3;
+  }
+
+  // ---- road grid lines (each road is two tiles wide)
+  const roadCols: number[] = [];
+  for (let c = R.int(2, 4); c < cols - 4; c += R.int(theme.roadGap[0], theme.roadGap[1])) roadCols.push(c);
+  const roadRows: number[] = [];
+  for (let r = R.int(2, 4); r < usableRows - 3; r += R.int(theme.roadGap[0] - 1, theme.roadGap[1] - 1)) roadRows.push(r);
+
+  // segments between neighbouring intersections
+  type Seg = { a: number; b: number; horiz: boolean; i: number; j: number; on: boolean };
+  const node = (i: number, j: number) => j * roadCols.length + i;
+  const segs: Seg[] = [];
+  for (let j = 0; j < roadRows.length; j++)
+    for (let i = 0; i < roadCols.length - 1; i++) segs.push({ a: node(i, j), b: node(i + 1, j), horiz: true, i, j, on: true });
+  for (let i = 0; i < roadCols.length; i++)
+    for (let j = 0; j < roadRows.length - 1; j++) segs.push({ a: node(i, j), b: node(i, j + 1), horiz: false, i, j, on: true });
+
+  const nodes = roadCols.length * roadRows.length;
+  const connected = () => {
+    const adj: number[][] = Array.from({ length: nodes }, () => []);
+    for (const s of segs) if (s.on) {
+      adj[s.a].push(s.b);
+      adj[s.b].push(s.a);
+    }
+    const seen = new Uint8Array(nodes);
+    const stack = [0];
+    seen[0] = 1;
+    let count = 1;
+    while (stack.length) {
+      const n = stack.pop()!;
+      for (const k of adj[n]) if (!seen[k]) {
+        seen[k] = 1;
+        count++;
+        stack.push(k);
+      }
+    }
+    return count === nodes;
+  };
+  const order = segs.map((_, k) => k).sort(() => R.next() - 0.5);
+  for (const k of order) {
+    if (!R.chance(theme.removeRoads)) continue;
+    segs[k].on = false;
+    if (!connected()) segs[k].on = true;
+  }
+
+  const paint = (x0: number, y0: number, x1: number, y1: number, t: T) => {
+    for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) set(tx, ty, t);
+  };
+  for (const s of segs) {
+    if (!s.on) continue;
+    if (s.horiz) paint(roadCols[s.i], roadRows[s.j], roadCols[s.i + 1] + 1, roadRows[s.j] + 1, T.ROAD);
+    else paint(roadCols[s.i], roadRows[s.j], roadCols[s.i] + 1, roadRows[s.j + 1] + 1, T.ROAD);
+  }
+
+  // ---- street names
+  const names = [...theme.streets].sort(() => R.next() - 0.5);
+  const rowName = roadRows.map((_, k) => names[k % names.length]);
+  const colName = roadCols.map((_, k) => names[(k + roadRows.length) % names.length]);
+
+  // ---- blocks between roads
+  const xs = [-2, ...roadCols, cols];
+  const ys = [-2, ...roadRows, usableRows];
+  const buildings: Building[] = [];
+  const trees: Tree[] = [];
+  const props: Prop[] = [];
+  const doorPoints: { x: number; y: number }[] = [];
+  let bid = 1;
+
+  const overlapsBuilding = (x: number, y: number, w: number, h: number, pad: number) =>
+    buildings.some((b) => x < b.x + b.w + pad && x + w > b.x - pad && y < b.y + b.h + pad && y + h > b.y - pad);
+
+  const roadNear = (x: number, y: number, d: number) => {
+    for (let a = 0; a < 8; a++) {
+      const px = x + Math.cos((a / 8) * Math.PI * 2) * d;
+      const py = y + Math.sin((a / 8) * Math.PI * 2) * d;
+      const t = get(Math.floor(px / TILE), Math.floor(py / TILE));
+      if (t === T.ROAD) return true;
+    }
+    return get(Math.floor(x / TILE), Math.floor(y / TILE)) === T.ROAD;
+  };
+
+  const treeOk = (x: number, y: number, r: number) => {
+    const t = get(Math.floor(x / TILE), Math.floor(y / TILE));
+    if (t !== T.GRASS && t !== T.SAND) return false;
+    if (x < 3 || y < 3 || x > cols * TILE - 3 || y > rows * TILE - 3) return false;
+    if (roadNear(x, y, r * 0.6 + 0.6)) return false;
+    if (overlapsBuilding(x - r, y - r, r * 2, r * 2, 0.6)) return false;
+    for (const d of doorPoints) if (Math.hypot(d.x - x, d.y - y) < r + 3.2) return false;
+    for (const o of trees) if (Math.hypot(o.x - x, o.y - y) < (o.r + r) * 0.8) return false;
+    for (const p of props) if (Math.hypot(p.x - x, p.y - y) < p.r + r + 1) return false;
+    return true;
+  };
+  const addTree = (x: number, y: number, r: number) => {
+    if (!treeOk(x, y, r)) return false;
+    const kind = theme.id === 'woods' ? (R.chance(0.6) ? 1 : 0) : R.chance(0.25) ? 2 : R.chance(0.2) ? 1 : 0;
+    trees.push({ x, y, r, kind, color: R.int(0, theme.tree.length - 1) });
+    return true;
+  };
+
+  const segOn = (horiz: boolean, i: number, j: number) =>
+    segs.some((s) => s.on && s.horiz === horiz && s.i === i && s.j === j);
+
+  for (let bj = 0; bj < ys.length - 1; bj++) {
+    for (let bi = 0; bi < xs.length - 1; bi++) {
+      const tx0 = Math.max(0, xs[bi] + 2);
+      const tx1 = Math.min(cols, xs[bi + 1]);
+      const ty0 = Math.max(0, ys[bj] + 2);
+      const ty1 = Math.min(usableRows, ys[bj + 1]);
+      if (tx1 - tx0 < 2 || ty1 - ty0 < 2) continue;
+      const x0 = tx0 * TILE;
+      const x1 = tx1 * TILE;
+      const y0 = ty0 * TILE;
+      const y1 = ty1 * TILE;
+      const ci = bi - 1; // index into roadCols of left boundary
+      const rj = bj - 1; // index into roadRows of top boundary
+
+      // which sides face a real, kept road
+      const top = rj >= 0 && ci >= 0 && ci + 1 < roadCols.length && segOn(true, ci, rj);
+      const bottom = rj + 1 < roadRows.length && ci >= 0 && ci + 1 < roadCols.length && segOn(true, ci, rj + 1);
+      const left = ci >= 0 && rj >= 0 && rj + 1 < roadRows.length && segOn(false, ci, rj);
+      const right = ci + 1 < roadCols.length && rj >= 0 && rj + 1 < roadRows.length && segOn(false, ci + 1, rj);
+
+      const inner = top || bottom || left || right;
+      const w = x1 - x0;
+      const h = y1 - y0;
+
+      // plazas in the old town, parks elsewhere
+      if (inner && theme.plazas && w > 14 && h > 14 && R.chance(0.22)) {
+        paint(tx0, ty0, tx1 - 1, ty1 - 1, T.PLAZA);
+        props.push({ kind: 'fountain', x: (x0 + x1) / 2, y: (y0 + y1) / 2, r: 2.6, angle: 0 });
+        for (let k = 0; k < 4; k++) {
+          const a = (k / 4) * Math.PI * 2 + Math.PI / 4;
+          props.push({ kind: 'bench', x: (x0 + x1) / 2 + Math.cos(a) * 6, y: (y0 + y1) / 2 + Math.sin(a) * 6, r: 0.9, angle: a });
+        }
+        continue;
+      }
+      const park = !inner || R.chance(theme.parkChance);
+      if (park) {
+        if (inner && w > 16 && h > 16 && R.chance(0.5)) {
+          // pond
+          const cx = x0 + w * R.range(0.35, 0.65);
+          const cy = y0 + h * R.range(0.35, 0.65);
+          const pr = Math.min(w, h) * 0.22;
+          for (let ty = ty0; ty < ty1; ty++)
+            for (let tx = tx0; tx < tx1; tx++) {
+              const d = Math.hypot((tx + 0.5) * TILE - cx, (ty + 0.5) * TILE - cy);
+              if (d < pr) set(tx, ty, T.WATER);
+            }
+        }
+        if (inner && R.chance(0.6)) {
+          // a dirt shortcut through the park
+          const horiz = w > h;
+          if (horiz) paint(tx0, Math.floor((ty0 + ty1) / 2), tx1 - 1, Math.floor((ty0 + ty1) / 2), T.PATH);
+          else paint(Math.floor((tx0 + tx1) / 2), ty0, Math.floor((tx0 + tx1) / 2), ty1 - 1, T.PATH);
+        }
+        const n = Math.round(((w * h) / 70) * theme.treeDensity * (inner ? 1 : 0.8));
+        for (let k = 0; k < n * 3 && n > 0; k++) {
+          if (trees.length > 700) break;
+          addTree(R.range(x0 + 1, x1 - 1), R.range(y0 + 1, y1 - 1), R.range(1.4, 2.4));
+        }
+        continue;
+      }
+
+      // ---- houses along each road-facing side
+      const sides: { has: boolean; horiz: boolean; edge: number; out: number; street: string }[] = [
+        { has: top, horiz: true, edge: y0, out: -1, street: rj >= 0 ? rowName[rj] : '' },
+        { has: bottom, horiz: true, edge: y1, out: 1, street: rj + 1 < roadRows.length ? rowName[rj + 1] : '' },
+        { has: left, horiz: false, edge: x0, out: -1, street: ci >= 0 ? colName[ci] : '' },
+        { has: right, horiz: false, edge: x1, out: 1, street: ci + 1 < roadCols.length ? colName[ci + 1] : '' },
+      ];
+      for (const s of sides) {
+        if (!s.has) continue;
+        const span0 = s.horiz ? x0 : y0;
+        const span1 = s.horiz ? x1 : y1;
+        let p = span0 + R.range(1, 3);
+        while (true) {
+          const along = R.range(6.5, 9);
+          const depth = R.range(6, 8);
+          if (p + along > span1 - 1) break;
+          const setback = 1.6;
+          if (R.chance(theme.houseChance)) {
+            let bx: number, by: number, bw: number, bh: number;
+            if (s.horiz) {
+              bw = along;
+              bh = depth;
+              bx = p;
+              by = s.out < 0 ? s.edge + setback : s.edge - setback - depth;
+            } else {
+              bw = depth;
+              bh = along;
+              by = p;
+              bx = s.out < 0 ? s.edge + setback : s.edge - setback - depth;
+            }
+            if (bx > x0 - 0.1 && by > y0 - 0.1 && bx + bw < x1 + 0.1 && by + bh < y1 + 0.1 && !overlapsBuilding(bx, by, bw, bh, 1.2)) {
+              const nx = s.horiz ? 0 : s.out;
+              const ny = s.horiz ? s.out : 0;
+              const doorX = s.horiz ? bx + bw / 2 : s.out < 0 ? bx : bx + bw;
+              const doorY = s.horiz ? (s.out < 0 ? by : by + bh) : by + bh / 2;
+              const pos = s.horiz ? doorX : doorY;
+              const b: Building = {
+                id: bid++,
+                x: bx, y: by, w: bw, h: bh,
+                kind: 'house',
+                doorX, doorY, nx, ny,
+                stopX: doorX + nx * 2.2,
+                stopY: doorY + ny * 2.2,
+                no: Math.floor(pos / 7) * 2 + (s.out < 0 ? 2 : 1),
+                street: s.street,
+                style: R.int(0, 3),
+              };
+              buildings.push(b);
+              doorPoints.push({ x: b.stopX, y: b.stopY });
+            }
+          }
+          p += along + R.range(1.6, 4);
+        }
+      }
+      // garden trees behind and between houses
+      const n = Math.round(((w * h) / 110) * theme.treeDensity);
+      for (let k = 0; k < n * 3 && n > 0; k++) addTree(R.range(x0 + 1, x1 - 1), R.range(y0 + 1, y1 - 1), R.range(1.2, 2));
+    }
+  }
+
+  // ---- street trees on the verges: the obstacles you dodge when cutting corners
+  for (const s of segs) {
+    if (!s.on || !R.chance(0.55)) continue;
+    const side = R.chance(0.5) ? -1 : 1;
+    if (s.horiz) {
+      const y = side < 0 ? roadRows[s.j] * TILE - 1.9 : (roadRows[s.j] + 2) * TILE + 1.9;
+      for (let x = (roadCols[s.i] + 2) * TILE + 3; x < roadCols[s.i + 1] * TILE - 3; x += R.range(7, 12)) addTree(x, y, R.range(1.1, 1.5));
+    } else {
+      const x = side < 0 ? roadCols[s.i] * TILE - 1.9 : (roadCols[s.i] + 2) * TILE + 1.9;
+      for (let y = (roadRows[s.j] + 2) * TILE + 3; y < roadRows[s.j + 1] * TILE - 3; y += R.range(7, 12)) addTree(x, y, R.range(1.1, 1.5));
+    }
+  }
+  // palms / dune grass on the beach
+  if (theme.sea) {
+    for (let k = 0; k < 40; k++) {
+      const tx = R.int(1, cols - 2);
+      for (let ty = 0; ty < rows; ty++) {
+        if (get(tx, ty) === T.SAND) {
+          if (R.chance(0.35)) addTree(tx * TILE + R.range(0.5, 3.5), ty * TILE + 2, R.range(1, 1.4));
+          break;
+        }
+      }
+    }
+    for (let k = 0; k < 4; k++) props.push({ kind: 'boat', x: R.range(15, cols * TILE - 15), y: (rows - 3) * TILE + R.range(-2, 6), r: 0, angle: R.range(-0.4, 0.4) });
+  }
+
+  // ---- shops: spread out over the map
+  const houses = buildings.filter((b) => b.kind === 'house');
+  const shopCount = Math.min(houses.length > 30 ? 5 : 4, houses.length);
+  const types = [...SHOPS].sort(() => R.next() - 0.5);
+  const chosen: Building[] = [];
+  if (houses.length) chosen.push(R.pick(houses));
+  while (chosen.length < shopCount) {
+    let best: Building | null = null;
+    let bestD = -1;
+    for (const h of houses) {
+      if (chosen.includes(h)) continue;
+      const d = Math.min(...chosen.map((c) => Math.hypot(c.x - h.x, c.y - h.y)));
+      if (d > bestD) {
+        bestD = d;
+        best = h;
+      }
+    }
+    if (!best) break;
+    chosen.push(best);
+  }
+  chosen.forEach((b, k) => {
+    b.kind = 'shop';
+    b.shop = types[k % types.length];
+  });
+
+  // ---- lamps at intersections
+  const lamps: Lamp[] = [];
+  for (let j = 0; j < roadRows.length; j++)
+    for (let i = 0; i < roadCols.length; i++) {
+      if (!segs.some((s) => s.on && (s.a === node(i, j) || s.b === node(i, j)))) continue;
+      lamps.push({ x: roadCols[i] * TILE - 1.2, y: roadRows[j] * TILE - 1.2 });
+    }
+
+  const treeGrid = new Map<number, number[]>();
+  trees.forEach((t, k) => {
+    const key = Math.floor(t.y / CELL) * 1000 + Math.floor(t.x / CELL);
+    const l = treeGrid.get(key);
+    if (l) l.push(k);
+    else treeGrid.set(key, [k]);
+  });
+
+  const first = chosen[0] ?? buildings[0];
+  const spawn = first
+    ? {
+        // on the road in front of the first shop, a few meters along the street
+        x: first.stopX + first.nx * 2.5 - first.ny * 7,
+        y: first.stopY + first.ny * 2.5 + first.nx * 7,
+        heading: Math.atan2(first.nx, -first.ny),
+      }
+    : { x: roadCols[0] * TILE + 4, y: roadRows[0] * TILE + 4, heading: 0 };
+
+  return {
+    seed, theme, cols, rows,
+    width: cols * TILE, height: rows * TILE,
+    tiles, buildings, trees, lamps, props, roadRows, roadCols, spawn, treeGrid,
+  };
+}
+
+export function shuffleSeed(R: Rng) {
+  return Math.floor(R.next() * 1e9);
+}
