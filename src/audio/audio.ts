@@ -14,6 +14,9 @@ export class AudioEngine {
   private thump!: Tone.MembraneSynth;
   private chime!: Tone.PolySynth;
   private tickAcc = 0;
+  private rain!: Tone.Noise;
+  private rainGain!: Tone.Gain;
+  private wantRain = false;
 
   constructor() {
     this.master = new Tone.Volume(0).toDestination();
@@ -30,6 +33,12 @@ export class AudioEngine {
   }
 
   private build() {
+    const rainFilter = new Tone.Filter({ frequency: 2400, type: 'lowpass' });
+    this.rainGain = new Tone.Gain(0);
+    this.rain = new Tone.Noise({ type: 'pink', volume: -14 });
+    this.rain.chain(rainFilter, this.rainGain, this.master);
+    this.rain.start();
+    this.setRain(this.wantRain);
     this.windFilter = new Tone.Filter({ frequency: 400, type: 'bandpass', Q: 0.6 });
     this.windGain = new Tone.Gain(0);
     this.wind = new Tone.Noise({ type: 'pink', volume: -6 });
@@ -96,6 +105,32 @@ export class AudioEngine {
     const now = Tone.now();
     this.chime.triggerAttackRelease(['E6', 'B6'], '8n', now, 0.6);
     this.chime.triggerAttackRelease(['E6', 'B6'], '8n', now + 0.16, 0.5);
+  }
+
+  setRain(on: boolean) {
+    this.wantRain = on;
+    if (!this.ready && !this.rainGain) return;
+    this.rainGain?.gain.rampTo(on ? 0.5 : 0, 2);
+  }
+
+  /** soft "pop" when a parcel changes hands */
+  pop() {
+    if (!this.ready) return;
+    this.chime.triggerAttackRelease('G5', '32n', Tone.now(), 0.35);
+  }
+
+  /** little fanfare: level up, town complete */
+  fanfare() {
+    if (!this.ready) return;
+    const now = Tone.now();
+    ['C5', 'E5', 'G5', 'C6', 'E6'].forEach((n, i) => this.chime.triggerAttackRelease(n, '8n', now + i * 0.09, 0.45));
+  }
+
+  /** postcard found */
+  collect() {
+    if (!this.ready) return;
+    const now = Tone.now();
+    ['A5', 'E6', 'A6'].forEach((n, i) => this.chime.triggerAttackRelease(n, '16n', now + i * 0.06, 0.4));
   }
 
   sparkle() {

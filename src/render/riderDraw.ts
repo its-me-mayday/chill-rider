@@ -2,7 +2,6 @@ import { css, hex, mix, type RGB } from '../game/math';
 import type { Rider } from '../game/rider';
 
 const C = {
-  frame: hex('#8fe0cc'),
   tire: hex('#2a2233'),
   rim: hex('#d9d2e6'),
   shirt: hex('#f4c063'),
@@ -10,12 +9,17 @@ const C = {
   pants: hex('#5a6fb0'),
   skin: hex('#f2c4a0'),
   beanie: hex('#e4677b'),
-  scarf: hex('#ff8f8f'),
   basket: hex('#c8935d'),
   flower1: hex('#ff9ab5'),
   flower2: hex('#fff1a8'),
   phones: hex('#3a3045'),
 };
+
+export interface RiderStyle {
+  frame: string;
+  beanie: string;
+  scarf: string; // a colour or 'rainbow'
+}
 
 export interface Cargo {
   color: RGB;
@@ -26,10 +30,14 @@ export interface Cargo {
  * Top-down bike + rider in local meters: +x is forward, +y is the rider's right.
  * The caller translates/rotates/scales the context.
  */
-export function drawRider(ctx: CanvasRenderingContext2D, r: Rider, time: number, cargo: Cargo[], tint: (c: RGB) => string) {
+export function drawRider(ctx: CanvasRenderingContext2D, r: Rider, time: number, cargo: Cargo[], style: RiderStyle) {
+  const tint = (c: RGB) => css(c);
   const steer = r.steerVis * 0.45;
   const wob = Math.sin(time * 30) * r.wobble * 0.12;
   ctx.rotate(wob);
+  // leaning into turns: the bike looks a touch narrower and the rider shifts inward
+  ctx.scale(1, 1 - Math.abs(r.lean) * 0.12);
+  const shift = r.lean * 0.08;
 
   // wheels
   ctx.fillStyle = tint(C.tire);
@@ -65,7 +73,7 @@ export function drawRider(ctx: CanvasRenderingContext2D, r: Rider, time: number,
   ctx.restore();
 
   // frame
-  ctx.strokeStyle = tint(C.frame);
+  ctx.strokeStyle = style.frame;
   ctx.lineWidth = 0.09;
   ctx.beginPath();
   ctx.moveTo(-0.6, 0);
@@ -103,9 +111,14 @@ export function drawRider(ctx: CanvasRenderingContext2D, r: Rider, time: number,
   ctx.ellipse(0.12 + kneeR, 0.2, 0.2, 0.09, 0, 0, Math.PI * 2);
   ctx.fill();
 
+  ctx.translate(0, shift);
   // scarf flutters behind
   const s = Math.min(1, r.speed / 8);
-  ctx.strokeStyle = tint(C.scarf);
+  if (style.scarf === 'rainbow') {
+    const g = ctx.createLinearGradient(-0.9, 0, 0, 0);
+    ['#ff8f8f', '#ffd27a', '#9fe3a8', '#8fc8ff', '#c9a3ff'].forEach((c, i) => g.addColorStop(i / 4, c));
+    ctx.strokeStyle = g;
+  } else ctx.strokeStyle = style.scarf;
   ctx.lineWidth = 0.1;
   ctx.lineCap = 'round';
   ctx.beginPath();
@@ -140,7 +153,7 @@ export function drawRider(ctx: CanvasRenderingContext2D, r: Rider, time: number,
   ctx.beginPath();
   ctx.arc(0.02, 0, 0.16, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = tint(C.beanie);
+  ctx.fillStyle = style.beanie;
   ctx.beginPath();
   ctx.arc(-0.01, 0, 0.15, Math.PI * 0.35, Math.PI * 1.65);
   ctx.closePath();
@@ -156,4 +169,3 @@ export function drawRider(ctx: CanvasRenderingContext2D, r: Rider, time: number,
   ctx.stroke();
 }
 
-export const riderTint = (amount: number, toward: RGB) => (c: RGB) => css(mix(c, toward, amount));

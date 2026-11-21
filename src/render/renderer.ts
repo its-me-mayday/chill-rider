@@ -4,10 +4,11 @@ import { clamp, css, damp, hash, hash2, mix, type RGB } from '../game/math';
 import type { Order, Orders } from '../game/orders';
 import type { Rider } from '../game/rider';
 import type { Joystick } from '../game/input';
-import { drawRider, type Cargo } from './riderDraw';
+import type { Critters, Walker } from '../game/critters';
+import { drawRider, type Cargo, type RiderStyle } from './riderDraw';
 
 interface Particle {
-  kind: 'petal' | 'dust' | 'sparkle' | 'firefly' | 'leaf';
+  kind: 'petal' | 'dust' | 'sparkle' | 'firefly' | 'leaf' | 'butterfly' | 'confetti';
   x: number;
   y: number;
   vx: number;
@@ -30,6 +31,28 @@ export interface Target {
 
 type View = { x0: number; x1: number; y0: number; y1: number };
 
+export interface Scene {
+  map: GameMap;
+  rider: Rider;
+  orders: Orders | null;
+  target: Target | null;
+  light: Light;
+  time: number;
+  dt: number;
+  joy: Joystick | null;
+  critters: Critters | null;
+  postcards: { x: number; y: number; got: boolean }[];
+  style: RiderStyle;
+  rain: boolean;
+  headlight: number;
+}
+
+interface Floater { text: string; x: number; y: number; t: number; color: string; big: boolean }
+interface Toss { x0: number; y0: number; x1: number; y1: number; t: number; dur: number; color: RGB }
+interface Customer { b: Building; t: number; shirt: string; hearts: boolean }
+interface Track { x: number; y: number; a: number; t: number }
+interface Puddle { x: number; y: number; t: number }
+
 export class Renderer {
   private ctx: CanvasRenderingContext2D;
   private light: HTMLCanvasElement;
@@ -45,6 +68,15 @@ export class Renderer {
   private vignette: CanvasGradient | null = null;
   private parts: Particle[] = [];
   private spawnAcc = 0;
+  private floaters: Floater[] = [];
+  private tosses: Toss[] = [];
+  private customers: Customer[] = [];
+  private tracks: Track[] = [];
+  private puddles: Puddle[] = [];
+  private trackAcc = 0;
+  private shakeAmt = 0;
+  private shakeX = 0;
+  private shakeY = 0;
 
   constructor(private canvas: HTMLCanvasElement) {
     this.ctx = canvas.getContext('2d', { alpha: false })!;
@@ -86,15 +118,47 @@ export class Renderer {
   }
 
   sx(x: number) {
-    return (x - this.camX) * this.ppm + this.W / 2;
+    return (x - this.camX) * this.ppm + this.W / 2 + this.shakeX;
   }
   sy(y: number) {
-    return (y - this.camY) * this.ppm + this.H / 2;
+    return (y - this.camY) * this.ppm + this.H / 2 + this.shakeY;
   }
 
   reset() {
     this.camInit = false;
     this.parts = [];
+    this.floaters = [];
+    this.tosses = [];
+    this.customers = [];
+    this.tracks = [];
+    this.puddles = [];
+  }
+
+  // ------------------------------------------------------------ effects API
+  shake(amount: number) {
+    this.shakeAmt = Math.min(1, this.shakeAmt + amount);
+  }
+
+  floatText(x: number, y: number, text: string, color = '#fff1b8', big = false) {
+    this.floaters.push({ text, x, y, t: 0, color, big });
+  }
+
+  toss(x0: number, y0: number, x1: number, y1: number, color: RGB) {
+    this.tosses.push({ x0, y0, x1, y1, t: 0, dur: 0.55, color });
+  }
+
+  customer(b: Building, hearts: boolean) {
+    const shirts = ['#f4a6a6', '#9fd3c7', '#f6d186', '#b8b5ff', '#ffcfa3'];
+    this.customers.push({ b, t: 0, shirt: shirts[b.id % shirts.length], hearts });
+  }
+
+  confetti(x: number, y: number) {
+    const cols = 6;
+    for (let i = 0; i < 46; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = 3 + Math.random() * 6;
+      this.parts.push({ kind: 'confetti', x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0, max: 1.2 + Math.random() * 0.8, size: 0.14, rot: Math.random() * 6, seed: i % cols });
+    }
   }
 
   updateCamera(r: Rider, map: GameMap, dt: number) {
@@ -121,34 +185,44 @@ export class Renderer {
   }
 
   // ======================================================================
-  render(
-    map: GameMap,
-    r: Rider,
-    orders: Orders | null,
-    target: Target | null,
-    light: Light,
-    time: number,
-    dt: number,
-    joy: Joystick | null,
-  ) {
+  render(sc: Scene) {
     const { ctx } = this;
+    const { map, rider: r, orders, target, light, time, dt, joy } = sc;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
 
+    // camera shake decays quickly
+    this.shakeAmt = Math.max(0, this.shakeAmt - dt * 2.5);
+    const sh = this.shakeAmt * this.shakeAmt * 9;
+    this.shakeX = (Math.random() - 0.5) * sh;
+    this.shakeY = (Math.random() - 0.5) * sh;
+
     const view = this.view();
     this.drawTiles(map, view, time);
+    this.updateTracks(r, dt);
+    this.drawTracks();
+    if (sc.rain) this.drawPuddles(map, view, dt);
     this.drawShadows(map, view, light);
     this.drawMarkers(orders, target, time);
-    this.drawRiderSprite(r, orders, time);
+    this.drawPostcards(sc.postcards, time, view);
+    if (sc.critters) this.drawDucks(sc.critters, time);
+    if (sc.critters) this.drawCats(sc.critters, time, view);
+    this.drawRiderSprite(r, orders, time, sc.style);
+    if (sc.critters) this.drawWalkers(sc.critters, time, view);
     this.updateParticles(map, r, light, dt, view);
     this.drawParticles(light, time, false);
     this.drawProps(map, view, time);
     this.drawBuildings(map, view, orders, time);
+    this.drawCustomers(dt, time);
     this.drawTrees(map, view, time);
+    this.drawTosses(dt);
     this.drawParticles(light, time, true);
-    this.drawLighting(map, r, view, light, time);
+    this.drawCloudShadows(light, time);
+    this.drawLighting(map, r, view, light, time, sc.headlight);
+    if (sc.rain) this.drawRain(time, dt, r);
     this.drawGuides(r, orders, target, time);
+    this.drawFloaters(dt);
     if (joy && joy.active) this.drawJoystick(joy);
     this.post();
   }
@@ -456,7 +530,7 @@ export class Renderer {
   }
 
   // ------------------------------------------------------------- rider
-  private drawRiderSprite(r: Rider, orders: Orders | null, time: number) {
+  private drawRiderSprite(r: Rider, orders: Orders | null, time: number, style: RiderStyle) {
     const { ctx, ppm } = this;
     const x = this.sx(r.x);
     const y = this.sy(r.y);
@@ -469,7 +543,7 @@ export class Renderer {
     ctx.rotate(r.heading);
     ctx.scale(ppm * 1.15, ppm * 1.15);
     const cargo: Cargo[] = orders ? orders.carried.map((o) => ({ color: o.shop.shop!.roof, fragile: o.fragile })) : [];
-    drawRider(ctx, r, time, cargo, (c) => css(c));
+    drawRider(ctx, r, time, cargo, style);
     ctx.restore();
   }
 
@@ -744,6 +818,14 @@ export class Renderer {
         const t = map.trees[Math.floor(Math.random() * map.trees.length)];
         if (!this.inView(t.x, t.y, 2, v)) continue;
         this.parts.push({ kind: 'firefly', x: t.x + (Math.random() - 0.5) * 6, y: t.y + (Math.random() - 0.5) * 6, vx: 0, vy: 0, life: 0, max: 4 + Math.random() * 4, size: 0.1, rot: 0, seed: Math.random() * 100 });
+      } else if (Math.random() < 0.08 && light.night < 0.3) {
+        this.parts.push({
+          kind: 'butterfly',
+          x: v.x0 + Math.random() * (v.x1 - v.x0),
+          y: v.y0 + Math.random() * (v.y1 - v.y0),
+          vx: (Math.random() - 0.5) * 2, vy: (Math.random() - 0.5) * 2, life: 0, max: 8 + Math.random() * 6,
+          size: 0.22, rot: 0, seed: Math.random() * 100,
+        });
       } else if (Math.random() < 0.5) {
         this.parts.push({
           kind: Math.random() < 0.6 ? 'petal' : 'leaf',
@@ -768,6 +850,15 @@ export class Renderer {
       } else if (p.kind === 'firefly') {
         p.vx += Math.sin(p.life * 2 + p.seed) * 0.6 * dt;
         p.vy += Math.cos(p.life * 1.7 + p.seed) * 0.6 * dt;
+      } else if (p.kind === 'butterfly') {
+        p.vx += Math.sin(p.life * 1.3 + p.seed) * 3 * dt;
+        p.vy += Math.cos(p.life * 1.1 + p.seed * 2) * 3 * dt;
+        p.vx *= 1 - dt;
+        p.vy *= 1 - dt;
+      } else if (p.kind === 'confetti') {
+        p.vx *= 1 - dt * 2.5;
+        p.vy *= 1 - dt * 2.5;
+        p.rot += dt * 8;
       } else {
         p.vx *= 1 - dt * 3;
         p.vy *= 1 - dt * 3;
@@ -802,6 +893,26 @@ export class Renderer {
         ctx.beginPath();
         ctx.arc(x, y, r * 0.8, 0, Math.PI * 2);
         ctx.fill();
+      } else if (p.kind === 'butterfly') {
+        const flap = Math.abs(Math.sin(time * 14 + p.seed));
+        const col = ['#ffd1dc', '#fff3b0', '#cdb4db', '#ffffff'][Math.floor(p.seed) % 4];
+        ctx.fillStyle = col;
+        ctx.globalAlpha = fade;
+        ctx.beginPath();
+        ctx.ellipse(x - r * flap * 0.8, y, r * flap, r * 0.8, 0, 0, Math.PI * 2);
+        ctx.ellipse(x + r * flap * 0.8, y, r * flap, r * 0.8, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      } else if (p.kind === 'confetti') {
+        const cols = ['#ff8f8f', '#ffd27a', '#9fe3a8', '#8fc8ff', '#c9a3ff', '#fff1b8'];
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(p.rot);
+        ctx.scale(1, Math.abs(Math.sin(p.rot)) + 0.2);
+        ctx.fillStyle = cols[p.seed % cols.length];
+        ctx.globalAlpha = fade;
+        ctx.fillRect(-r, -r * 0.5, r * 2, r);
+        ctx.restore();
       } else if (p.kind === 'dust') {
         ctx.fillStyle = `rgba(230,210,190,${0.5 * fade})`;
         ctx.beginPath();
@@ -820,7 +931,7 @@ export class Renderer {
   }
 
   // ----------------------------------------------------------- lighting
-  private drawLighting(map: GameMap, r: Rider, v: View, light: Light, time: number) {
+  private drawLighting(map: GameMap, r: Rider, v: View, light: Light, time: number, headlight: number) {
     const { lctx, ppm, W, H, ctx } = this;
     lctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     lctx.globalCompositeOperation = 'source-over';
@@ -846,7 +957,7 @@ export class Renderer {
         const lit = b.kind === 'shop' ? 1 : hash(b.id * 7) < 0.7 ? 0.7 : 0;
         if (lit) glow(b.doorX + b.nx * 1.2, b.doorY + b.ny * 1.2, b.kind === 'shop' ? 6 : 4, 0.45 * n * lit);
       }
-      glow(r.x + Math.cos(r.heading) * 5, r.y + Math.sin(r.heading) * 5, 6, 0.5 * n, '255,246,220');
+      glow(r.x + Math.cos(r.heading) * 5 * headlight, r.y + Math.sin(r.heading) * 5 * headlight, 6 * headlight, 0.5 * n, '255,246,220');
       glow(r.x, r.y, 4, 0.4 * n, '255,240,220');
     }
 
@@ -862,6 +973,435 @@ export class Renderer {
       ctx.beginPath();
       ctx.arc(this.sx(l.x), this.sy(l.y), Math.max(1.5, ppm * (n > 0.05 ? 0.35 : 0.22)), 0, Math.PI * 2);
       ctx.fill();
+    }
+  }
+
+  // ------------------------------------------------------- tracks & rain
+  private updateTracks(r: Rider, dt: number) {
+    for (const t of this.tracks) t.t += dt;
+    while (this.tracks.length && this.tracks[0].t > 7) this.tracks.shift();
+    const soft = r.surface === T.GRASS || r.surface === T.SAND || r.surface === T.PATH;
+    this.trackAcc += dt;
+    if (soft && r.speed > 1 && this.trackAcc > 0.06) {
+      this.trackAcc = 0;
+      this.tracks.push({ x: r.x - Math.cos(r.heading) * 0.6, y: r.y - Math.sin(r.heading) * 0.6, a: r.heading, t: 0 });
+      if (this.tracks.length > 400) this.tracks.shift();
+    }
+  }
+
+  private drawTracks() {
+    const { ctx, ppm } = this;
+    ctx.lineCap = 'round';
+    ctx.lineWidth = Math.max(1, ppm * 0.09);
+    for (let i = 1; i < this.tracks.length; i++) {
+      const a = this.tracks[i - 1];
+      const b = this.tracks[i];
+      if (Math.hypot(a.x - b.x, a.y - b.y) > 2) continue;
+      ctx.strokeStyle = `rgba(70,50,40,${0.22 * (1 - b.t / 7)})`;
+      ctx.beginPath();
+      ctx.moveTo(this.sx(a.x), this.sy(a.y));
+      ctx.lineTo(this.sx(b.x), this.sy(b.y));
+      ctx.stroke();
+    }
+  }
+
+  private drawPuddles(map: GameMap, v: View, dt: number) {
+    const { ctx, ppm } = this;
+    // static puddles on the road
+    for (let ty = Math.max(0, Math.floor(v.y0 / TILE)); ty <= Math.min(map.rows - 1, v.y1 / TILE); ty++)
+      for (let tx = Math.max(0, Math.floor(v.x0 / TILE)); tx <= Math.min(map.cols - 1, v.x1 / TILE); tx++) {
+        if (map.tiles[ty * map.cols + tx] !== T.ROAD || hash2(tx * 3, ty * 7) > 0.18) continue;
+        const x = this.sx(tx * TILE + hash(tx + ty * 17) * TILE);
+        const y = this.sy(ty * TILE + hash(tx * 5 + ty) * TILE);
+        ctx.fillStyle = 'rgba(170,190,230,0.22)';
+        ctx.beginPath();
+        ctx.ellipse(x, y, ppm * 1.1, ppm * 0.6, hash(tx) * 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    // ripples
+    for (let k = 0; k < 4; k++) this.puddles.push({ x: v.x0 + Math.random() * (v.x1 - v.x0), y: v.y0 + Math.random() * (v.y1 - v.y0), t: 0 });
+    ctx.lineWidth = 1;
+    for (let i = this.puddles.length - 1; i >= 0; i--) {
+      const p = this.puddles[i];
+      p.t += dt;
+      if (p.t > 0.6) {
+        this.puddles.splice(i, 1);
+        continue;
+      }
+      ctx.strokeStyle = `rgba(230,240,255,${0.35 * (1 - p.t / 0.6)})`;
+      ctx.beginPath();
+      ctx.ellipse(this.sx(p.x), this.sy(p.y), ppm * p.t * 0.9, ppm * p.t * 0.6, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+
+  private drawRain(time: number, dt: number, r: Rider) {
+    const { ctx, W, H } = this;
+    void dt;
+    ctx.fillStyle = 'rgba(80,90,130,0.12)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = 'rgba(220,230,255,0.38)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    const n = Math.round((W * H) / 9000);
+    const drift = r.speed * 2;
+    for (let i = 0; i < n; i++) {
+      const sp = 900 + hash(i) * 500;
+      const x = ((hash(i * 7) * (W + 200) - time * (90 + drift * 10)) % (W + 200) + W + 200) % (W + 200) - 100;
+      const y = ((hash(i * 13) * H + time * sp) % H);
+      ctx.moveTo(x, y);
+      ctx.lineTo(x - 4, y + 14);
+    }
+    ctx.stroke();
+  }
+
+  private drawCloudShadows(light: Light, time: number) {
+    if (light.night > 0.6) return;
+    const { ctx, ppm } = this;
+    ctx.fillStyle = `rgba(60,40,80,${0.07 * (1 - light.night)})`;
+    for (let i = 0; i < 5; i++) {
+      const span = 260;
+      const wx = (((hash(i * 3) * span + time * (1.2 + hash(i) * 0.8)) % span) + span) % span - 40;
+      const wy = hash(i * 5 + 1) * 160;
+      const rx = (14 + hash(i * 9) * 16) * ppm;
+      const x = this.sx(wx);
+      const y = this.sy(wy);
+      ctx.beginPath();
+      ctx.ellipse(x, y, rx, rx * 0.55, 0.2, 0, Math.PI * 2);
+      ctx.ellipse(x + rx * 0.5, y - rx * 0.2, rx * 0.6, rx * 0.4, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // ------------------------------------------------------ collectibles
+  private drawPostcards(cards: { x: number; y: number; got: boolean }[], time: number, v: View) {
+    const { ctx, ppm } = this;
+    for (const c of cards) {
+      if (c.got || !this.inView(c.x, c.y, 3, v)) continue;
+      const x = this.sx(c.x);
+      const y = this.sy(c.y) - Math.sin(time * 2.5 + c.x) * ppm * 0.25;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, ppm * 2.2);
+      g.addColorStop(0, 'rgba(255,245,200,0.55)');
+      g.addColorStop(1, 'rgba(255,245,200,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(x - ppm * 2.2, y - ppm * 2.2, ppm * 4.4, ppm * 4.4);
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(Math.sin(time * 1.8 + c.y) * 0.15);
+      const w = ppm * 1.3;
+      const h = ppm * 0.9;
+      ctx.fillStyle = '#fff8ec';
+      ctx.fillRect(-w / 2, -h / 2, w, h);
+      ctx.strokeStyle = '#e4677b';
+      ctx.lineWidth = Math.max(1, ppm * 0.08);
+      ctx.strokeRect(-w / 2, -h / 2, w, h);
+      ctx.beginPath();
+      ctx.moveTo(-w / 2, -h / 2);
+      ctx.lineTo(0, h * 0.1);
+      ctx.lineTo(w / 2, -h / 2);
+      ctx.stroke();
+      ctx.fillStyle = '#7cbf86';
+      ctx.fillRect(w * 0.18, -h * 0.36, w * 0.22, h * 0.3);
+      ctx.restore();
+      // twinkle
+      const tw = (time * 1.5 + c.x) % 1;
+      ctx.fillStyle = `rgba(255,255,255,${1 - tw})`;
+      ctx.save();
+      ctx.translate(x + ppm * 0.8, y - ppm * 0.7);
+      ctx.rotate(tw * 3);
+      const r = ppm * 0.25 * (0.5 + tw);
+      ctx.fillRect(-r, -r * 0.18, r * 2, r * 0.36);
+      ctx.fillRect(-r * 0.18, -r, r * 0.36, r * 2);
+      ctx.restore();
+    }
+  }
+
+  // ----------------------------------------------------------- critters
+  private person(x: number, y: number, facing: number, phase: number, shirt: string, hair: string, wave = 0) {
+    const { ctx, ppm } = this;
+    ctx.save();
+    ctx.translate(this.sx(x), this.sy(y));
+    ctx.rotate(facing);
+    ctx.scale(ppm * 1.3, ppm * 1.3);
+    const leg = Math.sin(phase) * 0.18;
+    ctx.fillStyle = '#4b4a7a';
+    ctx.beginPath();
+    ctx.ellipse(leg, -0.12, 0.13, 0.07, 0, 0, Math.PI * 2);
+    ctx.ellipse(-leg, 0.12, 0.13, 0.07, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = shirt;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 0.17, 0.3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    if (wave) {
+      ctx.strokeStyle = '#f2c4a0';
+      ctx.lineWidth = 0.08;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(0, 0.22);
+      ctx.lineTo(0.25 + Math.sin(wave * 9) * 0.12, 0.5);
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#f2c4a0';
+    ctx.beginPath();
+    ctx.arc(0.02, 0, 0.14, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = hair;
+    ctx.beginPath();
+    ctx.arc(-0.02, 0, 0.13, Math.PI * 0.4, Math.PI * 1.6);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  private bubble(x: number, y: number, text: string) {
+    const { ctx, ppm } = this;
+    const px = this.sx(x);
+    const py = this.sy(y) - ppm * 1.2;
+    const r = Math.max(8, ppm * 0.45);
+    ctx.fillStyle = 'rgba(255,250,240,0.95)';
+    ctx.beginPath();
+    ctx.arc(px, py, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#b35d72';
+    ctx.font = `600 ${Math.round(r * 1.2)}px Outfit, system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, px, py + 1);
+  }
+
+  private drawWalkers(c: Critters, time: number, v: View) {
+    const { ctx, ppm } = this;
+    for (const w of c.walkers) {
+      if (!this.inView(w.x, w.y, 3, v)) continue;
+      const facing = this.walkerFacing(w);
+      if (w.dog) {
+        // leash
+        ctx.strokeStyle = 'rgba(60,40,50,0.6)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(this.sx(w.x), this.sy(w.y));
+        ctx.lineTo(this.sx(w.dog.x), this.sy(w.dog.y));
+        ctx.stroke();
+        ctx.save();
+        ctx.translate(this.sx(w.dog.x), this.sy(w.dog.y));
+        ctx.rotate(facing);
+        ctx.scale(ppm, ppm);
+        ctx.fillStyle = w.dog.color;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 0.3, 0.15, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(0.3, 0, 0.12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = w.dog.color;
+        ctx.lineWidth = 0.06;
+        ctx.beginPath();
+        ctx.moveTo(-0.28, 0);
+        ctx.lineTo(-0.45, Math.sin(w.dog.wag) * 0.12);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(60,40,40,0.6)';
+        ctx.beginPath();
+        ctx.ellipse(0.32, -0.1, 0.06, 0.04, 0, 0, Math.PI * 2);
+        ctx.ellipse(0.32, 0.1, 0.06, 0.04, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+      this.person(w.x, w.y, facing, w.pause > 0 ? 0 : w.phase, w.shirt, w.hair, w.happy > 0 ? time : 0);
+      if (w.bumped > 0) this.bubble(w.x, w.y, '!');
+      else if (w.happy > 0) this.bubble(w.x, w.y, '♪');
+    }
+  }
+
+  private walkerFacing(w: Walker) {
+    if (w.happy > 0 || w.pause > 0) return w.axis === 'x' ? (w.side > 0 ? -Math.PI / 2 : Math.PI / 2) : w.side > 0 ? Math.PI : 0;
+    return w.axis === 'x' ? (w.dir > 0 ? 0 : Math.PI) : w.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+  }
+
+  private drawCats(c: Critters, time: number, v: View) {
+    const { ctx, ppm } = this;
+    for (const cat of c.cats) {
+      if (!this.inView(cat.x, cat.y, 2, v)) continue;
+      ctx.save();
+      ctx.translate(this.sx(cat.x), this.sy(cat.y));
+      ctx.scale(ppm, ppm);
+      ctx.fillStyle = cat.color;
+      if (cat.awake > 0) {
+        ctx.rotate(Math.atan2(cat.vy, cat.vx));
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 0.32, 0.13, 0, 0, Math.PI * 2);
+        ctx.arc(0.32, 0, 0.12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = cat.color;
+        ctx.lineWidth = 0.06;
+        ctx.beginPath();
+        ctx.moveTo(-0.3, 0);
+        ctx.quadraticCurveTo(-0.5, 0.2, -0.55, Math.sin(time * 12) * 0.15);
+        ctx.stroke();
+      } else {
+        // curled up asleep, tail swishing, z z z
+        ctx.beginPath();
+        ctx.arc(0, 0, 0.26, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(0.18, -0.12, 0.13, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = cat.color;
+        ctx.lineWidth = 0.07;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.arc(0, 0, 0.32, Math.PI * 0.2, Math.PI * (0.9 + Math.sin(time * 1.5 + cat.homeX) * 0.15));
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,0.75)';
+        ctx.font = '600 0.3px Outfit, system-ui, sans-serif';
+        const z = (time * 0.6 + cat.homeY) % 1;
+        ctx.globalAlpha = 1 - z;
+        ctx.fillText('z', 0.2 + z * 0.3, -0.4 - z * 0.5);
+        ctx.globalAlpha = 1;
+      }
+      ctx.restore();
+    }
+  }
+
+  private drawDucks(c: Critters, time: number) {
+    const { ctx, ppm } = this;
+    for (const d of c.ducks) {
+      const x = d.cx + Math.cos(d.a) * d.r;
+      const y = d.cy + Math.sin(d.a) * d.r;
+      const head = d.a + (d.speed > 0 ? Math.PI / 2 : -Math.PI / 2);
+      ctx.save();
+      ctx.translate(this.sx(x), this.sy(y));
+      ctx.rotate(head);
+      ctx.scale(ppm * (d.baby ? 0.6 : 1), ppm * (d.baby ? 0.6 : 1));
+      // wake
+      ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+      ctx.lineWidth = 0.05;
+      ctx.beginPath();
+      ctx.moveTo(-0.3, -0.15);
+      ctx.lineTo(-0.8, -0.35 - Math.sin(time * 3) * 0.05);
+      ctx.moveTo(-0.3, 0.15);
+      ctx.lineTo(-0.8, 0.35 + Math.sin(time * 3) * 0.05);
+      ctx.stroke();
+      ctx.fillStyle = d.baby ? '#ffe08a' : '#f6f1e4';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 0.32, 0.2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = d.baby ? '#ffd060' : '#4f9a6a';
+      ctx.beginPath();
+      ctx.arc(0.25, 0, 0.12, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#f2a03d';
+      ctx.fillRect(0.34, -0.04, 0.1, 0.08);
+      ctx.restore();
+    }
+  }
+
+  // --------------------------------------------------------- animations
+  private drawCustomers(dt: number, time: number) {
+    const { ctx, ppm } = this;
+    for (let i = this.customers.length - 1; i >= 0; i--) {
+      const c = this.customers[i];
+      c.t += dt;
+      if (c.t > 4.2) {
+        this.customers.splice(i, 1);
+        continue;
+      }
+      const b = c.b;
+      // pop out of the door, wave, then step back in
+      const out = c.t < 0.4 ? c.t / 0.4 : c.t > 3.7 ? Math.max(0, (4.2 - c.t) / 0.5) : 1;
+      const x = b.doorX + b.nx * (0.3 + out * 0.9);
+      const y = b.doorY + b.ny * (0.3 + out * 0.9);
+      const facing = Math.atan2(b.ny, b.nx);
+      const pop = 1 + Math.max(0, 0.25 - Math.abs(c.t - 0.45)) * 1.2;
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, out * 1.5);
+      const px = this.sx(x);
+      const py = this.sy(y);
+      ctx.translate(px, py);
+      ctx.scale(pop, pop);
+      ctx.translate(-px, -py);
+      this.person(x, y, facing, 0, c.shirt, '#4a3428', c.t > 0.4 && c.t < 3.7 ? time : 0);
+      // the parcel they're holding
+      ctx.fillStyle = '#d6a870';
+      ctx.fillRect(this.sx(x + b.nx * 0.3) - ppm * 0.2, this.sy(y + b.ny * 0.3) - ppm * 0.2, ppm * 0.4, ppm * 0.4);
+      ctx.restore();
+      if (c.hearts) {
+        for (let k = 0; k < 3; k++) {
+          const ht = c.t - 0.4 - k * 0.35;
+          if (ht < 0 || ht > 1.6) continue;
+          const hx = this.sx(x) + Math.sin(ht * 4 + k) * ppm * 0.4 + (k - 1) * ppm * 0.4;
+          const hy = this.sy(y) - ppm * (0.8 + ht * 1.6);
+          this.heart(hx, hy, ppm * 0.28, `rgba(255,120,150,${1 - ht / 1.6})`);
+        }
+      }
+    }
+  }
+
+  private heart(cx: number, cy: number, s: number, fill: string) {
+    const { ctx } = this;
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy + s * 0.9);
+    ctx.bezierCurveTo(cx - s * 1.4, cy, cx - s * 0.7, cy - s, cx, cy - s * 0.3);
+    ctx.bezierCurveTo(cx + s * 0.7, cy - s, cx + s * 1.4, cy, cx, cy + s * 0.9);
+    ctx.fill();
+  }
+
+  private drawTosses(dt: number) {
+    const { ctx, ppm } = this;
+    for (let i = this.tosses.length - 1; i >= 0; i--) {
+      const t = this.tosses[i];
+      t.t += dt;
+      const k = Math.min(1, t.t / t.dur);
+      if (t.t > t.dur + 0.05) {
+        this.tosses.splice(i, 1);
+        continue;
+      }
+      const x = t.x0 + (t.x1 - t.x0) * k;
+      const y = t.y0 + (t.y1 - t.y0) * k;
+      const h = Math.sin(k * Math.PI); // height of the arc → scale + shadow offset
+      const s = ppm * 0.5 * (1 + h * 0.8);
+      ctx.fillStyle = 'rgba(50,25,50,0.2)';
+      ctx.beginPath();
+      ctx.ellipse(this.sx(x), this.sy(y), s * 0.6, s * 0.35, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.save();
+      ctx.translate(this.sx(x), this.sy(y) - h * ppm * 1.6);
+      ctx.rotate(k * Math.PI * 2);
+      ctx.fillStyle = css(t.color);
+      ctx.fillRect(-s / 2, -s / 2, s, s);
+      ctx.fillStyle = 'rgba(90,50,40,0.35)';
+      ctx.fillRect(-s * 0.08, -s / 2, s * 0.16, s);
+      ctx.restore();
+    }
+  }
+
+  private drawFloaters(dt: number) {
+    const { ctx } = this;
+    for (let i = this.floaters.length - 1; i >= 0; i--) {
+      const f = this.floaters[i];
+      f.t += dt;
+      const dur = f.big ? 2.2 : 1.6;
+      if (f.t > dur) {
+        this.floaters.splice(i, 1);
+        continue;
+      }
+      const k = f.t / dur;
+      const pop = f.t < 0.15 ? 0.6 + (f.t / 0.15) * 0.6 : 1.2 - Math.min(0.2, (f.t - 0.15) * 1.5);
+      const x = this.sx(f.x);
+      const y = this.sy(f.y) - k * 50 - 20;
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, (1 - k) * 2.5);
+      ctx.translate(x, y);
+      ctx.scale(pop, pop);
+      ctx.font = `600 ${f.big ? 22 : 17}px Outfit, system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = 'rgba(60,25,60,0.55)';
+      ctx.strokeText(f.text, 0, 0);
+      ctx.fillStyle = f.color;
+      ctx.fillText(f.text, 0, 0);
+      ctx.restore();
     }
   }
 

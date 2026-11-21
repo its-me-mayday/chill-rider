@@ -23,19 +23,24 @@
           <div class="title">Chill Rider</div>
           <div class="place"><span id="place">Peach Village</span><span class="sep"> · </span><span id="phase">Golden Hour</span></div>
           <div class="goal" id="goal"></div>
+          <div class="xp"><span id="lvl">Lv 1</span><i><b id="xpbar"></b></i></div>
           <div class="orders" id="orders"></div>
+          <div class="challenges" id="challenges"></div>
         </div>
         <div class="right">
           <canvas id="minimap" class="minimap"></canvas>
           <div class="tips" id="tips"></div>
+          <div class="streak" id="streak"></div>
+          <button id="garage-btn" class="pill">🔧 Garage</button>
         </div>
       </header>
 
       <div id="toast" class="toast"></div>
+      <div id="badge" class="badge"></div>
 
       <footer class="bottom">
         <div class="hint" id="hint">
-          W pedal · S brake · A/D steer · B bell · R radio · N next song · H hide · P pause<br />
+          W pedal · S brake · A/D steer · B bell (people step aside) · G garage · R radio · N next song · H hide · P pause<br />
           Pick up at shops, slow down at the glowing door to deliver
         </div>
         <div class="radio glass" id="radio">
@@ -62,7 +67,8 @@
         <h1>Chill Rider</h1>
         <p>A lo-fi bike courier. Pick up orders at the little shops,<br />ride them to the right address before the timer runs out.</p>
         <button id="start-btn" class="start-btn">Start riding</button>
-        <p class="small">Trees, ponds and walls are in the way — roads are fastest. Headphones recommended 🎧</p>
+        <p class="small">Trees, ponds and walls are in the way — roads are fastest. Ring the bell at people walking by.<br />Find the hidden postcards, level up and tune your bike in the garage. Headphones recommended 🎧</p>
+        <p class="small" id="start-profile"></p>
       </div>
     </div>
 
@@ -79,7 +85,28 @@
         <div class="stars" id="stars">★★★</div>
         <h1 id="complete-title">Map complete</h1>
         <p id="complete-text"></p>
-        <button id="next-map" class="start-btn">Next map</button>
+        <ul class="complete-list" id="complete-list"></ul>
+        <div class="row">
+          <button id="complete-garage" class="start-btn ghost">🔧 Garage</button>
+          <button id="next-map" class="start-btn">Next town</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="garage" class="overlay-card hidden">
+      <div class="garage">
+        <div class="garage-head">
+          <h2>Garage</h2>
+          <div class="wallet" id="g-wallet"></div>
+          <button id="garage-close" class="close" aria-label="Close">✕</button>
+        </div>
+        <nav class="tabs" id="g-tabs">
+          <button data-tab="upgrades" class="on">Upgrades</button>
+          <button data-tab="style">Style</button>
+          <button data-tab="album">Album</button>
+          <button data-tab="badges">Badges</button>
+        </nav>
+        <div class="g-body" id="g-body"></div>
       </div>
     </div>
 

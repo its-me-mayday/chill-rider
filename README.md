@@ -16,7 +16,14 @@ generative lo-fi radio plays.
   when it arrives warm, fragile goods lose value every time you bump into something. Late orders can still be
   delivered for a small tip.
 - **Carry up to 3 orders** and plan your route with the minimap and the guide arrow.
-- **8 deliveries per map**, rated with up to three stars, then on to the next town.
+- **8+ deliveries per town**, rated with up to three stars, then on to the next town — each one a bit busier and tighter on time.
+- **Progression** — XP and levels unlock ⚡ rush orders, ★ VIP customers and other perks; on-time streaks multiply tips.
+- **Garage** — spend tips on gears, gravel tires, a bigger rack, suspension and a headlight, or on bike paint, beanies and scarves.
+- **Things to find** — 2 random challenges per town, 3 hidden postcards per town for the album, 20 achievements and lifetime stats.
+- **A living town** — people walking dogs (ring the bell and they step aside), napping cats that bolt, ducks on ponds,
+  butterflies, drifting cloud shadows and rainy days with puddles.
+- **Animations** — parcels tossed to the door, customers popping out to wave, floating tips, tyre tracks on grass,
+  leaning into turns, screen shake on bumps, confetti on level-ups.
 - **Day cycle** — golden hour, pink dusk, blue night with street lamps, glowing windows, fireflies and a headlight, dawn.
 - **Chill FM** — a generative lo-fi radio built with Tone.js, plus wind, freewheel clicks, bumps and a bike bell.
 - **Plays on phones** — drag anywhere to ride (floating joystick), brake and bell buttons.
@@ -28,7 +35,8 @@ generative lo-fi radio plays.
 | W / ↑ | drag | Pedal (touch: the bike rides towards your finger) |
 | A D / ← → | drag | Steer |
 | S / ↓ / Space | ■ | Brake |
-| B | 🔔 | Bell |
+| B | 🔔 | Bell (people step aside) |
+| G | 🔧 | Garage |
 | R / N | radio pill | Radio on/off, next song |
 | H / P | — | Hide HUD, pause |
 

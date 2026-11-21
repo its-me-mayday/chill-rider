@@ -1,4 +1,4 @@
-import { rng, type Rng } from './math';
+import { rng } from './math';
 import { SHOPS, type ShopType, type Theme } from './themes';
 
 /** World units are meters, x → right, y → down. The map is a grid of 4 m tiles. */
@@ -56,6 +56,11 @@ export interface Prop {
   angle: number;
 }
 
+export interface Spot {
+  x: number;
+  y: number;
+}
+
 export interface GameMap {
   seed: number;
   theme: Theme;
@@ -71,6 +76,11 @@ export interface GameMap {
   roadRows: number[];
   roadCols: number[];
   spawn: { x: number; y: number; heading: number };
+  /** hidden collectibles */
+  postcards: Spot[];
+  /** pond centres (for ducks) and garden spots (for cats) */
+  ponds: (Spot & { r: number })[];
+  catSpots: Spot[];
   /** spatial hash of tree indices, 8 m cells */
   treeGrid: Map<number, number[]>;
 }
@@ -186,6 +196,8 @@ export function generateMap(theme: Theme, seed: number): GameMap {
   const trees: Tree[] = [];
   const props: Prop[] = [];
   const doorPoints: { x: number; y: number }[] = [];
+  const ponds: (Spot & { r: number })[] = [];
+  const parkSpots: Spot[] = [];
   let bid = 1;
 
   const overlapsBuilding = (x: number, y: number, w: number, h: number, pad: number) =>
@@ -263,6 +275,7 @@ export function generateMap(theme: Theme, seed: number): GameMap {
           const cx = x0 + w * R.range(0.35, 0.65);
           const cy = y0 + h * R.range(0.35, 0.65);
           const pr = Math.min(w, h) * 0.22;
+          ponds.push({ x: cx, y: cy, r: pr });
           for (let ty = ty0; ty < ty1; ty++)
             for (let tx = tx0; tx < tx1; tx++) {
               const d = Math.hypot((tx + 0.5) * TILE - cx, (ty + 0.5) * TILE - cy);
@@ -275,6 +288,7 @@ export function generateMap(theme: Theme, seed: number): GameMap {
           if (horiz) paint(tx0, Math.floor((ty0 + ty1) / 2), tx1 - 1, Math.floor((ty0 + ty1) / 2), T.PATH);
           else paint(Math.floor((tx0 + tx1) / 2), ty0, Math.floor((tx0 + tx1) / 2), ty1 - 1, T.PATH);
         }
+        parkSpots.push({ x: R.range(x0 + 3, x1 - 3), y: R.range(y0 + 3, y1 - 3) });
         const n = Math.round(((w * h) / 70) * theme.treeDensity * (inner ? 1 : 0.8));
         for (let k = 0; k < n * 3 && n > 0; k++) {
           if (trees.length > 700) break;
@@ -402,6 +416,42 @@ export function generateMap(theme: Theme, seed: number): GameMap {
       lamps.push({ x: roadCols[i] * TILE - 1.2, y: roadRows[j] * TILE - 1.2 });
     }
 
+  // ---- hidden postcards: tucked away in parks and quiet corners
+  const clearSpot = (x: number, y: number) => {
+    const t = get(Math.floor(x / TILE), Math.floor(y / TILE));
+    if (t === T.WATER || t === T.ROAD) return false;
+    if (x < 4 || y < 4 || x > cols * TILE - 4 || y > rows * TILE - 4) return false;
+    if (overlapsBuilding(x - 1, y - 1, 2, 2, 1)) return false;
+    for (const o of trees) if (Math.hypot(o.x - x, o.y - y) < o.r * 0.5 + 1.5) return false;
+    for (const p of props) if (Math.hypot(p.x - x, p.y - y) < p.r + 1.5) return false;
+    return true;
+  };
+  const postcards: Spot[] = [];
+  const candidates = [...parkSpots].sort(() => R.next() - 0.5);
+  for (let k = 0; k < 400 && postcards.length < 3; k++) {
+    const c = candidates[k] ?? { x: R.range(8, cols * TILE - 8), y: R.range(8, rows * TILE - 8) };
+    const x = c.x + (k < candidates.length ? 0 : 0);
+    const y = c.y;
+    if (!clearSpot(x, y) || roadNear(x, y, 5)) continue;
+    if (postcards.some((p) => Math.hypot(p.x - x, p.y - y) < 40)) continue;
+    postcards.push({ x, y });
+  }
+  for (let k = 0; k < 600 && postcards.length < 3; k++) {
+    const x = R.range(8, cols * TILE - 8);
+    const y = R.range(8, rows * TILE - 8);
+    if (clearSpot(x, y) && postcards.every((p) => Math.hypot(p.x - x, p.y - y) > 30)) postcards.push({ x, y });
+  }
+
+  // ---- cats nap in gardens
+  const catSpots: Spot[] = [];
+  for (let k = 0; k < 300 && catSpots.length < 6; k++) {
+    const b = buildings[Math.floor(R.next() * buildings.length)];
+    if (!b) break;
+    const x = b.x + R.range(-2.5, b.w + 2.5);
+    const y = b.y + R.range(-2.5, b.h + 2.5);
+    if (clearSpot(x, y) && !roadNear(x, y, 1.5)) catSpots.push({ x, y });
+  }
+
   const treeGrid = new Map<number, number[]>();
   trees.forEach((t, k) => {
     const key = Math.floor(t.y / CELL) * 1000 + Math.floor(t.x / CELL);
@@ -423,10 +473,6 @@ export function generateMap(theme: Theme, seed: number): GameMap {
   return {
     seed, theme, cols, rows,
     width: cols * TILE, height: rows * TILE,
-    tiles, buildings, trees, lamps, props, roadRows, roadCols, spawn, treeGrid,
+    tiles, buildings, trees, lamps, props, roadRows, roadCols, spawn, treeGrid, postcards, ponds, catSpots,
   };
-}
-
-export function shuffleSeed(R: Rng) {
-  return Math.floor(R.next() * 1e9);
 }

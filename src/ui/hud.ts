@@ -1,5 +1,6 @@
 import type { Track } from '../audio/radio';
-import { MAP_GOAL, type Orders } from '../game/orders';
+import type { Challenge } from '../game/challenges';
+import type { Orders } from '../game/orders';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -26,7 +27,17 @@ export class Hud {
     track: $('radio-track'),
     key: $('radio-key'),
     toggle: $<HTMLButtonElement>('radio-toggle'),
+    lvl: $('lvl'),
+    xpbar: $('xpbar'),
+    xp: $('lvl').parentElement!,
+    challenges: $('challenges'),
+    streak: $('streak'),
+    badge: $('badge'),
   };
+  private badgeQueue: { title: string; desc: string; icon: string }[] = [];
+  private badgeBusy = false;
+  private lastChallenges = '';
+  private lastStreak = -1;
   private last = '';
   private toastTimer = 0;
 
@@ -43,8 +54,8 @@ export class Hud {
     if (this.el.phase.textContent !== s.phase) this.el.phase.textContent = s.phase;
 
     const o = s.orders;
-    const pips = Array.from({ length: MAP_GOAL }, (_, i) => `<i class="${i < o.delivered ? 'on' : ''}"></i>`).join('');
-    const goal = `Deliveries ${o.delivered}/${MAP_GOAL}<span class="pips">${pips}</span>`;
+    const pips = Array.from({ length: o.goal }, (_, i) => `<i class="${i < o.delivered ? 'on' : ''}"></i>`).join('');
+    const goal = `Deliveries ${o.delivered}/${o.goal}<span class="pips">${pips}</span>`;
 
     let rows: string;
     if (!o.carried.length) {
@@ -61,7 +72,7 @@ export class Hud {
           const d = Math.round(Math.hypot(ord.house.stopX - s.riderX, ord.house.stopY - s.riderY));
           return `<div class="order${s.targetId === ord.id ? ' target' : ''}">
             <span class="sw" style="background:rgb(${r},${g},${b})"></span>
-            <span class="addr">${ord.house.no} ${esc(ord.house.street)}</span>
+            <span class="addr">${ord.kind === 'rush' ? '⚡ ' : ord.kind === 'vip' ? '★ ' : ''}${ord.house.no} ${esc(ord.house.street)}</span>
             <span class="timer ${cls}">${left < 0 ? 'late' : fmt(left)}</span>
             <span class="what">${esc(ord.item)} · ${esc(ord.shop.shop!.name)}${cond} · ${d} m</span>
           </div>`;
@@ -78,6 +89,66 @@ export class Hud {
     }
   }
 
+  setXp(level: number, xp: number, need: number, pulse = false) {
+    this.el.lvl.textContent = `Lv ${level}`;
+    this.el.xpbar.style.width = `${Math.round((xp / need) * 100)}%`;
+    if (pulse) {
+      this.el.xp.classList.remove('pulse');
+      void this.el.xp.offsetWidth;
+      this.el.xp.classList.add('pulse');
+    }
+  }
+
+  setChallenges(list: Challenge[]) {
+    const html = list
+      .map((c) => {
+        const prog = c.target >= 100 ? `${(c.progress / 1000).toFixed(1)}/${(c.target / 1000).toFixed(1)} km` : `${c.progress}/${c.target}`;
+        return `<div class="ch${c.done ? ' done' : ''}"><span class="box">${c.done ? '✓' : ''}</span><span>${esc(c.text)}</span><em>${c.done ? `+${c.reward}€` : prog}</em></div>`;
+      })
+      .join('');
+    if (html !== this.lastChallenges) {
+      this.lastChallenges = html;
+      this.el.challenges.innerHTML = html;
+    }
+  }
+
+  setStreak(streak: number, mul: number) {
+    if (streak === this.lastStreak) return;
+    const up = streak > this.lastStreak;
+    this.lastStreak = streak;
+    this.el.streak.textContent = streak >= 2 ? `🔥 ${streak} on time · tips ×${mul.toFixed(1)}` : '';
+    if (up && streak >= 2) {
+      this.el.streak.classList.remove('bump');
+      void this.el.streak.offsetWidth;
+      this.el.streak.classList.add('bump');
+    }
+  }
+
+  badge(title: string, desc: string, icon = '🏅') {
+    this.badgeQueue.push({ title, desc, icon });
+    if (!this.badgeBusy) this.nextBadge();
+  }
+
+  private nextBadge() {
+    const b = this.badgeQueue.shift();
+    if (!b) {
+      this.badgeBusy = false;
+      return;
+    }
+    this.badgeBusy = true;
+    this.el.badge.innerHTML = `<span class="medal">${b.icon}</span><span><b>${esc(b.title)}</b>${esc(b.desc)}</span>`;
+    this.el.badge.classList.add('show');
+    setTimeout(() => {
+      this.el.badge.classList.remove('show');
+      setTimeout(() => this.nextBadge(), 500);
+    }, 2800);
+  }
+
+  clearToast() {
+    clearTimeout(this.toastTimer);
+    this.el.toast.classList.remove('show');
+  }
+
   setRadio(on: boolean) {
     this.el.radio.classList.toggle('on', on);
     this.el.toggle.textContent = on ? '❚❚' : '▶';
@@ -88,7 +159,10 @@ export class Hud {
     this.el.key.textContent = `· ${t.key} · ${t.bpm} bpm`;
   }
 
-  toast(text: string, sub = '', ms = 2400) {
+  toast(text: string, sub = '', ms = 2400, big = false) {
+    this.el.toast.classList.toggle('big', big);
+    this.el.toast.classList.remove('show');
+    void this.el.toast.offsetWidth;
     this.el.toast.innerHTML = '';
     this.el.toast.append(text);
     if (sub) {
