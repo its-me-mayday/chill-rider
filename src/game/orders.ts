@@ -35,12 +35,18 @@ export const GUIDE_COLORS: [number, number, number][] = [
   [195, 166, 255], // lilac
 ];
 
+/** one line of the receipt shown after a delivery */
+export interface TipPart {
+  label: string;
+  amount: number;
+}
+
 export type OrderEvent =
   | { type: 'pickup'; order: Order }
   | { type: 'full' }
   | { type: 'near'; order: Order }
   | { type: 'late'; order: Order }
-  | { type: 'delivered'; order: Order; tip: number; onTime: boolean; left: number; elapsed: number; streak: number }
+  | { type: 'delivered'; order: Order; tip: number; onTime: boolean; left: number; elapsed: number; streak: number; parts: TipPart[] }
   | { type: 'damaged'; order: Order }
   | { type: 'complete'; stars: number; tips: number; onTime: number; total: number };
 
@@ -223,18 +229,46 @@ export class Orders {
     const onTime = left >= 0;
     if (onTime) this.streak++;
     else this.streak = 0;
-    let tip = o.baseTip * o.condition;
-    if (onTime) tip *= 1 + 0.6 * (left / o.limit);
-    else tip *= 0.3;
-    if (o.hot && onTime && left / o.limit > 0.4) tip += 1;
-    if (onTime) tip *= this.streakMul;
-    if (this.opt.rain) tip *= this.opt.level >= 7 ? 1.4 : 1.2;
-    tip = Math.round(tip * 100) / 100;
+    // build the receipt line by line so the delivery card can show it
+    const parts: TipPart[] = [];
+    const r2 = (v: number) => Math.round(v * 100) / 100;
+    let tip = o.baseTip;
+    parts.push({ label: o.kind === 'vip' ? 'VIP fare' : o.kind === 'rush' ? 'Rush fare' : 'Delivery fare', amount: r2(tip) });
+    if (o.condition < 0.99) {
+      const loss = tip * (1 - o.condition);
+      tip -= loss;
+      parts.push({ label: `Damaged (${Math.round(o.condition * 100)}%)`, amount: -r2(loss) });
+    }
+    if (onTime) {
+      const speed = tip * 0.6 * (left / o.limit);
+      tip += speed;
+      if (speed >= 0.01) parts.push({ label: 'Speedy bonus', amount: r2(speed) });
+    } else {
+      const late = tip * 0.7;
+      tip -= late;
+      parts.push({ label: 'Late', amount: -r2(late) });
+    }
+    const hm = this.opt.stats.hotMul ?? 1;
+    if (o.hot && onTime && left / o.limit > 0.4 / hm) {
+      const hot = 1 + (hm - 1) * 1.2;
+      tip += hot;
+      parts.push({ label: 'Still hot!', amount: r2(hot) });
+    }
+    const mul = (label: string, m: number) => {
+      if (Math.abs(m - 1) < 0.001) return;
+      const extra = tip * (m - 1);
+      tip += extra;
+      parts.push({ label, amount: r2(extra) });
+    };
+    if (onTime) mul(`Streak ×${this.streakMul.toFixed(1)}`, this.streakMul);
+    if (this.opt.rain) mul('Rainy day', this.opt.level >= 7 ? 1.4 : 1.2);
+    mul('Bell charm', this.opt.stats.tipMul ?? 1);
+    tip = r2(tip);
     this.carried = this.carried.filter((c) => c !== o);
     this.delivered++;
     if (onTime) this.onTime++;
     this.mapTips = Math.round((this.mapTips + tip) * 100) / 100;
-    out.push({ type: 'delivered', order: o, tip, onTime, left, elapsed: time - o.pickedAt, streak: this.streak });
+    out.push({ type: 'delivered', order: o, tip, onTime, left, elapsed: time - o.pickedAt, streak: this.streak, parts });
     if (this.delivered >= this.goal) {
       this.done = true;
       const ratio = this.onTime / this.delivered;

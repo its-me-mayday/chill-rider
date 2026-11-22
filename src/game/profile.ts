@@ -3,21 +3,75 @@
  * collection album, lifetime stats and achievements.
  */
 
-export type UpgradeId = 'gears' | 'tires' | 'rack' | 'suspension' | 'light';
+export type UpgradeId = 'gears' | 'motor' | 'tires' | 'brakes' | 'rack' | 'suspension' | 'thermo' | 'light' | 'helmet' | 'bell';
+
+export type UpgradeGroup = 'Ride' | 'Cargo' | 'Safety';
 
 export interface UpgradeDef {
   id: UpgradeId;
   name: string;
+  icon: string;
+  group: UpgradeGroup;
+  /** what a level gives you */
   desc: (lvl: number) => string;
+  /** a name for every level, shown in the workshop and on the bike */
+  tiers: string[];
   prices: number[]; // price of each next level
+  /** rider level needed to buy each next level */
+  needs?: number[];
 }
 
 export const UPGRADES: UpgradeDef[] = [
-  { id: 'gears', name: 'Gears', desc: (l) => `Top speed +${l * 7}%`, prices: [18, 40, 80, 140] },
-  { id: 'tires', name: 'Gravel tires', desc: (l) => `Grass & sand ${l * 15}% faster, better grip`, prices: [15, 35, 70] },
-  { id: 'rack', name: 'Bigger rack', desc: (l) => `Carry ${3 + l} orders`, prices: [45, 110] },
-  { id: 'suspension', name: 'Suspension', desc: (l) => `Fragile goods take ${l * 25}% less damage`, prices: [25, 55, 100] },
-  { id: 'light', name: 'Headlight', desc: (l) => `Night light ${l === 0 ? 'basic' : `+${l * 40}%`}`, prices: [20, 50] },
+  {
+    id: 'gears', name: 'Gears', icon: '⚙️', group: 'Ride', desc: (l) => `Top speed +${l * 6}%`,
+    tiers: ['Single speed', '3-speed hub', '7-speed', '11-speed', 'Racing groupset', 'Carbon drivetrain'],
+    prices: [18, 40, 80, 140, 220], needs: [1, 1, 3, 5, 8],
+  },
+  {
+    id: 'motor', name: 'E-assist motor', icon: '🔋', group: 'Ride', desc: (l) => `Pick-up +${l * 30}% · climbs out of stops`,
+    tiers: ['No motor', 'Hub motor', 'Mid-drive', 'Turbo mid-drive'],
+    prices: [90, 180, 320], needs: [3, 6, 10],
+  },
+  {
+    id: 'tires', name: 'Tyres', icon: '🛞', group: 'Ride', desc: (l) => `Grass & sand +${l * 14}% · grip +${l * 10}%`,
+    tiers: ['City slicks', 'All-road', 'Gravel', 'Knobby trail'],
+    prices: [15, 35, 70], needs: [1, 2, 4],
+  },
+  {
+    id: 'brakes', name: 'Brakes', icon: '🛑', group: 'Safety', desc: (l) => `Stopping power +${l * 30}% · fewer slips`,
+    tiers: ['Rim brakes', 'V-brakes', 'Mechanical discs', 'Hydraulic discs'],
+    prices: [16, 38, 75], needs: [1, 2, 4],
+  },
+  {
+    id: 'rack', name: 'Cargo rack', icon: '📦', group: 'Cargo', desc: (l) => `Carry ${3 + l} orders at once`,
+    tiers: ['Little basket', 'Rear rack', 'Front + rear racks', 'Cargo-bike box'],
+    prices: [45, 110, 210], needs: [1, 3, 6],
+  },
+  {
+    id: 'suspension', name: 'Suspension', icon: '🪀', group: 'Cargo', desc: (l) => `Fragile goods take ${Math.min(75, l * 25)}% less damage`,
+    tiers: ['Rigid fork', 'Sprung saddle', 'Suspension fork', 'Full suspension'],
+    prices: [25, 55, 100], needs: [1, 2, 5],
+  },
+  {
+    id: 'thermo', name: 'Thermal bag', icon: '🔥', group: 'Cargo', desc: (l) => `Hot food stays hot ${l * 35}% longer · bigger hot bonus`,
+    tiers: ['Paper bag', 'Insulated pouch', 'Thermal backpack', 'Heated pro box'],
+    prices: [22, 50, 95], needs: [1, 2, 4],
+  },
+  {
+    id: 'light', name: 'Headlight', icon: '💡', group: 'Safety', desc: (l) => `Night light +${l * 40}%`,
+    tiers: ['Dynamo bulb', 'LED lamp', 'Twin LED', 'Floodlight'],
+    prices: [20, 50, 90], needs: [1, 2, 4],
+  },
+  {
+    id: 'helmet', name: 'Helmet & pads', icon: '⛑️', group: 'Safety', desc: (l) => `Bumps hurt ${l * 20}% less`,
+    tiers: ['Woolly beanie', 'Bike helmet', 'Helmet + gloves', 'Full protective kit'],
+    prices: [20, 45, 85], needs: [1, 2, 4],
+  },
+  {
+    id: 'bell', name: 'Bell', icon: '🔔', group: 'Safety', desc: (l) => `Bell heard ${l * 40}% farther · +${l * 5}% tips from happy walkers`,
+    tiers: ['Tin bell', 'Brass bell', 'Golden ding-dong'],
+    prices: [10, 30], needs: [1, 3],
+  },
 ];
 
 export interface Cosmetic {
@@ -91,6 +145,21 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'gnomes', name: 'Gnome collector', desc: 'Find 5 garden gnomes', test: (p) => (p.secrets.gnome ?? 0) >= 5 },
 ];
 
+export interface JournalEntry {
+  pose: 'cruise' | 'wave' | 'wheelie' | 'handoff' | 'nohands' | 'sprint' | 'jump' | 'tired';
+  item: string;
+  shop: string;
+  icon: string;
+  customer: string;
+  address: string;
+  town: string;
+  tip: number;
+  onTime: boolean;
+  stars: number;
+  parcel: string;
+  sky: [string, string];
+}
+
 export interface Profile {
   v: 1;
   wallet: number;
@@ -101,6 +170,8 @@ export interface Profile {
   place: string;
   /** names of the famous sights ridden past */
   seen: string[];
+  /** the latest delivery snapshots, newest first */
+  journal: JournalEntry[];
   upgrades: Record<UpgradeId, number>;
   owned: string[];
   equipped: { frame: string; beanie: string; scarf: string };
@@ -141,7 +212,8 @@ export function defaultProfile(): Profile {
     townIndex: 0,
     place: '',
     seen: [],
-    upgrades: { gears: 0, tires: 0, rack: 0, suspension: 0, light: 0 },
+    journal: [],
+    upgrades: { gears: 0, motor: 0, tires: 0, brakes: 0, rack: 0, suspension: 0, thermo: 0, light: 0, helmet: 0, bell: 0 },
     owned: ['frame-mint', 'beanie-rose', 'scarf-coral'],
     equipped: { frame: 'frame-mint', beanie: 'beanie-rose', scarf: 'scarf-coral' },
     achievements: [],
@@ -171,6 +243,7 @@ export function loadProfile(): Profile {
       album: p.album ?? {},
       secrets: p.secrets ?? {},
       seen: p.seen ?? [],
+      journal: p.journal ?? [],
       place: p.place ?? '',
     };
   } catch {
@@ -229,12 +302,18 @@ export function cosmeticColor(id: string) {
 export function bikeStats(p: Profile) {
   const u = p.upgrades;
   return {
-    speedMul: 1 + u.gears * 0.07,
-    offroadMul: 1 + u.tires * 0.15,
-    grip: 1 + u.tires * 0.1,
+    speedMul: 1 + u.gears * 0.06,
+    accelMul: 1 + u.motor * 0.3,
+    offroadMul: 1 + u.tires * 0.14,
+    grip: 1 + u.tires * 0.1 + u.brakes * 0.04,
+    brakeMul: 1 + u.brakes * 0.3,
     capacity: 3 + u.rack,
-    fragileMul: 1 - u.suspension * 0.25,
+    fragileMul: Math.max(0.25, 1 - u.suspension * 0.25),
+    hotMul: 1 + u.thermo * 0.35,
     light: 1 + u.light * 0.4,
+    damageMul: 1 - u.helmet * 0.2,
+    bellRange: 1 + u.bell * 0.4,
+    tipMul: 1 + u.bell * 0.05,
   };
 }
 export type BikeStats = ReturnType<typeof bikeStats>;

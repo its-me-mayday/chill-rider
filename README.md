@@ -33,9 +33,19 @@ generative lo-fi radio plays.
 - **Progression** — XP and levels unlock ⚡ rush orders, ★ VIP customers and other perks; on-time streaks multiply tips.
 - **Side quests** — townsfolk wait at their door with a ❗: find a lost harmonica in the park, rush a letter to an old
   friend, fetch a cappuccino from the café, or race through checkpoints against the clock.
-- **Bike workshop & tailor** — upgrades (gears, gravel tires, bigger rack, suspension, headlight) are bought at
-  *Officina Ruota*, scarves, beanies and paint at *Sartoria Sciarpa*; both keep opening hours. Your stats, album and
-  badges live in the logbook (tap your portrait or press L).
+- **Bike workshop & tailor** — 10 upgrade lines with named tiers (gears up to a carbon drivetrain, an e-assist motor,
+  tyres, disc brakes, racks up to a cargo-bike box, suspension, thermal bag, headlight, helmet & pads, bell), some
+  locked behind your courier level, all visible on the bike in the workshop. Scarves, beanies and paint at
+  *Sartoria Sciarpa*; both shops keep opening hours.
+- **Delivery snapshots** — every drop pops up a polaroid of your courier in a pose that fits how it went (wave,
+  wheelie, bunny hop, no hands, handing over the parcel, sprinting, or worn out when late), with what you delivered,
+  to whom, and the receipt of what it paid. The last 24 are kept in the logbook's journal (tap your portrait or press L).
+- **London** — three neighbourhoods on bigger maps: *Westminster* (Big Ben with a working clock, Parliament,
+  the Abbey, Trafalgar Square, the London Eye), *South Bank* (St Paul's, Tate Modern, the Globe, the Shard) and
+  *Tower & the City* (Tower Bridge, the Tower of London, the Gherkin, HMS Belfast). The Thames with embankments and
+  named bridges, protected two-way cycle tracks that are faster than the road, traffic keeping left with red buses
+  and black cabs, phone and post boxes. Ride past a sight for a snapshot and a fact. Choose where to ride from the
+  start screen or after a map.
 - **Traffic lights** — busy junctions have lights with stop lines; cars and riders wait on red, and running a red
   light costs you a small fine.
 - **Things to find** — 2 random challenges per town, 3 hidden postcards per town for the album, 20 achievements and lifetime stats.

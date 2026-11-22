@@ -32,7 +32,7 @@ export interface BumpEvent {
 
 export type Mood = 'happy' | 'focused' | 'dizzy' | 'hurt' | 'fallen' | 'tired' | 'resting';
 
-const DEFAULT_STATS = { speedMul: 1, offroadMul: 1, grip: 1, capacity: 3, fragileMul: 1, light: 1 };
+const DEFAULT_STATS = { speedMul: 1, accelMul: 1, offroadMul: 1, grip: 1, brakeMul: 1, capacity: 3, fragileMul: 1, hotMul: 1, light: 1, damageMul: 1, bellRange: 1, tipMul: 1 };
 
 const TOP: Record<number, number> = {
   [T.ROAD]: 9.5,
@@ -85,7 +85,7 @@ export class Rider {
   }
 
   hurt(amount: number) {
-    this.health = Math.max(5, this.health - amount);
+    this.health = Math.max(5, this.health - amount * this.stats.damageMul);
     this.hurtFlash = 0.6;
   }
 
@@ -138,7 +138,7 @@ export class Rider {
 
     // slipping: sharp turns at speed on wet grass, sand or gravel paths
     const slippery = this.surface === T.SAND || (this.wet && !onRoad) || (this.wet && this.surface === T.PLAZA) || this.surface === T.PATH;
-    const risk = slippery && this.speed > 5.2 && Math.abs(steer) > 0.75 ? (this.speed - 5) * Math.abs(steer) * (this.surface === T.SAND ? 1.3 : 1) / st.grip : 0;
+    const risk = slippery && this.speed > 5.2 + (st.brakeMul - 1) * 1.5 && Math.abs(steer) > 0.75 ? (this.speed - 5) * Math.abs(steer) * (this.surface === T.SAND ? 1.3 : 1) / st.grip : 0;
     this.slipRisk = risk > 0 ? this.slipRisk + risk * dt : Math.max(0, this.slipRisk - dt * 2);
     if (this.slipRisk > 2.2) {
       this.slipRisk = 0;
@@ -155,9 +155,11 @@ export class Rider {
     // ---- speed
     this.pedalling = c.pedal > 0 && !c.brake;
     let a = 0;
-    if (this.pedalling) a += 4.2 * c.pedal * clamp((top - this.speed) / 2.5, -0.6, 1);
+    // the e-assist motor helps most when pulling away
+    const assist = 1 + (st.accelMul - 1) * clamp(1.4 - this.speed / top, 0.3, 1.4);
+    if (this.pedalling) a += 4.2 * assist * c.pedal * clamp((top - this.speed) / 2.5, -0.6, 1);
     else if (this.speed > top) a -= (this.speed - top) * 1.5; // off-road slows you down
-    if (c.brake) a -= 9;
+    if (c.brake) a -= 9 * st.brakeMul;
     a -= 0.25 + 0.012 * this.speed * this.speed;
     this.speed = Math.max(0, this.speed + a * dt);
 

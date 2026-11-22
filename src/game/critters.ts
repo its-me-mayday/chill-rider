@@ -95,11 +95,11 @@ export class Critters {
   }
 
   /** Ring the bell: nearby walkers step aside. Returns how many reacted. */
-  bell(x: number, y: number): number {
+  bell(x: number, y: number, range = 1): number {
     let n = 0;
     for (const w of this.walkers) {
       if (!w.active) continue;
-      if (Math.hypot(w.x - x, w.y - y) < 14 && w.aside <= 0) {
+      if (Math.hypot(w.x - x, w.y - y) < 14 * range && w.aside <= 0) {
         w.aside = 4;
         w.happy = 1.5;
         n++;

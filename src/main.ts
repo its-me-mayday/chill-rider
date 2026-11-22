@@ -2,7 +2,7 @@ import './styles.css';
 import { AudioEngine } from './audio/audio';
 import { advance, pickChallenges, reset, type Challenge, type ChallengeId } from './game/challenges';
 import { Critters } from './game/critters';
-import { busyness, lightAt } from './game/daylight';
+import { busyness, formatHour, lightAt } from './game/daylight';
 import type { Secret } from './game/map';
 import { Input } from './game/input';
 import { generateMap, type GameMap } from './game/map';
@@ -13,6 +13,9 @@ import {
 import { Rider, type BumpEvent, type Mover } from './game/rider';
 import { THEMES, themeById } from './game/themes';
 import { Places } from './ui/places';
+import { SnapshotCard, type Snap } from './ui/snapshot';
+import { POSES, type Pose } from './render/bikeArt';
+import { css as cssColor } from './game/math';
 import { DISTRICTS } from './game/cities';
 import { T, tileAt } from './game/map';
 import { Traffic, type TrafficEvent } from './game/traffic';
@@ -62,6 +65,30 @@ let postcards: { x: number; y: number; got: boolean }[] = [];
 let secrets: (Secret & { got: boolean })[] = [];
 let rain = false;
 let townMeters = 0;
+const riderStyle = () => ({
+  frame: cosmeticColor(profile.equipped.frame),
+  beanie: cosmeticColor(profile.equipped.beanie),
+  scarf: cosmeticColor(profile.equipped.scarf),
+});
+const snapCard = new SnapshotCard(riderStyle, () => profile.upgrades);
+const SHOP_ICON: Record<string, string> = { pizza: '🍕', cafe: '☕', comics: '📚', gelato: '🍨', bakery: '🥐', florist: '💐', records: '💿', books: '📖' };
+
+/** pick a pose that fits how the delivery went */
+function poseFor(o: { kind: string; hot: boolean; fragile: boolean }, onTime: boolean, ratio: number, streak: number): Pose {
+  if (!onTime) return 'tired';
+  if (streak >= 3 && Math.random() < 0.5) return 'nohands';
+  if (o.kind === 'vip') return 'handoff';
+  if (o.kind === 'rush' || o.hot) return ratio > 0.5 ? 'sprint' : 'handoff';
+  if (ratio > 0.6) return Math.random() < 0.5 ? 'wheelie' : 'jump';
+  return POSES[Math.floor(Math.random() * POSES.length)];
+}
+
+function skyNow(): [string, string] {
+  const l = lightAt(time);
+  if (l.night > 0.6) return ['#2b2a55', '#5a4a7a'];
+  if (l.night > 0.2) return ['#ff9a8b', '#ffd1a8'];
+  return ['#bfe3f5', '#fff1dc'];
+}
 const seenHere = new Set<string>();
 let started = false;
 let paused = false;
@@ -164,7 +191,7 @@ function ringBell() {
   audio.bell();
   if (!started) return;
   profile.stats.bells++;
-  const n = critters.bell(rider.x, rider.y);
+  const n = critters.bell(rider.x, rider.y, rider.stats.bellRange);
   if (n > 0) onChallenge(advance(challenges, 'bell', n));
   checkBadges();
 }
@@ -495,7 +522,29 @@ function handle(ev: OrderEvent, nightNow: number) {
       bits.push(ev.onTime ? `${Math.round(ev.left)}s to spare` : 'late');
       if (o.fragile && o.condition > 0.97) bits.push('not a scratch');
       if (ev.streak >= 2) bits.push(`streak ${ev.streak}`);
-      hud.toast(`${o.customer} says thanks!`, bits.join(' · '));
+      void bits;
+      const ratio = ev.onTime ? ev.left / o.limit : 0;
+      const stars = !ev.onTime ? 1 : ratio > 0.45 && o.condition > 0.9 ? 3 : 2;
+      const snap: Snap = {
+        pose: poseFor(o, ev.onTime, ratio, ev.streak),
+        item: o.item,
+        shop: o.shop.shop!.name,
+        icon: SHOP_ICON[o.shop.shop!.id] ?? '📦',
+        customer: o.customer,
+        address: `${o.house.no} ${o.house.street}`,
+        town: `${map.theme.name} · ${formatHour(lightAt(time).hour)}`,
+        tip: ev.tip,
+        onTime: ev.onTime,
+        stars,
+        parts: ev.parts,
+        parcel: cssColor(o.shop.shop!.roof),
+        sky: skyNow(),
+      };
+      snapCard.show(snap);
+      const { parts: _parts, ...entry } = snap;
+      void _parts;
+      profile.journal.unshift(entry);
+      profile.journal.length = Math.min(profile.journal.length, 24);
       renderer.toss(rider.x, rider.y, o.house.doorX + o.house.nx * 0.8, o.house.doorY + o.house.ny * 0.8, o.shop.shop!.roof);
       setTimeout(() => {
         renderer.customer(o.house, ev.onTime);

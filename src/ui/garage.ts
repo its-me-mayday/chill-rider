@@ -2,10 +2,13 @@ import {
   ACHIEVEMENTS, COSMETICS, UPGRADES, xpForLevel, type Profile, type UpgradeId,
 } from '../game/profile';
 import { THEMES } from '../game/themes';
+import { cosmeticColor } from '../game/profile';
+import { drawScene } from '../render/bikeArt';
+import { paintStill } from './snapshot';
 
-type Tab = 'upgrades' | 'style' | 'album' | 'badges';
+type Tab = 'upgrades' | 'style' | 'album' | 'journal' | 'badges';
 export type GarageMode = 'workshop' | 'boutique' | 'book';
-const MODE_TABS: Record<GarageMode, Tab[]> = { workshop: ['upgrades'], boutique: ['style'], book: ['album', 'badges'] };
+const MODE_TABS: Record<GarageMode, Tab[]> = { workshop: ['upgrades'], boutique: ['style'], book: ['journal', 'album', 'badges'] };
 const MODE_TITLE: Record<GarageMode, string> = { workshop: 'Officina Ruota', boutique: 'Sartoria Sciarpa', book: 'Logbook' };
 
 const $ = (id: string) => document.getElementById(id)!;
@@ -15,6 +18,9 @@ export class Garage {
   private body = $('g-body');
   private wallet = $('g-wallet');
   private tab: Tab = 'upgrades';
+  private raf = 0;
+  /** the bike shows off after a purchase */
+  private celebrate = 0;
   isOpen = false;
   onClose: (() => void) | null = null;
   onBuy: (() => void) | null = null;
@@ -51,6 +57,7 @@ export class Garage {
   close() {
     if (!this.isOpen) return;
     this.isOpen = false;
+    cancelAnimationFrame(this.raf);
     this.el.classList.add('hidden');
     this.onClose?.();
   }
@@ -58,7 +65,7 @@ export class Garage {
   /** Is there anything affordable right now? Used for the dot on the HUD button. */
   hasAffordable() {
     const p = this.profile;
-    return UPGRADES.some((u) => p.upgrades[u.id] < u.prices.length && p.wallet >= u.prices[p.upgrades[u.id]]);
+    return UPGRADES.some((u) => p.upgrades[u.id] < u.prices.length && p.wallet >= u.prices[p.upgrades[u.id]] && p.level >= (u.needs?.[p.upgrades[u.id]] ?? 1));
   }
 
   private buyUpgrade(id: UpgradeId) {
@@ -66,9 +73,10 @@ export class Garage {
     const def = UPGRADES.find((u) => u.id === id)!;
     const lvl = p.upgrades[id];
     const price = def.prices[lvl];
-    if (price === undefined || p.wallet < price) return;
+    if (price === undefined || p.wallet < price || p.level < (def.needs?.[lvl] ?? 1)) return;
     p.wallet = Math.round((p.wallet - price) * 100) / 100;
     p.upgrades[id] = lvl + 1;
+    this.celebrate = performance.now();
     this.onBuy?.();
     this.render();
   }
@@ -91,18 +99,55 @@ export class Garage {
     this.wallet.textContent = `${p.wallet.toFixed(2)} €`;
     for (const b of $('g-tabs').querySelectorAll<HTMLElement>('button')) b.classList.toggle('on', b.dataset.tab === this.tab);
 
+    cancelAnimationFrame(this.raf);
     if (this.tab === 'upgrades') {
-      this.body.innerHTML = UPGRADES.map((u) => {
+      const owned = UPGRADES.reduce((a, u) => a + p.upgrades[u.id], 0);
+      const total = UPGRADES.reduce((a, u) => a + u.prices.length, 0);
+      const groups = ['Ride', 'Cargo', 'Safety'] as const;
+      const item = (u: (typeof UPGRADES)[number]) => {
         const lvl = p.upgrades[u.id];
         const max = lvl >= u.prices.length;
         const price = u.prices[lvl];
+        const need = u.needs?.[lvl] ?? 1;
+        const locked = !max && p.level < need;
         const pips = u.prices.map((_, i) => `<i class="${i < lvl ? 'on' : ''}"></i>`).join('');
-        return `<div class="g-item">
-          <h3>${u.name}<span class="lv">${pips}</span></h3>
-          <button class="buy" data-buy="${u.id}" ${max || p.wallet < price ? 'disabled' : ''}>${max ? 'Max' : `${price} €`}</button>
-          <p>${max ? u.desc(lvl) : `${lvl ? u.desc(lvl) + ' → ' : ''}${u.desc(lvl + 1)}`}</p>
+        const label = max ? 'Max' : locked ? `🔒 Lv ${need}` : `${price} €`;
+        return `<div class="g-item up">
+          <span class="up-icon">${u.icon}</span>
+          <div class="up-main">
+            <h3>${u.name}<span class="lv">${pips}</span></h3>
+            <p class="tier">${u.tiers[lvl]}${max ? '' : ` <span class="arrow">→</span> <b>${u.tiers[lvl + 1]}</b>`}</p>
+            <p>${max ? u.desc(lvl) : `${lvl ? u.desc(lvl) + ' → ' : ''}${u.desc(lvl + 1)}`}</p>
+          </div>
+          <button class="buy" data-buy="${u.id}" ${max || locked || p.wallet < price ? 'disabled' : ''}>${label}</button>
         </div>`;
-      }).join('') + `<p class="g-sub">Tips are earned on every delivery — faster and gentler means more.</p>`;
+      };
+      this.body.innerHTML = `<div class="bike-show"><canvas id="g-bike"></canvas>
+          <div class="bike-meta"><b>Your bike</b><span>${owned}/${total} parts fitted</span><div class="bar"><i style="width:${(owned / total) * 100}%"></i></div></div></div>` +
+        groups.map((g) => `<div class="g-sub">${g}</div>${UPGRADES.filter((u) => u.group === g).map(item).join('')}`).join('') +
+        `<p class="g-sub">Tips are earned on every delivery — faster and gentler means more. Some parts need a higher courier level.</p>`;
+      const c = this.body.querySelector<HTMLCanvasElement>('#g-bike')!;
+      const loop = () => {
+        if (!this.isOpen || this.tab !== 'upgrades') return;
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const w = c.clientWidth || 300;
+        const h = c.clientHeight || 150;
+        if (c.width !== Math.round(w * dpr)) {
+          c.width = Math.round(w * dpr);
+          c.height = Math.round(h * dpr);
+        }
+        const ctx = c.getContext('2d')!;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        const since = performance.now() - this.celebrate;
+        const pose = since < 2200 ? (since < 1100 ? 'wheelie' : 'nohands') : 'cruise';
+        drawScene(ctx, w, h, {
+          pose, t: (performance.now() / 1800) % 1, up: p.upgrades,
+          style: { frame: cosmeticColor(p.equipped.frame), beanie: cosmeticColor(p.equipped.beanie), scarf: cosmeticColor(p.equipped.scarf) },
+          sky: ['#e8eef3', '#fff6ea'], ground: '#c9d6c0',
+        });
+        this.raf = requestAnimationFrame(loop);
+      };
+      loop();
     } else if (this.tab === 'style') {
       const slot = (s: 'frame' | 'beanie' | 'scarf', title: string) =>
         `<div class="g-sub">${title}</div><div class="swatches">${COSMETICS.filter((c) => c.slot === s)
@@ -144,6 +189,25 @@ export class Garage {
           <div>Challenges <b>${st.challenges}</b></div>
           <div>Secrets <b>${st.secrets}</b></div>
         </div>`;
+    } else if (this.tab === 'journal') {
+      if (!p.journal.length) {
+        this.body.innerHTML = `<p class="g-sub">No snapshots yet — every delivery gets a photo here.</p>`;
+        return;
+      }
+      this.body.innerHTML = `<div class="g-sub">Your last ${p.journal.length} deliveries</div><div class="journal">${p.journal.map((j, i) => `
+        <div class="jcard${j.onTime ? '' : ' late'}">
+          <canvas data-j="${i}"></canvas>
+          <div class="jt"><b>${j.icon} ${j.item}</b><span>+${j.tip.toFixed(2)} €</span></div>
+          <div class="js">${'★'.repeat(j.stars)}${'☆'.repeat(3 - j.stars)} · ${j.customer}, ${j.address}</div>
+          <div class="js">${j.town}</div>
+        </div>`).join('')}</div>`;
+      const style = { frame: cosmeticColor(p.equipped.frame), beanie: cosmeticColor(p.equipped.beanie), scarf: cosmeticColor(p.equipped.scarf) };
+      requestAnimationFrame(() => {
+        this.body.querySelectorAll<HTMLCanvasElement>('canvas[data-j]').forEach((c) => {
+          const j = p.journal[Number(c.dataset.j)];
+          paintStill(c, j, style, p.upgrades, 0.3 + Number(c.dataset.j) * 0.13);
+        });
+      });
     } else {
       this.body.innerHTML = `<div class="g-sub">${p.achievements.length}/${ACHIEVEMENTS.length} unlocked</div><div class="badges">${ACHIEVEMENTS.map((a) => {
         const got = p.achievements.includes(a.id);
