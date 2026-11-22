@@ -3,6 +3,12 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+  # The repository may still have "Deploy from a branch" enabled in Settings → Pages,
+  # which publishes the raw sources right after every push. Re-deploy the built game
+  # once that legacy build has finished so the playable version is always the one served.
+  workflow_run:
+    workflows: ['pages build and deployment']
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -12,13 +18,15 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
       - uses: actions/setup-node@v4
         with:
           node-version: 22
