@@ -145,6 +145,56 @@ export class AudioEngine {
     }
   }
 
+  /** wrench ratchet, a whoosh and a little brass fanfare for a bike upgrade */
+  private brass?: Tone.PolySynth;
+  private ratchet?: Tone.NoiseSynth;
+  private whoosh?: { noise: Tone.Noise; filter: Tone.Filter; gain: Tone.Gain };
+  private boom?: Tone.MembraneSynth;
+  upgradeJingle(tier = 1) {
+    if (!this.ready) return;
+    if (!this.brass) {
+      const lp = new Tone.Filter({ frequency: 2600, type: 'lowpass' }).connect(this.master);
+      const verb = new Tone.Reverb({ decay: 2.4, wet: 0.25 }).connect(lp);
+      this.brass = new Tone.PolySynth(Tone.Synth, {
+        oscillator: { type: 'fatsawtooth', count: 3, spread: 18 } as Tone.OmniOscillatorOptions,
+        envelope: { attack: 0.02, decay: 0.25, sustain: 0.55, release: 0.6 },
+        volume: -19,
+      }).connect(verb);
+      const hp = new Tone.Filter({ frequency: 1800, type: 'highpass' }).connect(this.master);
+      this.ratchet = new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: 0.0005, decay: 0.025, sustain: 0 }, volume: -16 }).connect(hp);
+      const wf = new Tone.Filter({ frequency: 300, type: 'bandpass', Q: 1.2 });
+      const wg = new Tone.Gain(0);
+      const wn = new Tone.Noise({ type: 'pink', volume: -6 });
+      wn.chain(wf, wg, this.master);
+      wn.start();
+      this.whoosh = { noise: wn, filter: wf, gain: wg };
+      this.boom = new Tone.MembraneSynth({ pitchDecay: 0.08, octaves: 4, envelope: { attack: 0.001, decay: 0.5, sustain: 0 }, volume: -10 }).connect(this.master);
+    }
+    this.radio.duck(3.4);
+    const now = Tone.now() + 0.05;
+    // the wrench: click-click-click
+    for (let k = 0; k < 7; k++) this.ratchet!.triggerAttackRelease('64n', now + k * 0.075 + (k % 2) * 0.01, 0.6 + (k % 3) * 0.15);
+    // whoosh up
+    const w = this.whoosh!;
+    w.filter.frequency.cancelScheduledValues(now);
+    w.filter.frequency.setValueAtTime(300, now + 0.6);
+    w.filter.frequency.exponentialRampToValueAtTime(7000, now + 1.0);
+    w.gain.gain.cancelScheduledValues(now);
+    w.gain.gain.setValueAtTime(0, now + 0.6);
+    w.gain.gain.linearRampToValueAtTime(0.5, now + 0.9);
+    w.gain.gain.linearRampToValueAtTime(0, now + 1.1);
+    // fanfare: higher tiers sound brighter
+    const root = 60 + Math.min(4, tier) * 2;
+    const f = (n: number) => Tone.Frequency(n, 'midi').toFrequency();
+    const t0 = now + 1.05;
+    this.boom!.triggerAttackRelease('C2', '8n', t0, 0.9);
+    [0, 4, 7].forEach((iv, i) => this.brass!.triggerAttackRelease(f(root + iv), '16n', t0 + i * 0.11, 0.7));
+    this.brass!.triggerAttackRelease([f(root), f(root + 4), f(root + 7), f(root + 12)], 1.3, t0 + 0.36, 0.85);
+    this.brass!.triggerAttackRelease(f(root - 12), 1.3, t0 + 0.36, 0.6);
+    [12, 16, 19, 24, 28].forEach((iv, i) => this.chime.triggerAttackRelease(f(root + 12 + iv), '16n', t0 + 0.4 + i * 0.07, 0.35));
+    this.boom!.triggerAttackRelease('G1', '8n', t0 + 0.36, 0.6);
+  }
+
   /** soft "pop" when a parcel changes hands */
   pop() {
     if (!this.ready) return;

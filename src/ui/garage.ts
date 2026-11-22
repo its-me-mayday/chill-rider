@@ -24,6 +24,10 @@ export class Garage {
   isOpen = false;
   onClose: (() => void) | null = null;
   onBuy: (() => void) | null = null;
+  /** a part was fitted or improved: from → to level */
+  onUpgrade: ((id: UpgradeId, from: number, to: number) => void) | null = null;
+  /** the bike got a new paint job */
+  onPaint: ((from: string, to: string) => void) | null = null;
 
   constructor(private profile: Profile) {
     $('garage-close').addEventListener('click', () => this.close());
@@ -77,6 +81,7 @@ export class Garage {
     p.wallet = Math.round((p.wallet - price) * 100) / 100;
     p.upgrades[id] = lvl + 1;
     this.celebrate = performance.now();
+    this.onUpgrade?.(id, lvl, lvl + 1);
     this.onBuy?.();
     this.render();
   }
@@ -89,7 +94,9 @@ export class Garage {
       p.wallet = Math.round((p.wallet - c.price) * 100) / 100;
       p.owned.push(id);
     }
+    const before = p.equipped[c.slot];
     p.equipped[c.slot] = id;
+    if (c.slot === 'frame' && before !== id) this.onPaint?.(before, id);
     this.onBuy?.();
     this.render();
   }

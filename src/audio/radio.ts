@@ -490,6 +490,18 @@ export class Radio {
     this.bar = Math.ceil(this.bar / 4) * 4;
   }
 
+  /** Duck the music under a jingle for a few seconds. */
+  duck(seconds: number) {
+    if (!this.ready) return;
+    const v = this.master.volume;
+    const now = Tone.now();
+    v.cancelScheduledValues(now);
+    v.setValueAtTime(v.value, now);
+    v.linearRampToValueAtTime(-26, now + 0.25);
+    v.setValueAtTime(-26, now + seconds);
+    v.linearRampToValueAtTime(-8, now + seconds + 1.2);
+  }
+
   /** Tune to another station: a burst of static and a fresh track in that style. */
   setStation(i: number) {
     const n = STATIONS.length;

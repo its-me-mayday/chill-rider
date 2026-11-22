@@ -8,11 +8,12 @@ import { Input } from './game/input';
 import { generateMap, type GameMap } from './game/map';
 import { Orders, type OrderEvent } from './game/orders';
 import {
-  addXp, bikeStats, checkAchievements, cosmeticColor, LEVEL_UNLOCKS, loadProfile, saveProfile, xpForLevel,
+  addXp, bikeStats, checkAchievements, COSMETICS, cosmeticColor, UPGRADES, LEVEL_UNLOCKS, loadProfile, saveProfile, xpForLevel,
 } from './game/profile';
 import { Rider, type BumpEvent, type Mover } from './game/rider';
 import { THEMES, themeById } from './game/themes';
 import { Places } from './ui/places';
+import { UpgradeFx } from './ui/upgradeFx';
 import { SnapshotCard, type Snap } from './ui/snapshot';
 import { POSES, type Pose } from './render/bikeArt';
 import { css as cssColor } from './game/math';
@@ -260,6 +261,41 @@ function openGarage(mode: GarageMode) {
 }
 garage.onClose = () => {
   paused = pausedBeforeGarage || !completeEl.classList.contains('hidden');
+};
+const upFx = new UpgradeFx();
+upFx.onShow = (s) => audio.upgradeJingle(s.level);
+garage.onUpgrade = (id, from, to) => {
+  const def = UPGRADES.find((u) => u.id === id)!;
+  const after = { ...profile.upgrades };
+  const before = { ...after, [id]: from };
+  upFx.show({
+    kicker: from === 0 ? 'NEW PART!' : to === def.prices.length ? 'MAXED OUT!' : 'UPGRADE!',
+    icon: def.icon,
+    name: def.name,
+    from: def.tiers[from],
+    to: def.tiers[to],
+    level: to,
+    levels: def.prices.length,
+    stat: from === 0 ? def.desc(to) : `${def.desc(from)}  ➜  ${def.desc(to)}`,
+    before: { up: before, style: riderStyle() },
+    after: { up: after, style: riderStyle() },
+  });
+};
+garage.onPaint = (from, to) => {
+  const name = COSMETICS.find((c) => c.id === to)?.name ?? 'New';
+  const style = riderStyle();
+  upFx.show({
+    kicker: 'NEW PAINT!',
+    icon: '🎨',
+    name: `${name} frame`,
+    from: COSMETICS.find((c) => c.id === from)?.name ?? '',
+    to: name,
+    level: 1,
+    levels: 1,
+    stat: 'Fresh paint — same legs, more style',
+    before: { up: profile.upgrades, style: { ...style, frame: cosmeticColor(from) } },
+    after: { up: profile.upgrades, style },
+  });
 };
 garage.onBuy = () => {
   applyBike();

@@ -720,3 +720,53 @@ kbd {
 .jcard.late .jt span { color: #b0704f; }
 .jcard .js { font-size: 0.66rem; color: #9a7a8c; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 640px) { .bike-show { grid-template-columns: 1fr; } }
+
+/* ---------- full-screen upgrade celebration ---------- */
+.upfx {
+  position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; overflow: hidden;
+  background: radial-gradient(circle at 50% 45%, rgba(96, 42, 96, 0.95), rgba(28, 10, 38, 0.98));
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  text-shadow: none; cursor: pointer; padding: 16px;
+}
+.upfx.hidden { display: none; }
+.upfx-rays {
+  position: absolute; left: 50%; top: 45%; width: 220vmax; height: 220vmax; margin: -110vmax 0 0 -110vmax;
+  background: repeating-conic-gradient(from 0deg, rgba(255, 230, 160, 0.13) 0 8deg, transparent 8deg 20deg);
+  opacity: 0; animation: raysSpin 14s linear infinite;
+}
+.upfx.play .upfx-rays { animation: raysSpin 14s linear infinite, fadeIn 0.6s 0.9s forwards; }
+@keyframes raysSpin { to { transform: rotate(360deg); } }
+@keyframes fadeIn { to { opacity: 1; } }
+.upfx-inner { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; width: min(620px, 100%); color: #fff8f0; text-align: center; }
+.upfx-kicker {
+  font: italic 800 clamp(2.2rem, 9vw, 4.2rem) 'Playfair Display', Georgia, serif; letter-spacing: 0.02em;
+  background: linear-gradient(180deg, #fff6c8, #f4c063 60%, #e48a4b); -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 4px 0 rgba(90, 30, 60, 0.6)); transform: scale(0); 
+}
+.upfx.play .upfx-kicker { animation: kick 0.7s 0.95s cubic-bezier(.2,1.6,.4,1) forwards; }
+@keyframes kick { 0% { transform: scale(0) rotate(-8deg); } 100% { transform: scale(1) rotate(-3deg); } }
+.upfx-inner canvas { width: 100%; aspect-ratio: 2 / 1; max-height: 42vh; border-radius: 22px; box-shadow: 0 0 0 4px rgba(255, 241, 184, 0.5), 0 20px 60px rgba(0, 0, 0, 0.45); }
+.upfx-title { display: flex; align-items: center; gap: 10px; font-size: clamp(1.2rem, 4.5vw, 1.7rem); opacity: 0; }
+.upfx-title span { font-size: 1.4em; }
+.upfx-tier { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; font-size: clamp(0.95rem, 3.6vw, 1.15rem); opacity: 0; }
+.upfx-tier s { color: rgba(255, 248, 240, 0.55); }
+.upfx-tier .arr { color: #f4c063; }
+.upfx-tier b { color: #fff1b8; font-size: 1.15em; }
+.upfx-pips { display: flex; gap: 6px; }
+.upfx-pips i { width: 26px; height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.18); }
+.upfx-pips i.on { background: #e4677b; }
+.upfx-pips i.new { background: rgba(255, 255, 255, 0.18); }
+.upfx.play .upfx-pips i.new { animation: pipFill 0.5s var(--d) forwards; }
+@keyframes pipFill { 0% { background: #fff; transform: scaleY(2.4); box-shadow: 0 0 14px #fff1b8; } 100% { background: #f4c063; transform: none; box-shadow: 0 0 10px rgba(244, 192, 99, 0.8); } }
+.upfx-stat { font-weight: 600; color: #9fe3a8; font-size: clamp(0.85rem, 3.4vw, 1.05rem); opacity: 0; padding: 6px 14px; border-radius: 999px; background: rgba(159, 227, 168, 0.12); }
+.upfx-tap { font-size: 0.75rem; letter-spacing: 0.2em; text-transform: uppercase; color: rgba(255, 248, 240, 0.5); opacity: 0; }
+.upfx.play .upfx-title { animation: rise 0.5s 1.15s forwards; }
+.upfx.play .upfx-tier { animation: rise 0.5s 1.35s forwards; }
+.upfx.play .upfx-stat { animation: rise 0.5s 1.9s forwards; }
+.upfx.play .upfx-tap { animation: rise 0.5s 2.6s forwards; }
+@keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@media (pointer: coarse) and (max-height: 520px) {
+  .upfx-inner { flex-direction: row; flex-wrap: wrap; justify-content: center; gap: 6px 14px; }
+  .upfx-kicker { width: 100%; font-size: 2rem; }
+  .upfx-inner canvas { width: 48%; max-height: 58vh; }
+}
