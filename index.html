@@ -1,68 +1,145 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Chill Rider - Lofi Bicycle Journey</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;600&family=Playfair+Display:ital,wght@1,600&display=swap" rel="stylesheet">
-    <style>
-      body { margin: 0; overflow: hidden; background: #ffccaa; font-family: 'Outfit', sans-serif; }
-      #app { width: 100vw; height: 100vh; }
-      
-      #ui {
-        position: absolute;
-        top: 0; left: 0; width: 100%; height: 100%;
-        pointer-events: none;
-        display: flex; flex-direction: column; justify-content: space-between;
-        padding: 50px; box-sizing: border-box;
-        color: #fff;
-        text-shadow: 0 2px 10px rgba(0,0,0,0.1);
-      }
-
-      .top-section { display: flex; justify-content: space-between; align-items: flex-start; }
-      .title { font-family: 'Playfair Display', serif; font-size: 2.5rem; font-style: italic; }
-      .status { text-align: right; font-size: 0.9rem; opacity: 0.8; letter-spacing: 2px; }
-
-      .bottom-section { display: flex; justify-content: space-between; align-items: flex-end; }
-      .controls-hint { font-size: 0.8rem; opacity: 0.6; }
-      .speed-meter { font-size: 3rem; font-weight: 600; }
-      .speed-unit { font-size: 1rem; opacity: 0.7; }
-
-      #lofi-radio {
-        position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%);
-        background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(10px);
-        padding: 10px 20px; border-radius: 50px; border: 1px solid rgba(255, 255, 255, 0.3);
-        font-size: 0.9rem; pointer-events: auto; cursor: pointer; transition: 0.3s;
-      }
-      #lofi-radio:hover { background: rgba(255, 255, 255, 0.25); }
-
-      .overlay {
-        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-        background: radial-gradient(circle, transparent 40%, rgba(255, 100, 100, 0.1));
-        pointer-events: none;
-      }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#a9c98a" />
+    <meta name="description" content="Chill Rider — a lo-fi bike courier game seen from above." />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&family=Playfair+Display:ital,wght@1,600&display=swap"
+      rel="stylesheet"
+    />
+    <title>Chill Rider — lo-fi bike courier</title>
   </head>
   <body>
-    <div id="app"></div>
-    <div class="overlay"></div>
-    <div id="ui">
-      <div class="top-section">
-        <div class="title">Chill Rider</div>
-        <div class="status">SUNSET BOULEVARD<br>NEAR ETERNITY</div>
+    <canvas id="game"></canvas>
+
+    <div id="hud">
+      <header class="top">
+        <div class="left">
+          <div class="panel player">
+            <div class="rider-card" id="rider-card"><canvas id="portrait" class="portrait"></canvas></div>
+            <div class="player-info">
+              <div class="title-row">
+                <span class="title">Chill Rider</span>
+                <span class="lvl-badge" id="lvl">Lv 1</span>
+              </div>
+              <div class="place"><span id="place">Peach Village</span><span class="sep"> · </span><span id="phase">Golden Hour</span></div>
+              <div class="meter hp" title="Health"><span class="ico">♥</span><i><b id="hp-bar"></b></i><span class="meter-label" id="hp-label">feeling good</span></div>
+              <div class="meter xp" title="Experience"><span class="ico">★</span><i><b id="xpbar"></b></i><span class="meter-label" id="xp-label"></span></div>
+            </div>
+          </div>
+          <div class="panel goal-panel"><div class="goal" id="goal"></div></div>
+          <div class="orders" id="orders"></div>
+          <div class="panel challenges" id="challenges"></div>
+        </div>
+        <div class="right">
+          <div class="panel map-panel">
+            <canvas id="minimap" class="minimap"></canvas>
+            <span class="compass">N</span>
+          </div>
+          <div class="panel purse">
+            <div class="tips" id="tips"></div>
+            <div class="streak" id="streak"></div>
+          </div>
+          <button id="garage-btn" class="pill">🔧 Garage</button>
+        </div>
+      </header>
+
+      <div id="toast" class="toast"></div>
+      <div id="badge" class="badge"></div>
+
+      <footer class="bottom">
+        <div class="panel keys" id="hint">
+          <div class="keyrow"><kbd>W</kbd><span>pedal</span><kbd>S</kbd><span>brake</span><kbd>A</kbd><kbd>D</kbd><span>steer</span></div>
+          <div class="keyrow"><kbd>B</kbd><span>bell</span><kbd>G</kbd><span>garage</span><kbd>R</kbd><span>radio</span><kbd>H</kbd><span>hide</span><kbd>P</kbd><span>pause</span></div>
+          <div class="keytip">Slow down in the ring to pick up and deliver · rest at the café if bruised</div>
+        </div>
+        <div class="radio glass" id="radio">
+          <button id="radio-toggle" class="radio-btn" aria-label="Toggle radio">▶</button>
+          <div class="radio-info">
+            <div class="radio-label">CHILL FM <span id="radio-key"></span></div>
+            <div class="radio-track" id="radio-track">tap to tune in</div>
+          </div>
+          <div class="eq" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+          <button id="radio-next" class="radio-btn small" aria-label="Next track">⏭</button>
+          <input id="volume" type="range" min="0" max="1" step="0.01" value="0.8" aria-label="Volume" />
+        </div>
+        <div class="gauge" id="gauge">
+          <svg viewBox="0 0 120 120" aria-hidden="true">
+            <circle class="track" cx="60" cy="60" r="50" pathLength="100" />
+            <circle class="fill" id="gauge-fill" cx="60" cy="60" r="50" pathLength="100" />
+          </svg>
+          <div class="gauge-num"><span id="speed">0</span><small>km/h</small></div>
+          <div class="gauge-state" id="gauge-state">road</div>
+        </div>
+      </footer>
+    </div>
+
+    <div id="touch" class="touch">
+      <button data-act="brake" class="tbtn brake" aria-label="Brake">
+        <svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="15" fill="none" stroke="currentColor" stroke-width="4"/><circle cx="24" cy="24" r="4" fill="currentColor"/><path d="M8 14 Q4 24 8 34" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M40 14 Q44 24 40 34" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg>
+        <span>BRAKE</span>
+      </button>
+      <button data-act="pedal" class="tbtn pedal" aria-label="Pedal">
+        <svg viewBox="0 0 48 48" aria-hidden="true"><g class="crank"><circle cx="24" cy="24" r="9" fill="none" stroke="currentColor" stroke-width="4"/><path d="M24 24 L24 6" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><rect x="17" y="3" width="14" height="6" rx="3" fill="currentColor"/><path d="M24 24 L24 42" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><rect x="17" y="39" width="14" height="6" rx="3" fill="currentColor"/></g></svg>
+        <span>PEDAL</span>
+      </button>
+      <button id="t-bell" class="tbtn bell" aria-label="Bell">🔔</button>
+      <div class="touch-hint" id="touch-hint">drag on the left to steer · hold PEDAL to ride</div>
+    </div>
+
+    <div id="start" class="overlay-card">
+      <div class="card">
+        <h1>Chill Rider</h1>
+        <p>A lo-fi bike courier. Pick up orders at the little shops,<br />ride them to the right address before the timer runs out.</p>
+        <button id="start-btn" class="start-btn">Start riding</button>
+        <p class="small">Trees, ponds and walls are in the way — roads are fastest. Ring the bell at people walking by.<br />Find the hidden postcards, level up and tune your bike in the garage. Headphones recommended 🎧</p>
+        <p class="small" id="start-profile"></p>
       </div>
+    </div>
 
-      <div id="lofi-radio">🎵 RADIO: CHILL BEATS (OFF)</div>
+    <div id="pause" class="overlay-card hidden">
+      <div class="card">
+        <h1>Paused</h1>
+        <p>Take a breath.</p>
+        <button id="resume-btn" class="start-btn">Keep riding</button>
+      </div>
+    </div>
 
-      <div class="bottom-section">
-        <div class="controls-hint">W/S TO PEDAL • A/D TO STEER • SPACE TO BRAKE</div>
-        <div class="speed-info">
-          <span class="speed-meter" id="speed">0</span> <span class="speed-unit">KM/H</span>
+    <div id="complete" class="overlay-card hidden">
+      <div class="card">
+        <div class="stars" id="stars">★★★</div>
+        <h1 id="complete-title">Map complete</h1>
+        <p id="complete-text"></p>
+        <ul class="complete-list" id="complete-list"></ul>
+        <div class="row">
+          <button id="complete-garage" class="start-btn ghost">🔧 Garage</button>
+          <button id="next-map" class="start-btn">Next town</button>
         </div>
       </div>
     </div>
-    <script type="module" src="/main.js"></script>
+
+    <div id="garage" class="overlay-card hidden">
+      <div class="garage">
+        <div class="garage-head">
+          <h2>Garage</h2>
+          <div class="wallet" id="g-wallet"></div>
+          <button id="garage-close" class="close" aria-label="Close">✕</button>
+        </div>
+        <nav class="tabs" id="g-tabs">
+          <button data-tab="upgrades" class="on">Upgrades</button>
+          <button data-tab="style">Style</button>
+          <button data-tab="album">Album</button>
+          <button data-tab="badges">Badges</button>
+        </nav>
+        <div class="g-body" id="g-body"></div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
