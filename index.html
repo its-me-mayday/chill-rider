@@ -27,6 +27,7 @@
                 <span class="title">Chill Rider</span>
                 <span class="lvl-badge" id="lvl">Lv 1</span>
                 <span class="goal-mini" id="goal-mini"></span>
+                <span class="cash-mini" id="cash-mini"></span>
               </div>
               <div class="place"><span id="place">Peach Village</span><span class="sep"> · </span><span id="phase">Golden Hour</span></div>
               <div class="meter hp" title="Health"><span class="ico">♥</span><i><b id="hp-bar"></b></i><span class="meter-label" id="hp-label">feeling good</span></div>
@@ -35,6 +36,7 @@
           </div>
           <div class="panel goal-panel"><div class="goal" id="goal"></div></div>
           <div class="orders" id="orders"></div>
+          <div class="panel quest-log" id="quest-log"></div>
           <div class="panel challenges" id="challenges"></div>
         </div>
         <div class="right">
@@ -48,18 +50,29 @@
             <div class="finds" id="finds"></div>
             <div class="streak" id="streak"></div>
           </div>
-          <button id="garage-btn" class="pill">🔧 Garage</button>
+          <button id="book-btn" class="pill">📒 Logbook</button>
         </div>
       </header>
 
       <div id="toast" class="toast"></div>
+      <div id="dialog" class="dialog hidden">
+        <div class="dialog-card">
+          <div class="dialog-who"><span class="dialog-face">🙂</span><b id="dlg-who"></b></div>
+          <p id="dlg-text"></p>
+          <div class="dialog-reward" id="dlg-reward"></div>
+          <div class="row">
+            <button id="dlg-no" class="start-btn ghost small">Not now</button>
+            <button id="dlg-yes" class="start-btn small">Sure!</button>
+          </div>
+        </div>
+      </div>
       <div id="badge" class="badge"></div>
 
       <footer class="bottom">
         <div class="panel keys" id="hint">
           <div class="keyrow"><kbd>W</kbd><span>pedal</span><kbd>S</kbd><span>brake</span><kbd>A</kbd><kbd>D</kbd><span>steer</span></div>
-          <div class="keyrow"><kbd>B</kbd><span>bell</span><kbd>G</kbd><span>garage</span><kbd>R</kbd><span>radio</span><kbd>H</kbd><span>hide</span><kbd>P</kbd><span>pause</span></div>
-          <div class="keytip">Slow down in the ring to pick up and deliver · rest at the café if bruised</div>
+          <div class="keyrow"><kbd>B</kbd><span>bell</span><kbd>L</kbd><span>logbook</span><kbd>R</kbd><span>radio</span><kbd>H</kbd><span>hide</span><kbd>P</kbd><span>pause</span></div>
+          <div class="keytip">Stop in a ring to pick up, deliver or talk · 🔧 upgrades at the bike workshop · 👕 style at the tailor</div>
         </div>
         <div class="radio glass" id="radio">
           <button id="radio-toggle" class="radio-btn" aria-label="Toggle radio">▶</button>
@@ -120,7 +133,7 @@
         <p id="complete-text"></p>
         <ul class="complete-list" id="complete-list"></ul>
         <div class="row">
-          <button id="complete-garage" class="start-btn ghost">🔧 Garage</button>
+          <button id="complete-garage" class="start-btn ghost">📒 Logbook</button>
           <button id="next-map" class="start-btn">Next town</button>
         </div>
       </div>
@@ -129,7 +142,7 @@
     <div id="garage" class="overlay-card hidden">
       <div class="garage">
         <div class="garage-head">
-          <h2>Garage</h2>
+          <h2 id="g-title">Garage</h2>
           <div class="wallet" id="g-wallet"></div>
           <button id="garage-close" class="close" aria-label="Close">✕</button>
         </div>

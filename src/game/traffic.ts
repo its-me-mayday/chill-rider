@@ -1,5 +1,6 @@
 import { T, TILE, type GameMap } from './map';
 import { rng } from './math';
+import { signal } from './lights';
 
 /**
  * Cars and other chill riders driving on the right through the road grid.
@@ -141,7 +142,7 @@ export class Traffic {
     }
   }
 
-  update(dt: number, px: number, py: number, pspeed: number, out: TrafficEvent[]) {
+  update(dt: number, px: number, py: number, pspeed: number, out: TrafficEvent[], time = 0) {
     for (const v of this.vehicles) {
       if (!v.active) continue;
       v.honk = Math.max(0, v.honk - dt);
@@ -161,6 +162,19 @@ export class Traffic {
         const ax = (o.x - v.x) * dx + (o.y - v.y) * dy;
         const lat = Math.abs((o.x - v.x) * -dy + (o.y - v.y) * dx);
         if (ax > 0 && ax < 14 && lat < 1.6) limit = Math.min(limit, Math.max(0, (ax - v.half - o.half - 1.5) * 1.1));
+      }
+      // ---- traffic lights: stop at the line on red (and on yellow if there's room)
+      for (const l of this.map.lights) {
+        const lat = dx !== 0 ? v.y : v.x;
+        const lo = dx !== 0 ? l.y0 : l.x0;
+        const hi = dx !== 0 ? l.y1 : l.x1;
+        if (lat < lo || lat > hi) continue;
+        const front = (dx !== 0 ? v.x : v.y) + (dx + dy) * v.half;
+        const edge = dx > 0 ? l.x0 : dx < 0 ? l.x1 : dy > 0 ? l.y0 : l.y1;
+        const dist = (edge - front) * (dx + dy) - 0.8;
+        if (dist < -0.5 || dist > 16) continue;
+        const sig = signal(l, time, dx !== 0 ? 'h' : 'v');
+        if (sig === 'red' || (sig === 'yellow' && dist > 2.5)) limit = Math.min(limit, Math.max(0, dist * 1.1));
       }
       const pax = (px - v.x) * dx + (py - v.y) * dy;
       const plat = Math.abs((px - v.x) * -dy + (py - v.y) * dx);

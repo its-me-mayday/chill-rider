@@ -1,6 +1,8 @@
 import { T, type GameMap } from '../game/map';
 import { css, mix } from '../game/math';
 import type { Orders } from '../game/orders';
+import { QUEST_COLOR, type Quests } from '../game/quests';
+import { isService } from '../game/themes';
 import type { Rider } from '../game/rider';
 import type { Target } from './renderer';
 
@@ -55,13 +57,50 @@ export class Minimap {
     }
   }
 
-  draw(r: Rider, orders: Orders, target: Target | null, time: number) {
+  draw(r: Rider, orders: Orders, target: Target | null, time: number, quests?: Quests) {
     if (!this.map) return;
     const { ctx, scale } = this;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     ctx.drawImage(this.base, 0, 0);
     const k = this.canvas.width / 150;
+    // services: bike workshop and clothes shop
+    ctx.font = `700 ${Math.round(9 * k)}px Outfit, system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (const b of this.map.buildings) {
+      if (b.kind !== 'shop' || !isService(b.shop)) continue;
+      const x = (b.x + b.w / 2) * scale;
+      const y = (b.y + b.h / 2) * scale;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(x, y, 6 * k, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = b.shop!.id === 'bikeshop' ? '#5a6f8a' : '#c97aa6';
+      ctx.fillText(b.shop!.id === 'bikeshop' ? '🔧' : '👕', x, y + k);
+    }
+    if (quests) {
+      const qc = `rgb(${QUEST_COLOR.join(',')})`;
+      for (const g of quests.givers) {
+        ctx.fillStyle = '#ffd23f';
+        ctx.beginPath();
+        ctx.arc(g.stopX * scale, g.stopY * scale, 4 * k, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#5a3550';
+        ctx.fillText('!', g.stopX * scale, g.stopY * scale + 0.5 * k);
+      }
+      for (const q of quests.active) {
+        const st = quests.current(q);
+        if (!st) continue;
+        ctx.fillStyle = qc;
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = k;
+        ctx.beginPath();
+        ctx.arc(st.x * scale, st.y * scale, 4 * k, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
 
     // shops with an order waiting blink softly
     for (const s of orders.shops) {

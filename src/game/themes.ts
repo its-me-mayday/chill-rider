@@ -88,7 +88,7 @@ export const THEMES: Theme[] = [
   },
 ];
 
-export type ShopId = 'bakery' | 'florist' | 'pizza' | 'records' | 'books' | 'cafe' | 'comics' | 'gelato';
+export type ShopId = 'bakery' | 'florist' | 'pizza' | 'records' | 'books' | 'cafe' | 'comics' | 'gelato' | 'bikeshop' | 'boutique';
 
 export interface ShopItem {
   name: string;
@@ -185,6 +185,20 @@ export const SHOPS: ShopType[] = [
     ],
   },
 ];
+
+/** Shops you visit for yourself rather than for orders. */
+export const SERVICES: ShopType[] = [
+  {
+    id: 'bikeshop', name: 'Officina Ruota', roof: hex('#5a6f8a'), awning: hex('#f4c063'), awning2: hex('#2e3a4f'),
+    hotWord: '', hours: [[8, 20]], items: [],
+  },
+  {
+    id: 'boutique', name: 'Sartoria Sciarpa', roof: hex('#c97aa6'), awning: hex('#ffd1dc'), awning2: hex('#7a3a5f'),
+    hotWord: '', hours: [[9, 21.5]], items: [],
+  },
+];
+
+export const isService = (s: ShopType | undefined) => !!s && (s.id === 'bikeshop' || s.id === 'boutique');
 
 export function isOpen(shop: ShopType, hour: number): boolean {
   return shop.hours.some(([o, c]) => (hour >= o && hour < c) || (hour + 24 >= o && hour + 24 < c));

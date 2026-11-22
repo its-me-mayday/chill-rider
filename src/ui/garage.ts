@@ -4,6 +4,9 @@ import {
 import { THEMES } from '../game/themes';
 
 type Tab = 'upgrades' | 'style' | 'album' | 'badges';
+export type GarageMode = 'workshop' | 'boutique' | 'book';
+const MODE_TABS: Record<GarageMode, Tab[]> = { workshop: ['upgrades'], boutique: ['style'], book: ['album', 'badges'] };
+const MODE_TITLE: Record<GarageMode, string> = { workshop: 'Officina Ruota', boutique: 'Sartoria Sciarpa', book: 'Logbook' };
 
 const $ = (id: string) => document.getElementById(id)!;
 
@@ -35,8 +38,11 @@ export class Garage {
     });
   }
 
-  open(tab?: Tab) {
-    if (tab) this.tab = tab;
+
+  open(mode: GarageMode) {
+    this.tab = MODE_TABS[mode][0];
+    $('g-title').textContent = MODE_TITLE[mode];
+    for (const b of $('g-tabs').querySelectorAll<HTMLElement>('button')) b.style.display = MODE_TABS[mode].includes(b.dataset.tab as Tab) ? '' : 'none';
     this.isOpen = true;
     this.el.classList.remove('hidden');
     this.render();

@@ -80,6 +80,8 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'garage', name: 'Tuned up', desc: 'Buy 5 upgrades', test: (p) => Object.values(p.upgrades).reduce((a, b) => a + b, 0) >= 5 },
   { id: 'style', name: 'Looking good', desc: 'Own 6 style items', test: (p) => p.owned.length >= 9 },
   { id: 'challenge', name: 'Overachiever', desc: 'Complete 10 town challenges', test: (p) => p.stats.challenges >= 10 },
+  { id: 'quest1', name: 'Good neighbour', desc: 'Finish a side quest', test: (p) => p.stats.quests >= 1 },
+  { id: 'quest10', name: 'Town hero', desc: 'Finish 10 side quests', test: (p) => p.stats.quests >= 10 },
   { id: 'secret1', name: 'Curious', desc: 'Discover a hidden secret', test: (p) => p.stats.secrets >= 1 },
   { id: 'secret12', name: 'Secret keeper', desc: 'Discover 12 hidden secrets', test: (p) => p.stats.secrets >= 12 },
   { id: 'stargazer', name: 'Starstruck', desc: 'Meet the stargazer at night', test: (p) => (p.secrets.stargazer ?? 0) >= 1 },
@@ -107,6 +109,8 @@ export interface Profile {
     perfectTowns: number;
     postcards: number;
     secrets: number;
+    quests: number;
+    redLights: number;
     vip: number;
     rush: number;
     night: number;
@@ -134,7 +138,7 @@ export function defaultProfile(): Profile {
     secrets: {},
     stats: {
       deliveries: 0, onTime: 0, meters: 0, bestStreak: 0, towns: 0, perfectTowns: 0, postcards: 0,
-      vip: 0, rush: 0, night: 0, rain: 0, bells: 0, challenges: 0, tipsEarned: 0, secrets: 0,
+      vip: 0, rush: 0, night: 0, rain: 0, bells: 0, challenges: 0, tipsEarned: 0, secrets: 0, quests: 0, redLights: 0,
     },
   };
 }

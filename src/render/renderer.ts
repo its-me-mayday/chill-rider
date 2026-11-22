@@ -11,6 +11,9 @@ import { drawRider, type Cargo, type RiderStyle } from './riderDraw';
 import { drawShop, type Painter } from './shops';
 import { isOpen } from '../game/themes';
 import type { Secret } from '../game/map';
+import { signal } from '../game/lights';
+import { QUEST_COLOR, type Quests } from '../game/quests';
+import { isService } from '../game/themes';
 
 interface Particle {
   kind: 'petal' | 'dust' | 'sparkle' | 'firefly' | 'leaf' | 'butterfly' | 'confetti';
@@ -52,6 +55,7 @@ export interface Scene {
   headlight: number;
   traffic: Traffic | null;
   secrets: (Secret & { got: boolean })[];
+  quests: Quests | null;
 }
 
 interface Floater { text: string; x: number; y: number; t: number; color: string; big: boolean }
@@ -206,11 +210,13 @@ export class Renderer {
     this.shakeY = (Math.random() - 0.5) * sh;
 
     const view = this.view();
+    this.services = map.buildings.filter((b) => b.kind === 'shop' && isService(b.shop));
     this.night = light.night;
     this.hour = light.hour;
     this.lastTime = time;
     this.drawTiles(map, view, time);
     this.drawStreetDetails(map, view);
+    this.drawStopLines(map, view);
     this.drawPotholes(map, view, sc.rain, time);
     this.updateTracks(r, dt);
     this.drawTracks();
@@ -219,6 +225,7 @@ export class Renderer {
     this.drawMarkers(orders, target, time);
     this.drawPostcards(sc.postcards, time, view);
     this.drawSecrets(sc.secrets, r, light, time, view);
+    if (sc.quests) this.drawQuestWorld(sc.quests, time, view);
     if (sc.critters) this.drawDucks(sc.critters, time);
     if (sc.critters) this.drawCats(sc.critters, time, view);
     this.drawRiderSprite(r, orders, time, sc.style);
@@ -230,12 +237,14 @@ export class Renderer {
     this.drawBuildings(map, view, orders, time);
     this.drawCustomers(dt, time);
     this.drawTrees(map, view, time);
+    this.drawTrafficLights(map, time, view);
     this.drawTosses(dt);
     this.drawParticles(light, time, true);
     this.drawCloudShadows(light, time);
     this.drawLighting(map, r, view, light, time, sc.headlight, sc.traffic);
     if (sc.rain) this.drawRain(time, dt, r);
     this.drawGuides(r, orders, target, time);
+    if (sc.quests) this.drawQuestGuides(sc.quests, r, time, !!orders?.carried.length);
     this.drawFloaters(dt);
     if (joy && joy.active) this.drawJoystick(joy);
     this.post();
@@ -436,6 +445,15 @@ export class Renderer {
   private drawMarkers(orders: Orders | null, target: Target | null, time: number) {
     const { ctx, ppm } = this;
     if (!orders) return;
+    for (const b of this.services) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+      ctx.lineWidth = Math.max(2, ppm * 0.16);
+      ctx.setLineDash([ppm * 0.3, ppm * 0.3]);
+      ctx.beginPath();
+      ctx.arc(this.sx(b.stopX), this.sy(b.stopY), ppm * 2.0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
     for (const s of orders.shops) {
       const waiting = !!orders.waiting.get(s.id);
       ctx.strokeStyle = css(s.shop!.awning, waiting ? 0.95 : 0.3);
@@ -768,6 +786,7 @@ export class Renderer {
   }
 
   private night = 0;
+  private services: Building[] = [];
   private lastTime = 0;
 
   private painter(): Painter {
@@ -1074,6 +1093,13 @@ export class Renderer {
       }
       glow(r.x + Math.cos(r.heading) * 5 * headlight, r.y + Math.sin(r.heading) * 5 * headlight, 6 * headlight, 0.5 * n, '255,246,220');
       glow(r.x, r.y, 4, 0.4 * n, '255,240,220');
+      for (const l of map.lights) {
+        if (!this.inView(l.x0, l.y0, 12, v)) continue;
+        for (const [cx, cy, ax] of this.lightHeads(l)) {
+          const sg = signal(l, time, ax);
+          glow(cx, cy, 1.6, 0.5 * n, sg === 'green' ? '120,255,160' : sg === 'yellow' ? '255,210,80' : '255,80,80');
+        }
+      }
       if (traffic) {
         for (const c of traffic.vehicles) {
           if (!c.active || !this.inView(c.x, c.y, 12, v)) continue;
@@ -1798,6 +1824,164 @@ export class Renderer {
       ctx.fillRect(-r * 0.18, -r, r * 0.36, r * 2);
       ctx.restore();
     }
+  }
+
+  // ------------------------------------------------------- traffic lights
+  /** light heads: one per approach, on the right-hand side, with the axis it controls */
+  private lightHeads(l: { x0: number; y0: number; x1: number; y1: number }): [number, number, 'h' | 'v'][] {
+    const o = 0.7;
+    return [
+      [l.x0 - o, l.y1 + o, 'h'], // eastbound traffic
+      [l.x1 + o, l.y0 - o, 'h'], // westbound
+      [l.x0 - o, l.y0 - o, 'v'], // southbound
+      [l.x1 + o, l.y1 + o, 'v'], // northbound
+    ];
+  }
+
+  private drawStopLines(map: GameMap, v: View) {
+    const { ctx, ppm } = this;
+    ctx.fillStyle = 'rgba(255,250,240,0.85)';
+    const w = Math.max(2, ppm * 0.4);
+    for (const l of map.lights) {
+      if (!this.inView((l.x0 + l.x1) / 2, (l.y0 + l.y1) / 2, 12, v)) continue;
+      const mx = (l.x0 + l.x1) / 2;
+      const my = (l.y0 + l.y1) / 2;
+      // only the lane that drives into the junction gets a line
+      ctx.fillRect(this.sx(l.x0 - 0.6), this.sy(my), w, (l.y1 - my) * ppm);
+      ctx.fillRect(this.sx(l.x1 + 0.6) - w, this.sy(l.y0), w, (my - l.y0) * ppm);
+      ctx.fillRect(this.sx(l.x0), this.sy(l.y0 - 0.6), (mx - l.x0) * ppm, w);
+      ctx.fillRect(this.sx(mx), this.sy(l.y1 + 0.6) - w, (l.x1 - mx) * ppm, w);
+    }
+  }
+
+  private drawTrafficLights(map: GameMap, time: number, v: View) {
+    const { ctx, ppm } = this;
+    for (const l of map.lights) {
+      if (!this.inView((l.x0 + l.x1) / 2, (l.y0 + l.y1) / 2, 12, v)) continue;
+      for (const [x, y, ax] of this.lightHeads(l)) {
+        const sg = signal(l, time, ax);
+        const px = this.sx(x);
+        const py = this.sy(y);
+        ctx.fillStyle = SHADOW;
+        ctx.beginPath();
+        ctx.arc(px + ppm * 0.25, py + ppm * 0.2, ppm * 0.4, 0, Math.PI * 2);
+        ctx.fill();
+        // housing with three lamps, laid out across the approach
+        const vertical = ax === 'h';
+        const L = ppm * 1.25;
+        const W = ppm * 0.5;
+        ctx.fillStyle = '#2e2a36';
+        ctx.beginPath();
+        if (vertical) ctx.roundRect(px - W / 2, py - L / 2, W, L, W * 0.4);
+        else ctx.roundRect(px - L / 2, py - W / 2, L, W, W * 0.4);
+        ctx.fill();
+        const cols: ['red' | 'yellow' | 'green', string, string][] = [['red', '#ff4b4b', '#5a2a2a'], ['yellow', '#ffd23f', '#5a4a2a'], ['green', '#5cf08a', '#2a4a34']];
+        cols.forEach(([name, on, off], i) => {
+          const k = (i - 1) * L * 0.32;
+          const cx = vertical ? px : px + k;
+          const cy = vertical ? py + k : py;
+          const lit = name === sg;
+          ctx.fillStyle = lit ? on : off;
+          ctx.beginPath();
+          ctx.arc(cx, cy, Math.max(1.5, W * 0.3), 0, Math.PI * 2);
+          ctx.fill();
+          if (lit) {
+            const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, ppm * 0.9);
+            g.addColorStop(0, on + '88');
+            g.addColorStop(1, on + '00');
+            ctx.fillStyle = g;
+            ctx.fillRect(cx - ppm * 0.9, cy - ppm * 0.9, ppm * 1.8, ppm * 1.8);
+          }
+        });
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------- quests
+  private drawQuestWorld(q: Quests, time: number, v: View) {
+    const { ctx, ppm } = this;
+    const qc = QUEST_COLOR.join(',');
+    // townsfolk waiting at their door with something to ask
+    for (const giver of q.givers) {
+      if (!this.inView(giver.stopX, giver.stopY, 3, v)) continue;
+      const fx = giver.doorX + giver.nx * 1.2;
+      const fy = giver.doorY + giver.ny * 1.2;
+      this.person(fx, fy, Math.atan2(giver.ny, giver.nx), 0, '#c9a3ff', '#4a3428', Math.sin(time * 1.2 + giver.id) > 0.4 ? time : 0);
+      const bob = Math.sin(time * 3 + giver.id) * ppm * 0.2;
+      const bx = this.sx(fx);
+      const by = this.sy(fy) - ppm * 1.6 + bob;
+      const r = Math.max(9, ppm * 0.55);
+      ctx.fillStyle = '#ffd23f';
+      ctx.strokeStyle = '#5a3550';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(bx, by, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#5a3550';
+      ctx.font = `800 ${Math.round(r * 1.3)}px Outfit, system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('!', bx, by + 1);
+      // talk ring
+      ctx.strokeStyle = `rgba(${qc},0.8)`;
+      ctx.setLineDash([ppm * 0.4, ppm * 0.3]);
+      ctx.lineDashOffset = -time * ppm;
+      ctx.beginPath();
+      ctx.arc(this.sx(giver.stopX), this.sy(giver.stopY), ppm * 2.0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    // active quest objectives
+    for (const quest of q.active) {
+      quest.steps.forEach((st, i) => {
+        if (i < quest.step) return;
+        if (!this.inView(st.x, st.y, 4, v)) return;
+        const cur = i === quest.step;
+        const x = this.sx(st.x);
+        const y = this.sy(st.y);
+        if (st.ring) {
+          // checkpoint arch
+          const R = ppm * 3.2;
+          ctx.strokeStyle = cur ? `rgba(${qc},0.95)` : `rgba(${qc},0.3)`;
+          ctx.lineWidth = Math.max(3, ppm * (cur ? 0.35 : 0.2));
+          ctx.beginPath();
+          ctx.arc(x, y, R * (cur ? 1 + 0.06 * Math.sin(time * 6) : 1), 0, Math.PI * 2);
+          ctx.stroke();
+          if (cur) {
+            ctx.fillStyle = `rgba(${qc},0.15)`;
+            ctx.fill();
+            ctx.fillStyle = '#fff';
+            ctx.font = `700 ${Math.round(ppm * 0.9)}px Outfit, system-ui, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(String(i + 1), x, y);
+          }
+          return;
+        }
+        if (!cur) return;
+        const g = ctx.createRadialGradient(x, y, 0, x, y, ppm * 3);
+        g.addColorStop(0, `rgba(${qc},${0.55 + 0.2 * Math.sin(time * 4)})`);
+        g.addColorStop(1, `rgba(${qc},0)`);
+        ctx.fillStyle = g;
+        ctx.fillRect(x - ppm * 3, y - ppm * 3, ppm * 6, ppm * 6);
+        if (st.icon && quest.kind === 'lost' && i === 0) {
+          // the lost item lying in the grass
+          ctx.font = `${Math.round(ppm * 1.1)}px system-ui, sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(st.icon, x, y + Math.sin(time * 3) * ppm * 0.1);
+        }
+      });
+    }
+  }
+
+  private drawQuestGuides(q: Quests, r: Rider, time: number, hasOrders: boolean) {
+    const col = `rgb(${QUEST_COLOR.join(',')})`;
+    q.active.forEach((quest, i) => {
+      const st = q.current(quest);
+      if (st) this.guide(r, st.x, st.y, col, !hasOrders && i === 0, time, false, 4 + i);
+    });
   }
 
   // ------------------------------------------------------------ secrets

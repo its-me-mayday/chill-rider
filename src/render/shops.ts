@@ -455,6 +455,69 @@ function furniture(p: Painter, b: Building, time: number, reach: number) {
       plant(side, V, [124, 191, 134]);
       break;
     }
+    case 'bikeshop': {
+      // bikes parked in a rack, a spare wheel and a pump
+      for (let k = 0; k < 3; k++) {
+        const [bx, by] = front(b, -side + k * 0.9, V);
+        ctx.save();
+        ctx.translate(p.sx(bx), p.sy(by));
+        ctx.rotate(Math.atan2(b.ny, b.nx));
+        ctx.fillStyle = '#2a2233';
+        ctx.fillRect(-ppm * 0.75, -ppm * 0.05, ppm * 0.5, ppm * 0.1);
+        ctx.fillRect(ppm * 0.25, -ppm * 0.05, ppm * 0.5, ppm * 0.1);
+        ctx.strokeStyle = ['#7fc4e6', '#e4677b', '#f4c063'][k];
+        ctx.lineWidth = Math.max(1.5, ppm * 0.09);
+        ctx.beginPath();
+        ctx.moveTo(-ppm * 0.5, 0);
+        ctx.lineTo(ppm * 0.5, 0);
+        ctx.stroke();
+        ctx.restore();
+      }
+      const [wx, wy] = front(b, side, V);
+      ctx.strokeStyle = '#2a2233';
+      ctx.lineWidth = Math.max(2, ppm * 0.12);
+      ctx.beginPath();
+      ctx.arc(p.sx(wx), p.sy(wy), ppm * 0.42, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = '#d9d2e6';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let k = 0; k < 6; k++) {
+        const a = (k / 6) * Math.PI * 2 + time * 0.5;
+        ctx.moveTo(p.sx(wx), p.sy(wy));
+        ctx.lineTo(p.sx(wx) + Math.cos(a) * ppm * 0.36, p.sy(wy) + Math.sin(a) * ppm * 0.36);
+      }
+      ctx.stroke();
+      break;
+    }
+    case 'boutique': {
+      // mannequins wearing scarves and a clothes rail
+      const scarves = ['#ff8f8f', '#4fb3a6', '#ffe08a'];
+      for (let k = 0; k < 2; k++) {
+        const [mx, my] = front(b, -side + k * 1.1, V);
+        ctx.fillStyle = '#f3e4dc';
+        ctx.beginPath();
+        ctx.ellipse(p.sx(mx), p.sy(my), ppm * 0.28, ppm * 0.4, Math.atan2(b.ny, b.nx), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = scarves[k];
+        ctx.beginPath();
+        ctx.arc(p.sx(mx), p.sy(my), ppm * 0.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      const [rx, ry] = front(b, side - 0.3, V);
+      ctx.save();
+      ctx.translate(p.sx(rx), p.sy(ry));
+      ctx.rotate(Math.atan2(b.ny, b.nx) + Math.PI / 2);
+      ctx.fillStyle = '#8a7a86';
+      ctx.fillRect(-ppm * 0.8, -ppm * 0.05, ppm * 1.6, ppm * 0.1);
+      const cl = ['#c9b3f2', '#ffd1dc', '#7fc4e6', '#f4c063', '#9fe3a8'];
+      for (let k = 0; k < 5; k++) {
+        ctx.fillStyle = cl[k];
+        ctx.fillRect(-ppm * 0.7 + k * ppm * 0.3, -ppm * 0.3, ppm * 0.22, ppm * 0.6);
+      }
+      ctx.restore();
+      break;
+    }
     case 'books': {
       const [cx, cy] = front(b, -side + 0.3, V);
       ctx.save();
@@ -613,6 +676,35 @@ export function drawIcon(ctx: CanvasRenderingContext2D, id: string, x: number, y
       ctx.beginPath();
       ctx.arc(0, 0, r * 0.07, 0, Math.PI * 2);
       ctx.fill();
+      break;
+    }
+    case 'bikeshop': {
+      // wrench
+      ctx.rotate(-0.7);
+      ctx.fillStyle = '#5a6f8a';
+      ctx.fillRect(-r * 0.15, -r * 0.55, r * 0.3, r * 1.3);
+      ctx.beginPath();
+      ctx.arc(0, -r * 0.6, r * 0.38, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,250,240,0.96)';
+      ctx.fillRect(-r * 0.12, -r * 1.0, r * 0.24, r * 0.4);
+      break;
+    }
+    case 'boutique': {
+      // hanger with a scarf
+      ctx.strokeStyle = '#7a3a5f';
+      ctx.lineWidth = r * 0.12;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.arc(0, -r * 0.6, r * 0.18, Math.PI, Math.PI * 2.4);
+      ctx.moveTo(0, -r * 0.42);
+      ctx.lineTo(-r * 0.8, r * 0.2);
+      ctx.lineTo(r * 0.8, r * 0.2);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.fillStyle = '#ff8f8f';
+      ctx.fillRect(-r * 0.3, r * 0.2, r * 0.3, r * 0.7);
+      ctx.fillRect(r * 0.05, r * 0.2, r * 0.3, r * 0.5);
       break;
     }
     case 'books': {

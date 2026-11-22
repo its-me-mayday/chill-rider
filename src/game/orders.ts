@@ -1,7 +1,7 @@
 import type { Building, GameMap } from './map';
 import { rng } from './math';
 import type { BikeStats } from './profile';
-import { isOpen } from './themes';
+import { isOpen, isService } from './themes';
 import type { BumpEvent, Rider } from './rider';
 
 export type OrderKind = 'normal' | 'rush' | 'vip';
@@ -83,11 +83,14 @@ export class Orders {
     this.goal = 8 + Math.min(4, Math.floor(opt.town / 2));
     this.capacity = opt.stats.capacity;
     this.timeMul = Math.max(0.68, 1 - opt.town * 0.035);
-    for (const b of map.buildings) if (b.kind === 'shop') this.waiting.set(b.id, this.make(b));
+    for (const b of map.buildings) if (b.kind === 'shop' && !isService(b.shop)) this.waiting.set(b.id, this.make(b));
   }
 
+  /** houses that customers must not be sent to (quest givers) */
+  exclude = new Set<number>();
+
   get shops() {
-    return this.map.buildings.filter((b) => b.kind === 'shop');
+    return this.map.buildings.filter((b) => b.kind === 'shop' && !isService(b.shop));
   }
 
   get streakMul() {
@@ -256,7 +259,7 @@ export class Orders {
   private make(shop: Building): Order {
     const R = this.R;
     const houses = this.map.buildings.filter(
-      (b) => b.kind === 'house' && Math.hypot(b.x - shop.x, b.y - shop.y) > 35 && !this.isBusy(b),
+      (b) => b.kind === 'house' && Math.hypot(b.x - shop.x, b.y - shop.y) > 35 && !this.isBusy(b) && !this.exclude.has(b.id),
     );
     const pool = houses.length ? houses : this.map.buildings.filter((b) => b.kind === 'house');
     const house = R.pick(pool);

@@ -160,6 +160,32 @@ canvas#game { display: block; position: fixed; inset: 0; }
 .goal-mini { white-space: nowrap; display: none; font-size: 0.7rem; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: rgba(255,255,255,0.18); text-shadow: none; }
 .orders .more { display: none; }
 
+/* ---------- quests & dialog ---------- */
+.quest-log { padding: 7px 12px; display: flex; flex-direction: column; gap: 4px; border-color: rgba(201, 163, 255, 0.55); }
+.quest-log:empty { display: none; }
+.ql { font-size: 0.74rem; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.ql b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ql span { color: var(--ink-soft); grid-column: 2 / 4; font-size: 0.68rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ql em { font-style: normal; font-weight: 600; color: #e0ccff; font-variant-numeric: tabular-nums; }
+.ql i { font-style: normal; grid-row: span 2; }
+.dialog {
+  position: fixed; left: 50%; bottom: calc(var(--bot) + 120px); transform: translateX(-50%);
+  width: min(440px, 92vw); pointer-events: auto; z-index: 6; transition: opacity 0.3s, transform 0.3s;
+}
+.dialog.hidden { opacity: 0; transform: translate(-50%, 16px); pointer-events: none; }
+.dialog-card {
+  background: rgba(255, 249, 240, 0.97); color: #5a3550; text-shadow: none; border-radius: 20px;
+  padding: 14px 18px 16px; box-shadow: 0 18px 50px rgba(40, 10, 40, 0.35); border: 2px solid #c9a3ff;
+}
+.dialog-who { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; }
+.dialog-face { font-size: 1.4rem; }
+.dialog-card p { margin: 8px 0; font-size: 0.95rem; line-height: 1.45; }
+.dialog-reward { font-size: 0.78rem; color: #9a7a8c; margin-bottom: 10px; }
+.start-btn.small { padding: 10px 18px; font-size: 0.8rem; }
+.dialog .start-btn.ghost { background: #f3e4dc; color: #5a3550; }
+.cash-mini { display: none; white-space: nowrap; font-size: 0.7rem; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: rgba(255, 241, 184, 0.9); color: #6a3a55; text-shadow: none; }
+.player { cursor: pointer; pointer-events: auto; }
+
 /* ---------- toast ---------- */
 .toast {
   position: fixed;
@@ -290,8 +316,8 @@ kbd {
   .player { gap: 8px; padding: 6px 10px 6px 6px; }
   .rider-card { width: 56px; height: 56px; }
   .portrait { width: 52px; height: 52px; }
-  .title { font-size: 0.98rem; }
-  .title-row { gap: 5px; }
+  .title { display: none; }
+  .title-row { gap: 5px; flex-wrap: wrap; }
   .place #phase, .place .sep { display: none; }
   .meter i { max-width: 70px; }
   .meter-label { display: none; }
@@ -301,6 +327,12 @@ kbd {
   .challenges { display: none; }
   .goal-panel { display: none; }
   .goal-mini { display: inline-block; }
+  .cash-mini { display: inline-block; }
+  .purse, #book-btn { display: none; }
+  .quest-log { padding: 5px 10px; }
+  .quest-log .ql:not(:first-child) { display: none; }
+  .ql span { display: none; }
+  .dialog { bottom: calc(var(--bot) + 190px); }
   .orders { pointer-events: auto; gap: 4px; }
   .order.target { padding: 6px 10px 6px 8px; box-shadow: 0 0 0 2px color-mix(in srgb, var(--c, #fff1b8) 25%, transparent); }
   .order.target .addr { font-size: 0.86rem; }
@@ -347,6 +379,10 @@ kbd {
   .order.small .sw { grid-row: auto; }
   .goal-panel { display: none; }
   .goal-mini { display: inline-block; }
+  .cash-mini { display: inline-block; }
+  .purse, #book-btn { display: none; }
+  .quest-log .ql:not(:first-child), .ql span { display: none; }
+  .dialog { bottom: calc(var(--bot) + 8px); width: min(420px, 50vw); }
   .orders { pointer-events: auto; }
   .orders:not(.open) .order.small { display: none; }
   .orders .more { display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; font-size: 0.66rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--glass); border: 1px solid var(--glass-border); }

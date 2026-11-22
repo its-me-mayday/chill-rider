@@ -1,6 +1,7 @@
 import type { Track } from '../audio/radio';
 import type { Challenge } from '../game/challenges';
 import type { Orders } from '../game/orders';
+import type { Quests } from '../game/quests';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -35,6 +36,8 @@ export class Hud {
     gaugeState: $('gauge-state'),
     keys: $('hint'),
     goalMini: $('goal-mini'),
+    cashMini: $('cash-mini'),
+    questLog: $('quest-log'),
     finds: $('finds'),
     challenges: $('challenges'),
     streak: $('streak'),
@@ -97,6 +100,8 @@ export class Hud {
       const dots = [...o.carried].slice(1).map((x) => `<i style="background:rgb(${x.color.join(',')})"></i>`).join('');
       rows += `<span class="more">${dots} +${o.carried.length - 1} more ▾</span>`;
     }
+    const cash = `${s.tips.toFixed(0)} €`;
+    if (this.el.cashMini.textContent !== cash) this.el.cashMini.textContent = cash;
     const mini = `${o.delivered}/${o.goal}`;
     if (this.el.goalMini.textContent !== mini) this.el.goalMini.textContent = mini;
     const tips = `${s.tips.toFixed(2)} € <small>tips</small>`;
@@ -130,6 +135,23 @@ export class Hud {
     if (html !== this.lastChallenges) {
       this.lastChallenges = html;
       this.el.challenges.innerHTML = html;
+    }
+  }
+
+  private lastQuests = '';
+
+  setQuests(q: Quests, time: number) {
+    const html = q.active
+      .map((quest) => {
+        const st = q.current(quest);
+        const left = quest.limit > 0 ? Math.max(0, quest.limit - (time - quest.startedAt)) : -1;
+        const t = left >= 0 ? `${Math.floor(left / 60)}:${String(Math.ceil(left % 60) % 60).padStart(2, '0')}` : '';
+        return `<div class="ql"><i>${st?.icon ?? '📜'}</i><b>${esc(quest.title)}</b><em>${t}</em><span>${esc(st?.text ?? '')}</span></div>`;
+      })
+      .join('');
+    if (html !== this.lastQuests) {
+      this.lastQuests = html;
+      this.el.questLog.innerHTML = html;
     }
   }
 

@@ -15,7 +15,10 @@ import { THEMES } from './game/themes';
 import { Traffic, type TrafficEvent } from './game/traffic';
 import { Minimap } from './render/minimap';
 import { Renderer } from './render/renderer';
-import { Garage } from './ui/garage';
+import { Garage, type GarageMode } from './ui/garage';
+import { Quests, type Quest, type QuestEvent } from './game/quests';
+import { signal } from './game/lights';
+import { isService } from './game/themes';
 import { Hud } from './ui/hud';
 import { Portrait } from './ui/portrait';
 import { DayClock } from './ui/clock';
@@ -49,6 +52,7 @@ let map: GameMap;
 let orders: Orders;
 let critters: Critters;
 let traffic: Traffic;
+let quests: Quests;
 let challenges: Challenge[] = [];
 let postcards: { x: number; y: number; got: boolean }[] = [];
 let secrets: (Secret & { got: boolean })[] = [];
@@ -74,6 +78,8 @@ function loadMap() {
   rain = profile.townIndex > 0 && Math.random() < 0.3;
   const st = bikeStats(profile);
   orders = new Orders(map, { level: profile.level, town: profile.stats.towns, stats: st, rain });
+  quests = new Quests(map, new Set());
+  orders.exclude = new Set(quests.list.map((q) => q.giver.id));
   critters = new Critters(map, 8 + Math.min(10, profile.level));
   const woods = theme.id === 'woods';
   traffic = new Traffic(map, (woods ? 2 : 4) + Math.min(5, profile.stats.towns), 4 + Math.min(4, profile.level), map.spawn);
@@ -130,7 +136,9 @@ input.onToggle = (what) => {
   }
 };
 window.addEventListener('keydown', (e) => {
-  if (e.code === 'KeyG' && started) openGarage();
+  if ((e.code === 'KeyL' || e.code === 'KeyG') && started && !dialogQuest) openGarage('book');
+  if (dialogQuest && (e.code === 'Enter' || e.code === 'KeyY')) answerDialog(true);
+  if (dialogQuest && (e.code === 'Escape' || e.code === 'KeyN')) answerDialog(false);
 });
 
 document.querySelectorAll<HTMLElement>('[data-act]').forEach((el) => input.bindButton(el, el.dataset.act as 'brake' | 'pedal'));
@@ -154,7 +162,7 @@ const startEl = document.getElementById('start')!;
 const pauseEl = document.getElementById('pause')!;
 const completeEl = document.getElementById('complete')!;
 const touchHint = document.getElementById('touch-hint')!;
-const garageBtn = document.getElementById('garage-btn')!;
+const bookBtn = document.getElementById('book-btn')!;
 const pedalBtn = document.querySelector<HTMLElement>('.tbtn.pedal')!;
 
 document.getElementById('start-profile')!.textContent =
@@ -179,11 +187,11 @@ function setPaused(p: boolean) {
 }
 
 let pausedBeforeGarage = false;
-function openGarage() {
+function openGarage(mode: GarageMode) {
   if (garage.isOpen) return;
   pausedBeforeGarage = paused;
   paused = true;
-  garage.open();
+  garage.open(mode);
 }
 garage.onClose = () => {
   paused = pausedBeforeGarage || !completeEl.classList.contains('hidden');
@@ -194,8 +202,121 @@ garage.onBuy = () => {
   save();
   audio.pop();
 };
-garageBtn.addEventListener('click', () => started && openGarage());
-document.getElementById('complete-garage')!.addEventListener('click', () => openGarage());
+bookBtn.addEventListener('click', () => started && openGarage('book'));
+document.getElementById('rider-card')!.parentElement!.addEventListener('click', () => started && !paused && openGarage('book'));
+document.getElementById('complete-garage')!.addEventListener('click', () => openGarage('book'));
+
+// ---- quest dialog
+const dialogEl = document.getElementById('dialog')!;
+let dialogQuest: Quest | null = null;
+function showDialog(q: Quest) {
+  dialogQuest = q;
+  document.getElementById('dlg-who')!.textContent = q.name;
+  document.getElementById('dlg-text')!.textContent = q.intro;
+  const limit = q.limit ? ` · ⏱ ${q.limit}s` : '';
+  document.getElementById('dlg-reward')!.textContent = `${q.title} · reward ${q.reward} € + ${q.xp} xp${limit}`;
+  dialogEl.classList.remove('hidden');
+  paused = true;
+}
+function answerDialog(yes: boolean) {
+  const q = dialogQuest;
+  if (!q) return;
+  dialogQuest = null;
+  dialogEl.classList.add('hidden');
+  paused = false;
+  if (!yes) {
+    hud.toast('Maybe later', `${q.name} will wait at the door`);
+    return;
+  }
+  quests.accept(q, time);
+  audio.pop();
+  hud.toast(q.title, q.steps[0].text, 3200);
+}
+document.getElementById('dlg-yes')!.addEventListener('click', () => answerDialog(true));
+document.getElementById('dlg-no')!.addEventListener('click', () => answerDialog(false));
+
+function handleQuest(ev: QuestEvent) {
+  const q = ev.quest;
+  switch (ev.type) {
+    case 'offer':
+      showDialog(q);
+      break;
+    case 'step': {
+      const st = q.steps[q.step];
+      const prev = q.steps[q.step - 1];
+      if (prev.ring) audio.pop();
+      else audio.collect();
+      renderer.burst('sparkle', prev.x, prev.y, 12);
+      hud.toast(prev.ring ? `Checkpoint ${q.step}!` : 'Got it!', st.text, 2600);
+      break;
+    }
+    case 'done': {
+      profile.wallet = Math.round((profile.wallet + q.reward) * 100) / 100;
+      profile.stats.quests++;
+      const last = q.steps[q.steps.length - 1];
+      renderer.confetti(last.x, last.y);
+      renderer.floatText(last.x, last.y, `+${q.reward} €`, '#e0ccff', true);
+      hud.badge('Quest complete!', q.thanks || `${q.title} · +${q.reward} €`, '📜');
+      audio.fanfare();
+      gainXp(q.xp);
+      checkBadges();
+      save();
+      break;
+    }
+    case 'failed':
+      hud.toast('Out of time!', `${q.name} says you can try again — stop by the door`, 3200);
+      break;
+    case 'closed':
+      hud.toast(`${ev.shop.shop!.name} is closed`, 'come back when it opens');
+      break;
+  }
+}
+
+// ---- services: bike workshop and tailor
+const serviceNear = new Set<number>();
+let upgradeHinted = false;
+function visitServices(hour: number) {
+  for (const b of map.buildings) {
+    if (b.kind !== 'shop' || !isService(b.shop)) continue;
+    const d = Math.hypot(b.stopX - rider.x, b.stopY - rider.y);
+    if (d > 6) serviceNear.delete(b.id);
+    if (d > 3.2 || rider.speed > 1.4 || serviceNear.has(b.id)) continue;
+    serviceNear.add(b.id);
+    const open = b.shop!.hours.some(([o, c]) => (hour >= o && hour < c) || (hour + 24 >= o && hour + 24 < c));
+    if (!open) {
+      hud.toast(`${b.shop!.name} is closed`, `open ${b.shop!.hours.map(([o, c]) => `${o}–${c}`).join(', ')}`);
+      continue;
+    }
+    openGarage(b.shop!.id === 'bikeshop' ? 'workshop' : 'boutique');
+  }
+  if (!upgradeHinted && garage.hasAffordable()) {
+    upgradeHinted = true;
+    hud.toast('You can afford an upgrade', 'ride to Officina Ruota 🔧 (see the minimap)', 3200);
+  }
+}
+
+// ---- red lights
+const lightInside = new Set<number>();
+let redCooldown = 0;
+function checkRedLights() {
+  redCooldown = Math.max(0, redCooldown - 1 / 60);
+  map.lights.forEach((l, i) => {
+    const inside = rider.x > l.x0 && rider.x < l.x1 && rider.y > l.y0 && rider.y < l.y1;
+    const was = lightInside.has(i);
+    if (inside && !was) {
+      lightInside.add(i);
+      const axis = Math.abs(Math.cos(rider.heading)) > Math.abs(Math.sin(rider.heading)) ? 'h' : 'v';
+      if (signal(l, time, axis) === 'red' && rider.speed > 2.5 && redCooldown <= 0) {
+        redCooldown = 4;
+        profile.stats.redLights++;
+        profile.wallet = Math.max(0, Math.round((profile.wallet - 1) * 100) / 100);
+        hud.toast('🚦 Red light!', 'the vigile saw you · -1 € fine', 2600);
+        renderer.floatText(rider.x, rider.y, '-1 €', '#ff9a9a');
+        reset(challenges, 'nobump');
+      }
+    } else if (!inside && was) lightInside.delete(i);
+  });
+}
 
 document.getElementById('start-btn')!.addEventListener('click', () => void start());
 document.getElementById('resume-btn')!.addEventListener('click', () => setPaused(false));
@@ -205,6 +326,9 @@ document.getElementById('next-map')!.addEventListener('click', () => {
   save();
   loadMap();
   shopOpen.clear();
+  serviceNear.clear();
+  lightInside.clear();
+  upgradeHinted = false;
   paused = false;
   hud.toast(map.theme.name, rain ? 'a rainy day — tips are better' : 'new town, new shops', 2800);
 });
@@ -442,6 +566,7 @@ let saveAcc = 0;
 const bumps: BumpEvent[] = [];
 const events: OrderEvent[] = [];
 const tEvents: TrafficEvent[] = [];
+const qEvents: QuestEvent[] = [];
 const GREETINGS = ['ciao!', 'nice basket!', 'chill ride!', 'buona giornata!', 'love the scarf!', 'see you around!'];
 
 function handleTraffic(ev: TrafficEvent) {
@@ -495,7 +620,7 @@ function frame(now: number) {
     const nightNow = hourNow < 5.5 || hourNow >= 21.5;
     traffic.setDensity(busy, nightNow ? 0.25 : 0.55 + busy * 0.45, rider.x, rider.y);
     critters.setDensity(nightNow ? 0.2 : 0.5 + busy * 0.5, rider.x, rider.y);
-    traffic.update(dt, rider.x, rider.y, rider.speed, tEvents);
+    traffic.update(dt, rider.x, rider.y, rider.speed, tEvents, time);
     for (const m of traffic.movers()) movers.push({ ...m, onHit: () => (m.v.honk = 4) });
   }
   const odo = rider.odometer;
@@ -545,6 +670,11 @@ function frame(now: number) {
     for (const ev of tEvents) handleTraffic(ev);
     collectPostcards();
     discoverSecrets(light.night);
+    quests.update(rider.x, rider.y, rider.speed, time, light.hour, qEvents);
+    for (const ev of qEvents) handleQuest(ev);
+    qEvents.length = 0;
+    visitServices(light.hour);
+    checkRedLights();
   }
   bumps.length = 0;
   events.length = 0;
@@ -564,6 +694,7 @@ function frame(now: number) {
     headlight: rider.stats.light,
     traffic,
     secrets,
+    quests: started ? quests : null,
   });
   dayClock.draw(light.hour, light.night);
 
@@ -589,8 +720,8 @@ function frame(now: number) {
     hud.setFinds(postcards.filter((p) => p.got).length, secrets.filter((x) => x.got).length, secrets.length);
     hud.setStreak(orders.streak, orders.streakMul);
     announceShops(light.hour);
-    garageBtn.classList.toggle('has-new', garage.hasAffordable());
-    minimap.draw(rider, orders, target, time);
+    hud.setQuests(quests, time);
+    minimap.draw(rider, orders, target, time, quests);
   }
   saveAcc += dt;
   if (saveAcc > 8) {
@@ -624,6 +755,9 @@ requestAnimationFrame(frame);
   },
   get secrets() {
     return secrets;
+  },
+  get quests() {
+    return quests;
   },
   warp: (s: number) => (time += s),
   next: () => {

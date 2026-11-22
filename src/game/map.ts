@@ -1,5 +1,6 @@
 import { rng } from './math';
-import { SHOPS, type ShopType, type Theme } from './themes';
+import { makeLight, type TrafficLight } from './lights';
+import { SERVICES, SHOPS, type ShopType, type Theme } from './themes';
 
 /** World units are meters, x → right, y → down. The map is a grid of 4 m tiles. */
 export const TILE = 4;
@@ -103,6 +104,8 @@ export interface GameMap {
   catSpots: Spot[];
   /** hidden secrets to discover */
   secrets: Secret[];
+  /** junctions controlled by traffic lights */
+  lights: TrafficLight[];
   /** spatial hash of tree indices, 8 m cells */
   treeGrid: Map<number, number[]>;
 }
@@ -474,6 +477,23 @@ export function generateMap(theme: Theme, seed: number): GameMap {
     if (!best) break;
     chosen.push(best);
   }
+  // a bike workshop and a clothes shop, far from the other shops if possible
+  for (const svc of SERVICES) {
+    let best: Building | null = null;
+    let bestD = -1;
+    for (const h of houses) {
+      if (chosen.includes(h)) continue;
+      const d = Math.min(...chosen.map((c) => Math.hypot(c.x - h.x, c.y - h.y)));
+      if (d > bestD) {
+        bestD = d;
+        best = h;
+      }
+    }
+    if (best) {
+      chosen.push(best);
+      types.splice(chosen.length - 1, 0, svc);
+    }
+  }
   chosen.forEach((b, k) => {
     b.kind = 'shop';
     b.shop = types[k % types.length];
@@ -514,6 +534,14 @@ export function generateMap(theme: Theme, seed: number): GameMap {
     const t = trees[k];
     if (chosen.some((b) => t.x > b.x - t.r * 0.6 && t.x < b.x + b.w + t.r * 0.6 && t.y > b.y - t.r * 0.6 && t.y < b.y + b.h + t.r * 0.6)) trees.splice(k, 1);
   }
+
+  // ---- traffic lights at most busy junctions (three or four roads meeting)
+  const lights: TrafficLight[] = [];
+  for (let j = 0; j < roadRows.length; j++)
+    for (let i = 0; i < roadCols.length; i++) {
+      if (degree(node(i, j)) < 3 || !R.chance(0.65)) continue;
+      lights.push(makeLight(roadCols[i], roadRows[j], R.range(0, 30)));
+    }
 
   // ---- lamps at intersections
   const lamps: Lamp[] = [];
@@ -768,6 +796,6 @@ export function generateMap(theme: Theme, seed: number): GameMap {
   return {
     seed, theme, cols, rows,
     width: cols * TILE, height: rows * TILE,
-    tiles, buildings, trees, lamps, props, roadRows, roadCols, spawn, treeGrid, postcards, ponds, catSpots, potholes, secrets,
+    tiles, buildings, trees, lamps, props, roadRows, roadCols, spawn, treeGrid, postcards, ponds, catSpots, potholes, secrets, lights,
   };
 }

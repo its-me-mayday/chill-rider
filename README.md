@@ -31,7 +31,13 @@ generative lo-fi radio plays.
 - **Carry up to 3 orders** and plan your route with the minimap and the guide arrow.
 - **8+ deliveries per town**, rated with up to three stars, then on to the next town — each one a bit busier and tighter on time.
 - **Progression** — XP and levels unlock ⚡ rush orders, ★ VIP customers and other perks; on-time streaks multiply tips.
-- **Garage** — spend tips on gears, gravel tires, a bigger rack, suspension and a headlight, or on bike paint, beanies and scarves.
+- **Side quests** — townsfolk wait at their door with a ❗: find a lost harmonica in the park, rush a letter to an old
+  friend, fetch a cappuccino from the café, or race through checkpoints against the clock.
+- **Bike workshop & tailor** — upgrades (gears, gravel tires, bigger rack, suspension, headlight) are bought at
+  *Officina Ruota*, scarves, beanies and paint at *Sartoria Sciarpa*; both keep opening hours. Your stats, album and
+  badges live in the logbook (tap your portrait or press L).
+- **Traffic lights** — busy junctions have lights with stop lines; cars and riders wait on red, and running a red
+  light costs you a small fine.
 - **Things to find** — 2 random challenges per town, 3 hidden postcards per town for the album, 20 achievements and lifetime stats.
 - **A living town** — people walking dogs (ring the bell and they step aside), napping cats that bolt, ducks on ponds,
   butterflies, drifting cloud shadows and rainy days with puddles.
@@ -53,7 +59,7 @@ generative lo-fi radio plays.
 | A D / ← → | drag | Steer |
 | S / ↓ / Space | ■ | Brake |
 | B | 🔔 | Bell (people step aside) |
-| G | 🔧 | Garage |
+| L | portrait | Logbook (stats, album, badges) |
 | R / N | radio pill | Radio on/off, next song |
 | H / P | — | Hide HUD, pause |
 
