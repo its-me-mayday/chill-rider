@@ -105,9 +105,11 @@ export class Traffic {
       }
     };
     const city = !!map.theme.city;
+    // London streets are full of red double-deckers and black cabs
+    const LONDON: Vehicle['kind'][] = ['bus', 'cab', 'cab', 'bus', 'car', 'cab', 'bus', 'cab', 'van', 'cab'];
     for (let i = 0; i < cars; i++) {
       const u = R.next();
-      spawn(city ? (u < 0.22 ? 'bus' : u < 0.52 ? 'cab' : u < 0.65 ? 'van' : 'car') : u < 0.25 ? 'van' : 'car');
+      spawn(city ? LONDON[i % LONDON.length] : u < 0.25 ? 'van' : 'car');
     }
     for (let i = 0; i < riders; i++) spawn('rider');
   }

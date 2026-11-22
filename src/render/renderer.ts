@@ -1661,16 +1661,12 @@ export class Renderer {
         if (c.honk > 3.4) this.bubble(c.x, c.y - 0.5, '📯');
         continue;
       }
-      this.carBody(c.x, c.y, c.heading, c.half, c.width, c.color, this.night > 0.3, c.braking, time);
       if (c.kind === 'cab') {
-        // black cab: the yellow TAXI light on the roof
-        ctx.save();
-        ctx.translate(this.sx(c.x), this.sy(c.y));
-        ctx.rotate(c.heading);
-        ctx.fillStyle = this.night > 0.3 ? '#ffd23f' : '#f2c14e';
-        ctx.fillRect(-ppm * 0.15, -ppm * 0.35, ppm * 0.35, ppm * 0.7);
-        ctx.restore();
+        this.cab(c, time);
+        if (c.honk > 3.4) this.bubble(c.x, c.y - 0.5, '📯');
+        continue;
       }
+      this.carBody(c.x, c.y, c.heading, c.half, c.width, c.color, this.night > 0.3, c.braking, time);
       if (c.kind === 'van') {
         // delivery van roof stripe
         ctx.save();
@@ -1684,51 +1680,167 @@ export class Renderer {
     }
   }
 
-  /** a red double-decker seen from above: roof panels, vents and the route number */
+  /**
+   * A red London double-decker seen from above: you can tell it's two storeys
+   * from the long shadow, the band of upper-deck windows running all round,
+   * the white roof roundel with the route number and the destination blind.
+   */
   private bus(c: Vehicle) {
     const { ctx, ppm } = this;
     const L = c.half * ppm;
     const W = (c.width / 2) * ppm;
+    const night = this.night > 0.3;
+    ctx.save();
+    ctx.translate(this.sx(c.x), this.sy(c.y));
+    ctx.rotate(c.heading);
+    // tall vehicle, long shadow
+    ctx.fillStyle = SHADOW;
+    ctx.beginPath();
+    ctx.roundRect(-L + ppm * 1.4, -W + ppm * 0.9, L * 2, W * 2, W * 0.35);
+    ctx.fill();
+    // lower deck skirt
+    ctx.fillStyle = '#a3141c';
+    ctx.beginPath();
+    ctx.roundRect(-L, -W, L * 2, W * 2, W * 0.4);
+    ctx.fill();
+    // wheel arches peeking out
+    ctx.fillStyle = '#1e1b24';
+    for (const u of [-0.62, 0.58]) {
+      ctx.fillRect(L * u - ppm * 0.45, -W - ppm * 0.06, ppm * 0.9, ppm * 0.14);
+      ctx.fillRect(L * u - ppm * 0.45, W - ppm * 0.08, ppm * 0.9, ppm * 0.14);
+    }
+    // upper deck: a band of glass all round with red pillars
+    const iw = ppm * 0.16;
+    ctx.fillStyle = night ? '#ffe2a0' : '#3c4658';
+    ctx.beginPath();
+    ctx.roundRect(-L + iw, -W + iw, L * 2 - iw * 2, W * 2 - iw * 2, W * 0.32);
+    ctx.fill();
+    ctx.fillStyle = '#d8262e';
+    const pillars = Math.max(6, Math.round((c.half * 2) / 1.25));
+    for (let k = 1; k < pillars; k++) {
+      const x = -L + (k / pillars) * L * 2;
+      ctx.fillRect(x - ppm * 0.07, -W + iw, ppm * 0.14, ppm * 0.42);
+      ctx.fillRect(x - ppm * 0.07, W - iw - ppm * 0.42, ppm * 0.14, ppm * 0.42);
+    }
+    // the roof
+    const rw = ppm * 0.48;
+    const roof = ctx.createLinearGradient(0, -W, 0, W);
+    roof.addColorStop(0, '#f0434b');
+    roof.addColorStop(1, '#c81d26');
+    ctx.fillStyle = roof;
+    ctx.beginPath();
+    ctx.roundRect(-L + rw, -W + rw, L * 2 - rw * 2, W * 2 - rw * 2, W * 0.25);
+    ctx.fill();
+    // roof vents and the emergency hatch
+    ctx.fillStyle = 'rgba(255,255,255,0.16)';
+    ctx.fillRect(-L * 0.62, -W * 0.28, L * 0.32, W * 0.56);
+    ctx.fillStyle = '#9a1c24';
+    ctx.fillRect(L * 0.38, -W * 0.22, ppm * 0.55, W * 0.44);
+    // front destination blind
+    ctx.fillStyle = '#1e1b24';
+    ctx.fillRect(L - ppm * 0.22, -W * 0.7, ppm * 0.2, W * 1.4);
+    ctx.fillStyle = '#ffcf3f';
+    ctx.fillRect(L - ppm * 0.18, -W * 0.55, ppm * 0.1, W * 1.1);
+    // route number on the roof, readable side-on
+    ctx.save();
+    ctx.translate(-L * 0.05, 0);
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.roundRect(-ppm * 1.0, -W * 0.48, ppm * 2.0, W * 0.96, ppm * 0.25);
+    ctx.fill();
+    ctx.fillStyle = '#c81d26';
+    ctx.font = `800 ${Math.max(8, Math.round(W * 0.78))}px Outfit, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(c.color2, 0, W * 0.04);
+    ctx.restore();
+    // lights
+    ctx.fillStyle = night ? '#fff6d0' : 'rgba(255,250,230,0.9)';
+    ctx.fillRect(L - ppm * 0.12, -W * 0.85, ppm * 0.12, W * 0.3);
+    ctx.fillRect(L - ppm * 0.12, W * 0.55, ppm * 0.12, W * 0.3);
+    ctx.fillStyle = c.braking ? '#ff4b4b' : 'rgba(200,60,60,0.85)';
+    ctx.fillRect(-L, -W * 0.85, ppm * 0.12, W * 0.3);
+    ctx.fillRect(-L, W * 0.55, ppm * 0.12, W * 0.3);
+    ctx.restore();
+  }
+
+  /** The black cab: a tall rounded body, chrome grille, and the yellow TAXI sign lit when it's free. */
+  private cab(c: Vehicle, time: number) {
+    const { ctx, ppm } = this;
+    const L = c.half * ppm;
+    const W = (c.width / 2) * ppm;
+    const night = this.night > 0.3;
     ctx.save();
     ctx.translate(this.sx(c.x), this.sy(c.y));
     ctx.rotate(c.heading);
     ctx.fillStyle = SHADOW;
     ctx.beginPath();
-    ctx.roundRect(-L + ppm * 0.8, -W + ppm * 0.6, L * 2, W * 2, W * 0.3);
+    ctx.roundRect(-L + ppm * 0.5, -W + ppm * 0.4, L * 2, W * 2, W * 0.8);
     ctx.fill();
-    ctx.fillStyle = c.color;
+    // body: rounded bonnet and boot, glossy black
+    const body = ctx.createLinearGradient(0, -W, 0, W);
+    body.addColorStop(0, '#3a3a44');
+    body.addColorStop(0.5, '#1c1c22');
+    body.addColorStop(1, '#2a2a32');
+    ctx.fillStyle = body;
     ctx.beginPath();
-    ctx.roundRect(-L, -W, L * 2, W * 2, W * 0.35);
+    ctx.roundRect(-L, -W, L * 2, W * 2, [W * 0.55, W * 0.95, W * 0.95, W * 0.55]);
     ctx.fill();
-    ctx.strokeStyle = 'rgba(80,10,20,0.5)';
+    // chrome bumpers and the grille
+    ctx.fillStyle = '#d9dde3';
+    ctx.fillRect(L - ppm * 0.14, -W * 0.7, ppm * 0.14, W * 1.4);
+    ctx.fillRect(-L, -W * 0.7, ppm * 0.12, W * 1.4);
+    ctx.fillStyle = '#9aa1ab';
+    for (let k = -2; k <= 2; k++) ctx.fillRect(L - ppm * 0.42, k * W * 0.16 - ppm * 0.03, ppm * 0.24, ppm * 0.06);
+    // bonnet crease
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
     ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(L * 0.45, -W * 0.3);
+    ctx.lineTo(L * 0.85, -W * 0.25);
+    ctx.moveTo(L * 0.45, W * 0.3);
+    ctx.lineTo(L * 0.85, W * 0.25);
     ctx.stroke();
-    // upper-deck windows peeking at the edges
-    ctx.fillStyle = 'rgba(60,70,90,0.75)';
-    ctx.fillRect(-L * 0.9, -W, L * 1.75, ppm * 0.22);
-    ctx.fillRect(-L * 0.9, W - ppm * 0.22, L * 1.75, ppm * 0.22);
-    ctx.fillRect(L - ppm * 0.45, -W * 0.8, ppm * 0.3, W * 1.6);
-    // roof panels and vents
-    ctx.fillStyle = 'rgba(255,255,255,0.14)';
-    for (let k = 0; k < 4; k++) ctx.fillRect(-L * 0.8 + k * L * 0.42, -W * 0.6, L * 0.3, W * 1.2);
-    ctx.fillStyle = '#9a1c24';
-    ctx.fillRect(-L * 0.2, -W * 0.25, ppm * 0.6, W * 0.5);
-    // route number painted on the roof
+    // big glass cabin and a tall roof
+    ctx.fillStyle = night ? 'rgba(255,226,160,0.8)' : 'rgba(90,110,140,0.9)';
+    ctx.beginPath();
+    ctx.roundRect(-L * 0.55, -W * 0.86, L * 1.0, W * 1.72, W * 0.3);
+    ctx.fill();
+    ctx.fillStyle = '#18181e';
+    ctx.beginPath();
+    ctx.roundRect(-L * 0.42, -W * 0.74, L * 0.72, W * 1.48, W * 0.25);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    ctx.fillRect(-L * 0.38, -W * 0.68, L * 0.64, W * 0.3);
+    // the TAXI sign
+    const free = Math.sin(c.x * 0.01 + c.max) > -0.3;
+    ctx.fillStyle = free ? (night ? '#ffd23f' : '#f2c14e') : '#6b6250';
+    ctx.beginPath();
+    ctx.roundRect(L * 0.12, -W * 0.42, ppm * 0.42, W * 0.84, ppm * 0.08);
+    ctx.fill();
+    ctx.save();
+    ctx.translate(L * 0.12 + ppm * 0.21, 0);
     ctx.rotate(Math.PI / 2);
-    ctx.fillStyle = 'rgba(255,255,255,0.92)';
-    ctx.font = `700 ${Math.max(8, Math.round(ppm * 1.1))}px Outfit, sans-serif`;
+    ctx.fillStyle = '#1c1c22';
+    ctx.font = `800 ${Math.max(6, Math.round(ppm * 0.3))}px Outfit, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(c.color2, 0, -L * 0.55);
+    ctx.fillText('TAXI', 0, 0);
     ctx.restore();
-    if (c.braking) {
-      const ax = Math.cos(c.heading);
-      const ay = Math.sin(c.heading);
-      ctx.fillStyle = '#ff4b4b';
-      ctx.beginPath();
-      ctx.arc(this.sx(c.x - ax * c.half), this.sy(c.y - ay * c.half), ppm * 0.25, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    // mirrors and lights
+    ctx.fillStyle = '#1c1c22';
+    ctx.fillRect(L * 0.32, -W - ppm * 0.14, ppm * 0.22, ppm * 0.16);
+    ctx.fillRect(L * 0.32, W - ppm * 0.02, ppm * 0.22, ppm * 0.16);
+    ctx.fillStyle = night ? '#fff6d0' : 'rgba(255,250,230,0.9)';
+    ctx.beginPath();
+    ctx.arc(L - ppm * 0.22, -W * 0.68, ppm * 0.13, 0, Math.PI * 2);
+    ctx.arc(L - ppm * 0.22, W * 0.68, ppm * 0.13, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = c.braking ? '#ff4b4b' : 'rgba(200,60,60,0.85)';
+    ctx.fillRect(-L + ppm * 0.04, -W * 0.8, ppm * 0.12, W * 0.35);
+    ctx.fillRect(-L + ppm * 0.04, W * 0.45, ppm * 0.12, W * 0.35);
+    ctx.restore();
+    void time;
   }
 
   private npcRider(c: Vehicle, time: number) {

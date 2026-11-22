@@ -120,7 +120,7 @@ function loadMap() {
   const big = !!theme.city;
   critters = new Critters(map, (big ? 14 : 8) + Math.min(10, profile.level));
   const woods = theme.id === 'woods';
-  traffic = new Traffic(map, (woods ? 2 : big ? 9 : 4) + Math.min(5, profile.stats.towns), (big ? 7 : 4) + Math.min(4, profile.level), map.spawn);
+  traffic = new Traffic(map, (woods ? 2 : big ? 14 : 4) + Math.min(5, profile.stats.towns), (big ? 7 : 4) + Math.min(4, profile.level), map.spawn);
   seenHere.clear();
   challenges = pickChallenges(seed, profile.level);
   postcards = map.postcards.map((p) => ({ ...p, got: false }));
