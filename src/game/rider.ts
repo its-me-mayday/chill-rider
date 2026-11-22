@@ -36,6 +36,7 @@ const DEFAULT_STATS = { speedMul: 1, offroadMul: 1, grip: 1, capacity: 3, fragil
 
 const TOP: Record<number, number> = {
   [T.ROAD]: 9.5,
+  [T.CLOSED]: 8.5,
   [T.PLAZA]: 8,
   [T.PATH]: 7.5,
   [T.GRASS]: 5.6,
@@ -97,7 +98,7 @@ export class Rider {
   update(dt: number, c: Controls, map: GameMap, events: BumpEvent[], movers: Mover[] = []) {
     this.surface = tileAt(map, this.x, this.y);
     const st = this.stats;
-    const onRoad = this.surface === T.ROAD || this.surface === T.PLAZA;
+    const onRoad = this.surface === T.ROAD || this.surface === T.PLAZA || this.surface === T.CLOSED;
     const base = TOP[this.surface] ?? 5;
     const hurtMul = this.health < 35 ? 0.85 : 1;
     const top = (onRoad ? base : Math.min(base * st.offroadMul, 9)) * st.speedMul * (this.wet ? 0.95 : 1) * hurtMul;

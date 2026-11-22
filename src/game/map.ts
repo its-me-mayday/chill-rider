@@ -11,6 +11,8 @@ export const enum T {
   SAND = 3,
   PLAZA = 4,
   PATH = 5,
+  /** a closed-off stub of road behind a roadblock */
+  CLOSED = 6,
 }
 
 export interface Building {
@@ -50,7 +52,7 @@ export interface Lamp {
 
 export type PropKind =
   | 'fountain' | 'bench' | 'boat'
-  | 'cone' | 'barrier' | 'workSign' | 'bin' | 'pcar' | 'picnic' | 'bale' | 'log' | 'umbrella' | 'sandcastle';
+  | 'cone' | 'barrier' | 'workSign' | 'roadblock' | 'noEntry' | 'bin' | 'pcar' | 'picnic' | 'bale' | 'log' | 'umbrella' | 'sandcastle';
 
 export interface Prop {
   kind: PropKind;
@@ -205,6 +207,41 @@ export function generateMap(theme: Theme, seed: number): GameMap {
     else paint(roadCols[s.i], roadRows[s.j], roadCols[s.i] + 1, roadRows[s.j + 1] + 1, T.ROAD);
   }
 
+  // Removed segments become visibly closed roads: a short stub of old asphalt at each
+  // junction, a roadblock with a no-entry sign, and an overgrown track in between.
+  const closures: Prop[] = [];
+  for (const s of segs) {
+    if (s.on) continue;
+    if (s.horiz) {
+      const r = roadRows[s.j];
+      const c0 = roadCols[s.i];
+      const c1 = roadCols[s.i + 1];
+      if (c1 - c0 < 5) continue;
+      paint(c0 + 2, r, c0 + 2, r + 1, T.CLOSED);
+      paint(c1 - 1, r, c1 - 1, r + 1, T.CLOSED);
+      paint(c0 + 3, r + (R.chance(0.5) ? 0 : 1), c1 - 2, r + (R.chance(0.5) ? 0 : 1), T.PATH);
+      const y = r * TILE + TILE;
+      closures.push({ kind: 'roadblock', x: (c0 + 3) * TILE - 0.4, y, r: 0.3, angle: Math.PI / 2, len: 3.5 });
+      closures.push({ kind: 'noEntry', x: (c0 + 2) * TILE + 1.2, y, r: 0, angle: Math.PI });
+      closures.push({ kind: 'roadblock', x: (c1 - 1) * TILE + 0.4, y, r: 0.3, angle: Math.PI / 2, len: 3.5 });
+      closures.push({ kind: 'noEntry', x: (c1 - 1) * TILE + TILE - 1.2, y, r: 0, angle: 0 });
+    } else {
+      const c = roadCols[s.i];
+      const r0 = roadRows[s.j];
+      const r1 = roadRows[s.j + 1];
+      if (r1 - r0 < 5) continue;
+      paint(c, r0 + 2, c + 1, r0 + 2, T.CLOSED);
+      paint(c, r1 - 1, c + 1, r1 - 1, T.CLOSED);
+      const pc = c + (R.chance(0.5) ? 0 : 1);
+      paint(pc, r0 + 3, pc, r1 - 2, T.PATH);
+      const x = c * TILE + TILE;
+      closures.push({ kind: 'roadblock', x, y: (r0 + 3) * TILE - 0.4, r: 0.3, angle: 0, len: 3.5 });
+      closures.push({ kind: 'noEntry', x, y: (r0 + 2) * TILE + 1.2, r: 0, angle: -Math.PI / 2 });
+      closures.push({ kind: 'roadblock', x, y: (r1 - 1) * TILE + 0.4, r: 0.3, angle: 0, len: 3.5 });
+      closures.push({ kind: 'noEntry', x, y: (r1 - 1) * TILE + TILE - 1.2, r: 0, angle: Math.PI / 2 });
+    }
+  }
+
   // ---- street names
   const names = [...theme.streets].sort(() => R.next() - 0.5);
   const rowName = roadRows.map((_, k) => names[k % names.length]);
@@ -215,7 +252,7 @@ export function generateMap(theme: Theme, seed: number): GameMap {
   const ys = [-2, ...roadRows, usableRows];
   const buildings: Building[] = [];
   const trees: Tree[] = [];
-  const props: Prop[] = [];
+  const props: Prop[] = [...closures];
   const doorPoints: { x: number; y: number }[] = [];
   const ponds: (Spot & { r: number })[] = [];
   const parkSpots: Spot[] = [];

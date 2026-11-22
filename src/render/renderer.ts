@@ -274,11 +274,13 @@ export class Renderer {
           case T.SAND: col = mix(th.sand, [255, 255, 255], h * 0.08); break;
           case T.PLAZA: col = mix(th.plaza, [120, 80, 60], h * 0.06); break;
           case T.PATH: col = mix(th.path, [255, 240, 220], h * 0.08); break;
+          case T.CLOSED: col = mix(th.road, th.grass, 0.28); break;
           default: col = mix(th.grass, th.grass2, h);
         }
         ctx.fillStyle = css(col);
         ctx.fillRect(px - 0.5, py - 0.5, ts + 1, ts + 1);
         if (t === T.ROAD) this.roadWear(tx, ty, px, py, ts, col);
+        if (t === T.CLOSED) this.closedStub(tx, ty, px, py, ts, at, th.grass);
 
         if (t === T.GRASS && ppm > 9) {
           for (let k = 0; k < 3; k++) {
@@ -350,10 +352,21 @@ export class Renderer {
         if (at(tx, ty) !== T.ROAD) continue;
         const px = this.sx(tx * TILE);
         const py = this.sy(ty * TILE);
-        if (at(tx, ty - 1) !== T.ROAD) ctx.fillRect(px, py, ts, cw);
-        if (at(tx, ty + 1) !== T.ROAD) ctx.fillRect(px, py + ts - cw, ts, cw);
-        if (at(tx - 1, ty) !== T.ROAD) ctx.fillRect(px, py, cw, ts);
-        if (at(tx + 1, ty) !== T.ROAD) ctx.fillRect(px + ts - cw, py, cw, ts);
+        const stub = (t2: T) => t2 === T.CLOSED;
+        if (stub(at(tx, ty - 1)) || stub(at(tx, ty + 1)) || stub(at(tx - 1, ty)) || stub(at(tx + 1, ty))) {
+          ctx.fillStyle = 'rgba(255,250,240,0.92)';
+          const bw = Math.max(3, ppm * 0.45);
+          if (stub(at(tx, ty - 1))) ctx.fillRect(px, py, ts, bw);
+          if (stub(at(tx, ty + 1))) ctx.fillRect(px, py + ts - bw, ts, bw);
+          if (stub(at(tx - 1, ty))) ctx.fillRect(px, py, bw, ts);
+          if (stub(at(tx + 1, ty))) ctx.fillRect(px + ts - bw, py, bw, ts);
+          ctx.fillStyle = css(th.roadEdge);
+        }
+        const curb = (t2: T) => t2 !== T.ROAD && t2 !== T.CLOSED;
+        if (curb(at(tx, ty - 1))) ctx.fillRect(px, py, ts, cw);
+        if (curb(at(tx, ty + 1))) ctx.fillRect(px, py + ts - cw, ts, cw);
+        if (curb(at(tx - 1, ty))) ctx.fillRect(px, py, cw, ts);
+        if (curb(at(tx + 1, ty))) ctx.fillRect(px + ts - cw, py, cw, ts);
       }
 
     ctx.strokeStyle = css(th.line, 0.85);
@@ -1120,6 +1133,73 @@ export class Renderer {
         ctx.restore();
         return true;
       }
+      case 'roadblock': {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(p.angle);
+        const L = ((p.len ?? 3) + p.r) * ppm;
+        ctx.fillStyle = SHADOW;
+        ctx.fillRect(-L + ppm * 0.25, -ppm * 0.15, L * 2, ppm * 0.75);
+        // two rails of red/white boards on little feet
+        ctx.fillStyle = '#8a7a86';
+        for (const u of [-0.8, 0, 0.8]) ctx.fillRect(u * L - ppm * 0.12, -ppm * 0.42, ppm * 0.24, ppm * 0.84);
+        const n = 10;
+        for (let i = 0; i < n; i++) {
+          ctx.fillStyle = i % 2 ? '#ffffff' : '#e4344a';
+          ctx.fillRect(-L + (i * L * 2) / n, -ppm * 0.3, (L * 2) / n + 0.5, ppm * 0.6);
+        }
+        ctx.strokeStyle = 'rgba(60,20,40,0.35)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(-L, -ppm * 0.3, L * 2, ppm * 0.6);
+        // amber warning lamps blinking in turn
+        for (let k = 0; k < 3; k++) {
+          const on = Math.floor(time * 3 + k) % 3 === 0;
+          ctx.fillStyle = on ? '#ffd23f' : 'rgba(255,210,63,0.3)';
+          ctx.beginPath();
+          ctx.arc((k - 1) * L * 0.8, 0, ppm * 0.2, 0, Math.PI * 2);
+          ctx.fill();
+          if (on) {
+            const g = ctx.createRadialGradient((k - 1) * L * 0.8, 0, 0, (k - 1) * L * 0.8, 0, ppm * 1.2);
+            g.addColorStop(0, 'rgba(255,210,63,0.45)');
+            g.addColorStop(1, 'rgba(255,210,63,0)');
+            ctx.fillStyle = g;
+            ctx.fillRect((k - 1) * L * 0.8 - ppm * 1.2, -ppm * 1.2, ppm * 2.4, ppm * 2.4);
+          }
+        }
+        ctx.restore();
+        return true;
+      }
+      case 'noEntry': {
+        // round no-entry sign on a pole, plus a "ROAD CLOSED" plate
+        sh(ppm * 0.6, ppm * 0.45);
+        const R = Math.max(7, ppm * 0.6);
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(x, y, R + 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#d83a46';
+        ctx.beginPath();
+        ctx.arc(x, y, R, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(x - R * 0.62, y - R * 0.18, R * 1.24, R * 0.36);
+        const fs = Math.max(8, Math.round(ppm * 0.42));
+        ctx.font = `700 ${fs}px Outfit, system-ui, sans-serif`;
+        const label = 'ROAD CLOSED';
+        const tw = ctx.measureText(label).width + fs;
+        ctx.fillStyle = 'rgba(255,250,240,0.95)';
+        ctx.strokeStyle = '#d83a46';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.roundRect(x - tw / 2, y + R + 4, tw, fs * 1.6, fs * 0.3);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#d83a46';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, x, y + R + 4 + fs * 0.82);
+        return true;
+      }
       case 'workSign': {
         sh(ppm * 0.4, ppm * 0.3);
         ctx.fillStyle = '#ffd23f';
@@ -1340,6 +1420,50 @@ export class Renderer {
     ctx.restore();
     if (c.wave > 4.8) this.bubble(c.x, c.y, '👋');
     else if (c.honk > 3.4) this.bubble(c.x, c.y, '🔔');
+  }
+
+  /** an abandoned stub of road: faded asphalt, hatching and grass pushing through the cracks */
+  private closedStub(tx: number, ty: number, px: number, py: number, ts: number, at: (x: number, y: number) => T, grass: RGB) {
+    const { ctx, ppm } = this;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(px, py, ts, ts);
+    ctx.clip();
+    // diagonal yellow/white hatching: "no traffic here"
+    ctx.strokeStyle = 'rgba(255,214,90,0.55)';
+    ctx.lineWidth = Math.max(2, ppm * 0.3);
+    ctx.beginPath();
+    for (let k = -ts; k < ts * 2; k += ppm * 1.1) {
+      ctx.moveTo(px + k, py);
+      ctx.lineTo(px + k - ts, py + ts);
+    }
+    ctx.stroke();
+    // grass tufts in the cracks
+    ctx.fillStyle = css(grass, 0.85);
+    for (let k = 0; k < 7; k++) {
+      const gx = px + hash(tx * 13 + ty * 7 + k) * ts;
+      const gy = py + hash(tx * 3 + ty * 17 + k * 5) * ts;
+      ctx.beginPath();
+      ctx.ellipse(gx, gy, ppm * (0.2 + hash(k + tx) * 0.3), ppm * 0.14, hash(k * 3 + ty) * 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+    // crumbling edge where the stub meets the grass
+    ctx.fillStyle = css(grass);
+    const e = ppm * 0.25;
+    for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]] as const) {
+      const n = at(tx + dx, ty + dy);
+      if (n === T.ROAD || n === T.CLOSED) continue;
+      for (let k = 0; k < 5; k++) {
+        const u = (k + 0.5) / 5;
+        const r = e * (0.6 + hash(tx * 5 + ty * 3 + k + dx * 7 + dy * 11) * 0.9);
+        const cx = dx === 0 ? px + u * ts : dx < 0 ? px : px + ts;
+        const cy = dy === 0 ? py + u * ts : dy < 0 ? py : py + ts;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
   }
 
   /** patched asphalt and cracks, deterministic per tile */

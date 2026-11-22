@@ -38,6 +38,7 @@ export class Minimap {
             : t === T.SAND ? th.sand
             : t === T.PLAZA ? th.plaza
             : t === T.PATH ? th.path
+            : t === T.CLOSED ? mix(th.roadEdge, th.grass, 0.6)
             : mix(th.grass, [60, 50, 70], 0.15),
         );
         g.fillRect(tx * ts, ty * ts, ts + 0.5, ts + 0.5);

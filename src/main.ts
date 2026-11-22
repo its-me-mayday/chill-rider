@@ -511,7 +511,7 @@ function frame(now: number) {
       targetId: target?.order?.id ?? null,
       riderX: rider.x,
       riderY: rider.y,
-      surface: ['grass', 'road', 'water', 'sand', 'plaza', 'gravel'][rider.surface] ?? '',
+      surface: ['grass', 'road', 'water', 'sand', 'plaza', 'gravel', 'closed road'][rider.surface] ?? '',
       braking: rider.braking && rider.speed > 0.5,
     });
     pedalBtn.classList.toggle('spin', rider.pedalling && rider.speed > 0.5);
