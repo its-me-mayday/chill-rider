@@ -133,6 +133,18 @@ export class AudioEngine {
     this.chime.triggerAttackRelease(['D6', 'A6'], '16n', now + 0.14, 0.2);
   }
 
+  /** click-wheel tick */
+  private clicker?: Tone.MembraneSynth;
+  wheelClick() {
+    if (!this.ready) return;
+    if (!this.clicker) this.clicker = new Tone.MembraneSynth({ pitchDecay: 0.002, octaves: 1, envelope: { attack: 0.0005, decay: 0.012, sustain: 0 }, volume: -20 }).connect(this.master);
+    try {
+      this.clicker.triggerAttackRelease('A6', '64n', Tone.now() + 0.001, 0.6);
+    } catch {
+      /* clicks faster than the synth can retrigger */
+    }
+  }
+
   /** soft "pop" when a parcel changes hands */
   pop() {
     if (!this.ready) return;

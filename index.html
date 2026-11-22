@@ -71,19 +71,17 @@
       <footer class="bottom">
         <div class="panel keys" id="hint">
           <div class="keyrow"><kbd>W</kbd><span>pedal</span><kbd>S</kbd><span>brake</span><kbd>A</kbd><kbd>D</kbd><span>steer</span></div>
-          <div class="keyrow"><kbd>B</kbd><span>bell</span><kbd>L</kbd><span>logbook</span><kbd>R</kbd><span>radio</span><kbd>H</kbd><span>hide</span><kbd>P</kbd><span>pause</span></div>
+          <div class="keyrow"><kbd>B</kbd><span>bell</span><kbd>L</kbd><span>logbook</span><kbd>I</kbd><span>iPod</span><kbd>,</kbd><kbd>.</kbd><span>station</span><kbd>H</kbd><span>hide</span><kbd>P</kbd><span>pause</span></div>
           <div class="keytip">Stop in a ring to pick up, deliver or talk · 🔧 upgrades at the bike workshop · 👕 style at the tailor</div>
         </div>
-        <div class="radio glass" id="radio">
-          <button id="radio-toggle" class="radio-btn" aria-label="Toggle radio">▶</button>
-          <div class="radio-info">
-            <div class="radio-label">CHILL FM <span id="radio-key"></span></div>
-            <div class="radio-track" id="radio-track">tap to tune in</div>
-          </div>
-          <div class="eq" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-          <button id="radio-next" class="radio-btn small" aria-label="Next track">⏭</button>
-          <input id="volume" type="range" min="0" max="1" step="0.01" value="0.8" aria-label="Volume" />
-        </div>
+        <button class="radio glass" id="radio" aria-label="Open iPod">
+          <span class="mini-ipod" aria-hidden="true"><i class="mi-screen"></i><i class="mi-wheel"></i></span>
+          <span class="radio-info">
+            <span class="radio-label"><b id="radio-station">CHILL FM</b> <span id="radio-key"></span></span>
+            <span class="radio-track" id="radio-track">tap to tune in</span>
+          </span>
+          <span class="eq" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+        </button>
         <div class="gauge" id="gauge">
           <svg viewBox="0 0 120 120" aria-hidden="true">
             <circle class="track" cx="60" cy="60" r="50" pathLength="100" />
@@ -105,7 +103,34 @@
         <span>PEDAL</span>
       </button>
       <button id="t-bell" class="tbtn bell" aria-label="Bell">🔔</button>
-      <div class="touch-hint" id="touch-hint">drag on the left to steer · hold PEDAL to ride</div>
+    <div class="touch-hint" id="touch-hint">drag on the left to steer · hold PEDAL to ride</div>
+    </div>
+
+    <div class="ipod hidden" id="ipod" role="dialog" aria-label="iPod">
+      <div class="ipod-body">
+        <div class="ipod-screen" id="ipod-screen">
+          <div class="ip-bar"><span id="ip-title">Stations</span><span class="ip-batt"><i id="ip-play">▶</i> <b></b></span></div>
+          <ul class="ip-list" id="ip-list"></ul>
+          <div class="ip-now" id="ip-now">
+            <div class="ip-art" id="ip-art"><span id="ip-icon">🎧</span></div>
+            <div class="ip-meta">
+              <div class="ip-station" id="ip-station">Chill FM</div>
+              <div class="ip-track" id="ip-track">—</div>
+              <div class="ip-sub" id="ip-sub"></div>
+            </div>
+            <div class="ip-prog"><i id="ip-prog"></i></div>
+            <div class="ip-vol" id="ip-vol"><span>🔈</span><div><i id="ip-vol-bar"></i></div><span>🔊</span></div>
+          </div>
+        </div>
+        <div class="wheel" id="ip-wheel">
+          <button class="wb menu" data-ip="menu">MENU</button>
+          <button class="wb prev" data-ip="prev" aria-label="Previous station">⏮</button>
+          <button class="wb next" data-ip="next" aria-label="Next station">⏭</button>
+          <button class="wb play" data-ip="play" aria-label="Play or pause">▶❚❚</button>
+          <button class="hub" data-ip="select" aria-label="Select"></button>
+        </div>
+      </div>
+      <button class="ipod-close" id="ipod-close" aria-label="Close iPod">✕</button>
     </div>
 
     <div id="start" class="overlay-card">

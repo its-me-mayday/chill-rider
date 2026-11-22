@@ -48,7 +48,7 @@ generative lo-fi radio plays.
   midnight) and pull down their shutters when closed; traffic peaks at rush hour and the streets empty out at night.
 - **Secrets** — every town hides a treasure chest and a lost kitten under the trees, a gnome behind a house and a
   stargazer who only comes out at night. Some secrets unlock special styles.
-- **Chill FM** — a generative lo-fi radio built with Tone.js, plus wind, freewheel clicks, bumps and a bike bell.
+- **Radio on an iPod** — five generative stations built with Tone.js (Chill FM lo-fi, Jazz Café, Bossa Breeze, Synth Sunset, Rain Room), tuned from a click-wheel iPod: spin to scroll or change volume, press the hub to tune, ⏮/⏭ to hop stations. Plus wind, freewheel clicks, bumps and a bike bell.
 - **Plays on phones** — drag anywhere to ride (floating joystick), brake and bell buttons.
 
 ## 🎮 Controls
@@ -60,7 +60,9 @@ generative lo-fi radio plays.
 | S / ↓ / Space | ■ | Brake |
 | B | 🔔 | Bell (people step aside) |
 | L | portrait | Logbook (stats, album, badges) |
-| R / N | radio pill | Radio on/off, next song |
+| I | radio pill | Open the iPod |
+| , / . | ⏮ / ⏭ on the wheel | Previous / next station |
+| R / N | ▶❚❚ / Skip | Radio on/off, next song |
 | H / P | — | Hide HUD, pause |
 
 Pick up and deliver by **slowing down inside the ring** in front of a shop or the glowing door.
@@ -75,7 +77,7 @@ Pick up and deliver by **slowing down inside the ring** in front of a shop or th
 src/
   game/    map generation, themes, rider physics, orders, input, day cycle
   render/  canvas renderer, rider sprite, minimap
-  audio/   Chill FM radio and world sounds
+  audio/   radio stations and world sounds
   ui/      DOM HUD
 ```
 

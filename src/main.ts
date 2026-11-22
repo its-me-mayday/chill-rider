@@ -15,6 +15,7 @@ import { THEMES } from './game/themes';
 import { Traffic, type TrafficEvent } from './game/traffic';
 import { Minimap } from './render/minimap';
 import { Renderer } from './render/renderer';
+import { IPod } from './ui/ipod';
 import { Garage, type GarageMode } from './ui/garage';
 import { Quests, type Quest, type QuestEvent } from './game/quests';
 import { signal } from './game/lights';
@@ -98,16 +99,47 @@ function loadMap() {
 }
 loadMap();
 
-const volume = document.getElementById('volume') as HTMLInputElement;
+let volume = 0.8;
 try {
-  volume.value = localStorage.getItem('chill-rider:volume') ?? '0.8';
+  volume = Number(localStorage.getItem('chill-rider:volume') ?? '0.8');
+  const st = Number(localStorage.getItem('chill-rider:station') ?? '0');
+  if (st > 0) audio.radio.setStation(st);
 } catch {
   /* ignore */
 }
-audio.setVolume(Number(volume.value));
+audio.setVolume(volume);
 
 // ------------------------------------------------------------ wiring
-audio.radio.onTrack = (t) => hud.setTrack(t);
+const ipod = new IPod(audio.radio, {
+  play: async () => {
+    await audio.start();
+    await audio.radio.play();
+    hud.setRadio(true);
+  },
+  volume: () => volume,
+  setVolume: (v) => {
+    volume = v;
+    audio.setVolume(v);
+    try {
+      localStorage.setItem('chill-rider:volume', String(v));
+    } catch {
+      /* ignore */
+    }
+  },
+  click: () => audio.wheelClick(),
+  onStation: () => {
+    hud.setRadio(audio.radio.playing);
+    try {
+      localStorage.setItem('chill-rider:station', String(audio.radio.stationIndex));
+    } catch {
+      /* ignore */
+    }
+  },
+});
+audio.radio.onTrack = (t) => {
+  hud.setTrack(t);
+  ipod.refresh(t);
+};
 hud.setTrack(audio.radio.track);
 hud.setXp(profile.level, profile.xp, xpForLevel(profile.level));
 
@@ -115,6 +147,7 @@ const toggleRadio = async () => {
   await audio.start();
   audio.radio.toggle();
   hud.setRadio(audio.radio.playing);
+  ipod.refresh();
 };
 
 function ringBell() {
@@ -130,6 +163,9 @@ input.onToggle = (what) => {
   switch (what) {
     case 'radio': void toggleRadio(); break;
     case 'next': audio.radio.next(); break;
+    case 'ipod': ipod.toggle(); break;
+    case 'stPrev': ipod.step(-1); break;
+    case 'stNext': ipod.step(1); break;
     case 'hud': hudVisible = !hudVisible; hud.setVisible(hudVisible); break;
     case 'pause': setPaused(!paused); break;
     case 'bell': ringBell(); break;
@@ -147,16 +183,7 @@ document.getElementById('t-bell')!.addEventListener('pointerdown', (e) => {
   e.stopPropagation();
   ringBell();
 });
-document.getElementById('radio-toggle')!.addEventListener('click', () => void toggleRadio());
-document.getElementById('radio-next')!.addEventListener('click', () => audio.radio.next());
-volume.addEventListener('input', () => {
-  audio.setVolume(Number(volume.value));
-  try {
-    localStorage.setItem('chill-rider:volume', volume.value);
-  } catch {
-    /* ignore */
-  }
-});
+document.getElementById('radio')!.addEventListener('click', () => ipod.toggle());
 
 const startEl = document.getElementById('start')!;
 const pauseEl = document.getElementById('pause')!;
@@ -178,6 +205,7 @@ async function start() {
   await audio.start();
   await audio.radio.play();
   hud.setRadio(true);
+  ipod.refresh();
 }
 
 function setPaused(p: boolean) {
@@ -722,6 +750,7 @@ function frame(now: number) {
     announceShops(light.hour);
     hud.setQuests(quests, time);
     minimap.draw(rider, orders, target, time, quests);
+    ipod.tick();
   }
   saveAcc += dt;
   if (saveAcc > 8) {

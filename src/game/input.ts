@@ -1,7 +1,7 @@
 import type { Controls } from './rider';
 
 type Action = 'pedal' | 'brake' | 'left' | 'right';
-export type Toggle = 'radio' | 'next' | 'hud' | 'pause' | 'bell';
+export type Toggle = 'radio' | 'next' | 'hud' | 'pause' | 'bell' | 'ipod' | 'stPrev' | 'stNext';
 
 const KEYMAP: Record<string, Action> = {
   KeyW: 'pedal',
@@ -41,7 +41,7 @@ export class Input {
         return;
       }
       if (e.repeat) return;
-      const map: Record<string, Toggle> = { KeyR: 'radio', KeyN: 'next', KeyH: 'hud', KeyP: 'pause', Escape: 'pause', KeyB: 'bell' };
+      const map: Record<string, Toggle> = { KeyR: 'radio', KeyN: 'next', KeyH: 'hud', KeyP: 'pause', Escape: 'pause', KeyB: 'bell', KeyI: 'ipod', Comma: 'stPrev', Period: 'stNext', BracketLeft: 'stPrev', BracketRight: 'stNext' };
       if (map[e.code]) this.onToggle?.(map[e.code]);
     });
     window.addEventListener('keyup', (e) => {

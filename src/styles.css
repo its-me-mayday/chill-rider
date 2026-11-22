@@ -228,19 +228,27 @@ kbd {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 7px 14px 7px 7px;
+  padding: 6px 14px 6px 8px;
   border-radius: 999px;
   text-shadow: none;
   min-width: 0;
+  font: inherit;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.15s;
 }
-.radio-btn {
-  width: 40px; height: 40px; border-radius: 50%;
-  border: none; background: rgba(255, 255, 255, 0.92); color: #b35d72;
-  font-size: 1rem; cursor: pointer; flex: none;
+.radio:active { transform: scale(0.96); }
+.mini-ipod {
+  position: relative; flex: none; width: 28px; height: 42px; border-radius: 6px;
+  background: linear-gradient(160deg, #ffffff, #dfe3ea); box-shadow: 0 2px 0 rgba(0,0,0,0.18), inset 0 0 0 1px rgba(0,0,0,0.08);
 }
-.radio-btn.small { width: 32px; height: 32px; font-size: 0.8rem; background: rgba(255, 255, 255, 0.2); color: var(--ink); }
-.radio-info { min-width: 0; }
-.radio-label { font-size: 0.6rem; letter-spacing: 0.22em; color: var(--ink-soft); white-space: nowrap; }
+.mini-ipod .mi-screen { position: absolute; left: 4px; right: 4px; top: 4px; height: 14px; border-radius: 2px; background: linear-gradient(#bfe0f5, #8fb9d8); }
+.radio.on .mini-ipod .mi-screen { background: linear-gradient(var(--st-a, #ff9a8b), var(--st-b, #c9a3ff)); }
+.mini-ipod .mi-wheel { position: absolute; left: 50%; bottom: 4px; width: 17px; height: 17px; margin-left: -8.5px; border-radius: 50%; background: radial-gradient(circle, #fff 0 30%, #d3d7de 32% 100%); }
+.radio-info { min-width: 0; display: flex; flex-direction: column; }
+.radio-label { font-size: 0.6rem; letter-spacing: 0.18em; color: var(--ink-soft); white-space: nowrap; text-transform: uppercase; }
+.radio-label b { color: var(--ink); font-weight: 600; }
 .radio-track { font-size: 0.88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
 .eq { display: flex; align-items: flex-end; gap: 2px; height: 16px; }
 .eq i { width: 3px; height: 30%; border-radius: 2px; background: var(--accent); opacity: 0.4; }
@@ -249,7 +257,86 @@ kbd {
 .radio.on .eq i:nth-child(3) { animation-delay: -0.6s; }
 .radio.on .eq i:nth-child(4) { animation-delay: -0.15s; }
 @keyframes eq { 0%, 100% { height: 25%; } 50% { height: 100%; } }
-#volume { width: 80px; accent-color: #fff; }
+
+/* ---------- iPod ---------- */
+.ipod {
+  --w: 210px;
+  position: fixed; left: var(--pad); bottom: calc(var(--bot) + 70px); z-index: 7;
+  pointer-events: auto; touch-action: none; text-shadow: none;
+  transform-origin: 20% 100%; transition: transform 0.28s cubic-bezier(.2,.9,.3,1.2), opacity 0.2s;
+}
+.ipod.hidden { opacity: 0; transform: translateY(20px) scale(0.6); pointer-events: none; }
+.ipod-body {
+  width: var(--w); padding: calc(var(--w) * 0.07); border-radius: calc(var(--w) * 0.11);
+  background: linear-gradient(155deg, #ffffff 0%, #eef0f4 55%, #d7dbe2 100%);
+  box-shadow: 0 14px 30px rgba(40, 14, 40, 0.38), inset 0 1px 0 #fff, inset 0 0 0 1px rgba(0,0,0,0.06);
+  display: flex; flex-direction: column; align-items: center; gap: calc(var(--w) * 0.07);
+}
+.ipod-screen {
+  width: 100%; aspect-ratio: 4 / 3; border-radius: 6px; overflow: hidden; position: relative;
+  background: linear-gradient(#f4f8fb, #dfe8ef); color: #1d2733;
+  box-shadow: inset 0 0 0 2px #2b2f36, inset 0 3px 8px rgba(0,0,0,0.25);
+  font-family: 'Outfit', sans-serif; font-weight: 500; font-size: calc(var(--w) * 0.058);
+  display: flex; flex-direction: column;
+}
+.ip-bar {
+  display: flex; justify-content: space-between; align-items: center; padding: 2px 8px; flex: none;
+  background: linear-gradient(#fdfdfd, #c9d2db); border-bottom: 1px solid #8e9aa6; font-weight: 600;
+}
+.ip-batt { display: inline-flex; align-items: center; gap: 4px; font-size: 0.8em; }
+.ip-batt b { display: inline-block; width: 16px; height: 8px; border: 1px solid #333; border-radius: 2px; background: linear-gradient(90deg, #6fcf6f 75%, transparent 75%); }
+.ip-list { list-style: none; margin: 0; padding: 0; flex: 1; overflow: hidden; }
+.ip-list li { display: flex; justify-content: space-between; align-items: center; padding: 1px 8px; white-space: nowrap; }
+.ip-list li span:first-child { overflow: hidden; text-overflow: ellipsis; }
+.ip-list li small { opacity: 0.6; font-size: 0.8em; }
+.ip-list li.sel { background: linear-gradient(#6aa9e8, #2f6fc0); color: #fff; }
+.ip-list li.sel small { opacity: 0.85; }
+.ip-list li.live span:first-child::after { content: ' ♪'; }
+.ip-now { display: none; flex: 1; padding: 6px 8px 4px; gap: 3px 8px; grid-template-columns: auto 1fr; grid-template-rows: 1fr auto auto; }
+.ipod.now .ip-list { display: none; }
+.ipod.now .ip-now { display: grid; }
+.ip-art {
+  width: calc(var(--w) * 0.24); aspect-ratio: 1; border-radius: 5px; display: grid; place-items: center; align-self: center;
+  background: linear-gradient(135deg, var(--st-a, #ff9a8b), var(--st-b, #c9a3ff)); font-size: calc(var(--w) * 0.12);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.25);
+}
+.ipod.playing .ip-art span { animation: bob 1.2s ease-in-out infinite; display: inline-block; }
+@keyframes bob { 50% { transform: translateY(-2px) rotate(-4deg); } }
+.ip-meta { min-width: 0; align-self: center; line-height: 1.15; }
+.ip-station { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ip-track { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: capitalize; }
+.ip-sub { opacity: 0.6; font-size: 0.8em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ip-prog, .ip-vol div { grid-column: 1 / -1; height: 6px; border-radius: 3px; background: #c3ccd5; overflow: hidden; box-shadow: inset 0 1px 1px rgba(0,0,0,0.2); }
+.ip-prog i, .ip-vol i { display: block; height: 100%; width: 0; background: linear-gradient(#7fb6ee, #2f6fc0); }
+.ip-vol { grid-column: 1 / -1; display: flex; align-items: center; gap: 4px; font-size: 0.75em; opacity: 0; transition: opacity 0.3s; }
+.ip-vol div { flex: 1; }
+.ipod.vol .ip-vol { opacity: 1; }
+.wheel {
+  position: relative; width: 82%; aspect-ratio: 1; border-radius: 50%; cursor: grab;
+  background: radial-gradient(circle at 50% 40%, #ffffff, #e6e9ee 70%, #d4d8df);
+  box-shadow: inset 0 2px 6px rgba(0,0,0,0.12), 0 1px 0 #fff;
+}
+.wheel.spin { cursor: grabbing; }
+.wb {
+  position: absolute; border: none; background: none; color: #a4abb5; font: 700 calc(var(--w) * 0.05) 'Outfit', sans-serif;
+  letter-spacing: 0.06em; padding: 6px; cursor: pointer; line-height: 1;
+}
+.wb.menu { top: 6%; left: 50%; transform: translateX(-50%); }
+.wb.play { bottom: 6%; left: 50%; transform: translateX(-50%); font-size: calc(var(--w) * 0.045); letter-spacing: -0.1em; }
+.wb.prev { left: 5%; top: 50%; transform: translateY(-50%); font-size: calc(var(--w) * 0.06); }
+.wb.next { right: 5%; top: 50%; transform: translateY(-50%); font-size: calc(var(--w) * 0.06); }
+.wb:active, .wb.flash { color: #4b5361; }
+.hub {
+  position: absolute; left: 50%; top: 50%; width: 36%; aspect-ratio: 1; transform: translate(-50%, -50%);
+  border-radius: 50%; border: none; cursor: pointer;
+  background: linear-gradient(160deg, #f9fafc, #dfe3e9); box-shadow: 0 1px 3px rgba(0,0,0,0.22), inset 0 1px 0 #fff;
+}
+.hub:active, .hub.flash { background: linear-gradient(160deg, #dfe3e9, #f2f4f7); }
+.ipod-close {
+  position: absolute; top: -10px; right: -10px; width: 28px; height: 28px; border-radius: 50%; border: none; cursor: pointer;
+  background: rgba(48, 24, 52, 0.75); color: #fff; font-size: 0.8rem; box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+
 
 /* speed gauge */
 .gauge { position: relative; width: 112px; height: 112px; flex: none; }
@@ -308,7 +395,8 @@ kbd {
   .gauge-num span { font-size: 1.5rem; }
   .gauge-state { display: none; }
   .radio { position: fixed; left: var(--pad); bottom: var(--bot); max-width: calc(100vw - 2 * var(--pad) - 200px); }
-  .radio .eq, #volume, #radio-key { display: none; }
+  .radio .eq, #radio-key { display: none; }
+  .ipod { --w: 172px; bottom: calc(var(--bot) + 64px); }
 }
 
 @media (max-width: 640px) {
@@ -400,7 +488,11 @@ kbd {
   .gauge { right: calc(var(--pad) + 172px); bottom: var(--bot); width: 70px; height: 70px; }
   .gauge-num span { font-size: 1.2rem; }
   .radio { max-width: 34vw; padding: 5px 10px 5px 5px; }
-  .radio-btn { width: 34px; height: 34px; }
+  .mini-ipod { width: 24px; height: 36px; }
+  .ipod { --w: 150px; left: calc(var(--pad) + 2px); bottom: calc(var(--bot) + 54px); }
+  .ip-vol { display: none; }
+  .ipod.vol .ip-vol { display: flex; }
+  .ipod.vol .ip-prog { display: none; }
   .touch-hint { bottom: calc(var(--bot) + 96px); }
   .toast { top: 18%; font-size: 1.15rem; padding: 6px 16px 8px; }
 }

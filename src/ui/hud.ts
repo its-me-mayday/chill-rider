@@ -27,7 +27,7 @@ export class Hud {
     radio: $('radio'),
     track: $('radio-track'),
     key: $('radio-key'),
-    toggle: $<HTMLButtonElement>('radio-toggle'),
+    station: $('radio-station'),
     lvl: $('lvl'),
     xpbar: $('xpbar'),
     xp: $('lvl'),
@@ -199,12 +199,15 @@ export class Hud {
 
   setRadio(on: boolean) {
     this.el.radio.classList.toggle('on', on);
-    this.el.toggle.textContent = on ? '❚❚' : '▶';
+
   }
 
   setTrack(t: Track) {
     this.el.track.textContent = t.title;
-    this.el.key.textContent = `· ${t.key} · ${t.bpm} bpm`;
+    this.el.key.textContent = `${t.station.freq}`;
+    this.el.station.textContent = t.station.name;
+    this.el.radio.style.setProperty('--st-a', t.station.color[0]);
+    this.el.radio.style.setProperty('--st-b', t.station.color[1]);
   }
 
   toast(text: string, sub = '', ms = 2400, big = false) {
