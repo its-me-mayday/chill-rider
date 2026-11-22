@@ -26,6 +26,7 @@
               <div class="title-row">
                 <span class="title">Chill Rider</span>
                 <span class="lvl-badge" id="lvl">Lv 1</span>
+                <span class="goal-mini" id="goal-mini"></span>
               </div>
               <div class="place"><span id="place">Peach Village</span><span class="sep"> · </span><span id="phase">Golden Hour</span></div>
               <div class="meter hp" title="Health"><span class="ico">♥</span><i><b id="hp-bar"></b></i><span class="meter-label" id="hp-label">feeling good</span></div>
@@ -40,9 +41,11 @@
           <div class="panel map-panel">
             <canvas id="minimap" class="minimap"></canvas>
             <span class="compass">N</span>
+            <div class="clock-wrap"><canvas id="clock" class="clock"></canvas><span class="clock-time" id="clock-time">09:00</span></div>
           </div>
           <div class="panel purse">
             <div class="tips" id="tips"></div>
+            <div class="finds" id="finds"></div>
             <div class="streak" id="streak"></div>
           </div>
           <button id="garage-btn" class="pill">🔧 Garage</button>

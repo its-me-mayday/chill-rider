@@ -2,7 +2,8 @@ import './styles.css';
 import { AudioEngine } from './audio/audio';
 import { advance, pickChallenges, reset, type Challenge, type ChallengeId } from './game/challenges';
 import { Critters } from './game/critters';
-import { lightAt } from './game/daylight';
+import { busyness, lightAt } from './game/daylight';
+import type { Secret } from './game/map';
 import { Input } from './game/input';
 import { generateMap, type GameMap } from './game/map';
 import { Orders, type OrderEvent } from './game/orders';
@@ -17,6 +18,7 @@ import { Renderer } from './render/renderer';
 import { Garage } from './ui/garage';
 import { Hud } from './ui/hud';
 import { Portrait } from './ui/portrait';
+import { DayClock } from './ui/clock';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const renderer = new Renderer(canvas);
@@ -29,6 +31,7 @@ const profile = loadProfile();
 const garage = new Garage(profile);
 const portrait = new Portrait(document.getElementById('portrait') as HTMLCanvasElement);
 let restingToast = false;
+const dayClock = new DayClock(document.getElementById('clock') as HTMLCanvasElement);
 let potholeTip = false;
 
 // one-time migration of tips from the previous version
@@ -48,6 +51,7 @@ let critters: Critters;
 let traffic: Traffic;
 let challenges: Challenge[] = [];
 let postcards: { x: number; y: number; got: boolean }[] = [];
+let secrets: (Secret & { got: boolean })[] = [];
 let rain = false;
 let townMeters = 0;
 let started = false;
@@ -75,6 +79,7 @@ function loadMap() {
   traffic = new Traffic(map, (woods ? 2 : 4) + Math.min(5, profile.stats.towns), 4 + Math.min(4, profile.level), map.spawn);
   challenges = pickChallenges(seed, profile.level);
   postcards = map.postcards.map((p) => ({ ...p, got: false }));
+  secrets = map.secrets.map((p) => ({ ...p, got: false }));
   townMeters = 0;
   rider.place(map.spawn.x, map.spawn.y, map.spawn.heading);
   rider.wet = rain;
@@ -199,6 +204,7 @@ document.getElementById('next-map')!.addEventListener('click', () => {
   profile.townIndex++;
   save();
   loadMap();
+  shopOpen.clear();
   paused = false;
   hud.toast(map.theme.name, rain ? 'a rainy day — tips are better' : 'new town, new shops', 2800);
 });
@@ -372,6 +378,61 @@ function collectPostcards() {
   }
 }
 
+const SECRET_INFO: Record<Secret['kind'], { title: string; text: string; cash: number; xp: number; icon: string }> = {
+  chest: { title: 'Hidden chest!', text: 'tucked under the leaves', cash: 12, xp: 30, icon: '🧰' },
+  gnome: { title: 'A garden gnome', text: 'he was hiding behind the house', cash: 5, xp: 20, icon: '🍄' },
+  kitten: { title: 'Lost kitten found', text: 'back home safe — the owner is grateful', cash: 8, xp: 25, icon: '🐱' },
+  stargazer: { title: 'The stargazer', text: 'shares a look at the stars with you', cash: 10, xp: 40, icon: '🔭' },
+};
+
+const shopOpen = new Map<number, boolean>();
+function announceShops(hour: number) {
+  if (!started) return;
+  for (const s of orders.shops) {
+    const open = orders.isOpen(s);
+    const was = shopOpen.get(s.id);
+    shopOpen.set(s.id, open);
+    if (was === undefined || was === open) continue;
+    hud.badge(`${s.shop!.name} ${open ? 'is open' : 'just closed'}`, open ? 'new orders soon' : `see you tomorrow · it's ${Math.floor(hour)}:00`, open ? '🔓' : '🔒');
+  }
+}
+document.getElementById('orders')!.addEventListener('click', (e) => {
+  (e.currentTarget as HTMLElement).classList.toggle('open');
+});
+
+function discoverSecrets(night: number) {
+  for (const s of secrets) {
+    if (s.got) continue;
+    if (s.night && night < 0.6) continue;
+    const reach = s.kind === 'stargazer' ? 3 : 1.9;
+    if (Math.hypot(s.x - rider.x, s.y - rider.y) > reach) continue;
+    s.got = true;
+    const info = SECRET_INFO[s.kind];
+    profile.secrets[s.kind] = (profile.secrets[s.kind] ?? 0) + 1;
+    profile.stats.secrets++;
+    profile.wallet = Math.round((profile.wallet + info.cash) * 100) / 100;
+    hud.badge(info.title, `${info.text} · +${info.cash} €`, info.icon);
+    renderer.burst('sparkle', s.x, s.y, 26);
+    renderer.confetti(s.x, s.y);
+    renderer.floatText(s.x, s.y, `${info.icon} secret!`, '#ffe08a', true);
+    audio.collect();
+    audio.fanfare();
+    gainXp(info.xp);
+    // secret cosmetics
+    const unlock = (id: string, name: string) => {
+      if (profile.owned.includes(id)) return;
+      profile.owned.push(id);
+      hud.badge('New style unlocked', `${name} — wear it in the garage`, '✦');
+    };
+    if (s.kind === 'stargazer') unlock('beanie-starry', 'Starry beanie');
+    if ((profile.secrets.chest ?? 0) >= 3) unlock('frame-treasure', 'Treasure bike paint');
+    if ((profile.secrets.kitten ?? 0) >= 3) unlock('scarf-kitten', 'Kitten scarf');
+    adv('secret', secrets.filter((x) => x.got).length, true);
+    checkBadges();
+    save();
+  }
+}
+
 // ------------------------------------------------------------ loop
 const STEP = 1 / 120;
 let acc = 0;
@@ -429,6 +490,11 @@ function frame(now: number) {
   critters.update(dt, rider.x, rider.y, rider.speed);
   const movers: Mover[] = critters.obstacles().map((o) => ({ x: o.x, y: o.y, r: o.r, kind: 'person' as const, onHit: () => (o.w.bumped = 1.4) }));
   if (started) {
+    const hourNow = lightAt(time).hour;
+    const busy = busyness(hourNow);
+    const nightNow = hourNow < 5.5 || hourNow >= 21.5;
+    traffic.setDensity(busy, nightNow ? 0.25 : 0.55 + busy * 0.45, rider.x, rider.y);
+    critters.setDensity(nightNow ? 0.2 : 0.5 + busy * 0.5, rider.x, rider.y);
     traffic.update(dt, rider.x, rider.y, rider.speed, tEvents);
     for (const m of traffic.movers()) movers.push({ ...m, onHit: () => (m.v.honk = 4) });
   }
@@ -437,7 +503,8 @@ function frame(now: number) {
     rider.update(STEP, controls, map, bumps, movers);
     acc -= STEP;
   }
-  const light = lightAt(time + 15);
+  const light = lightAt(time);
+  orders.hour = light.hour;
   if (started) {
     const moved = rider.odometer - odo;
     profile.stats.meters += moved;
@@ -477,6 +544,7 @@ function frame(now: number) {
     for (const ev of events) handle(ev, light.night);
     for (const ev of tEvents) handleTraffic(ev);
     collectPostcards();
+    discoverSecrets(light.night);
   }
   bumps.length = 0;
   events.length = 0;
@@ -495,7 +563,9 @@ function frame(now: number) {
     },
     headlight: rider.stats.light,
     traffic,
+    secrets,
   });
+  dayClock.draw(light.hour, light.night);
 
   portrait.draw(rider, time, { beanie: cosmeticColor(profile.equipped.beanie), scarf: cosmeticColor(profile.equipped.scarf) }, rain);
 
@@ -516,7 +586,9 @@ function frame(now: number) {
     });
     pedalBtn.classList.toggle('spin', rider.pedalling && rider.speed > 0.5);
     hud.setChallenges(challenges);
+    hud.setFinds(postcards.filter((p) => p.got).length, secrets.filter((x) => x.got).length, secrets.length);
     hud.setStreak(orders.streak, orders.streakMul);
+    announceShops(light.hour);
     garageBtn.classList.toggle('has-new', garage.hasAffordable());
     minimap.draw(rider, orders, target, time);
   }
@@ -549,6 +621,9 @@ requestAnimationFrame(frame);
   },
   get postcards() {
     return postcards;
+  },
+  get secrets() {
+    return secrets;
   },
   warp: (s: number) => (time += s),
   next: () => {

@@ -34,6 +34,8 @@ export class Hud {
     gauge: $('gauge-fill'),
     gaugeState: $('gauge-state'),
     keys: $('hint'),
+    goalMini: $('goal-mini'),
+    finds: $('finds'),
     challenges: $('challenges'),
     streak: $('streak'),
     badge: $('badge'),
@@ -91,6 +93,12 @@ export class Hud {
         })
         .join('');
     }
+    if (o.carried.length > 1) {
+      const dots = [...o.carried].slice(1).map((x) => `<i style="background:rgb(${x.color.join(',')})"></i>`).join('');
+      rows += `<span class="more">${dots} +${o.carried.length - 1} more ▾</span>`;
+    }
+    const mini = `${o.delivered}/${o.goal}`;
+    if (this.el.goalMini.textContent !== mini) this.el.goalMini.textContent = mini;
     const tips = `${s.tips.toFixed(2)} € <small>tips</small>`;
     const key = goal + rows + tips;
     if (key !== this.last) {
@@ -123,6 +131,11 @@ export class Hud {
       this.lastChallenges = html;
       this.el.challenges.innerHTML = html;
     }
+  }
+
+  setFinds(cards: number, secrets: number, totalSecrets: number) {
+    const t = `✉ ${cards}/3 · 🗝 ${secrets}/${totalSecrets}`;
+    if (this.el.finds.textContent !== t) this.el.finds.textContent = t;
   }
 
   setStreak(streak: number, mul: number) {

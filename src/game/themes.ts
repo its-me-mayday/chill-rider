@@ -105,12 +105,14 @@ export interface ShopType {
   awning2: RGB;
   /** how the time-sensitive items are described */
   hotWord: string;
+  /** opening hours as [open, close] pairs on a 24 h clock (close may pass midnight, e.g. 26 = 2 am) */
+  hours: [number, number][];
   items: ShopItem[];
 }
 
 export const SHOPS: ShopType[] = [
   {
-    id: 'pizza', name: 'Pizzeria Da Mayday', roof: hex('#e86a5a'), awning: hex('#d94a3d'), awning2: hex('#fff6e6'), hotWord: 'piping hot',
+    id: 'pizza', name: 'Pizzeria Da Mayday', roof: hex('#e86a5a'), awning: hex('#d94a3d'), awning2: hex('#fff6e6'), hotWord: 'piping hot', hours: [[11, 15], [18, 26]],
     items: [
       { name: 'a margherita', fragile: false, hot: true },
       { name: 'a spicy diavola', fragile: false, hot: true },
@@ -120,7 +122,7 @@ export const SHOPS: ShopType[] = [
     ],
   },
   {
-    id: 'cafe', name: 'Caffè Lo-Fi', roof: hex('#9b6b4f'), awning: hex('#6b4a3a'), awning2: hex('#f4d6b0'), hotWord: 'still steaming',
+    id: 'cafe', name: 'Caffè Lo-Fi', roof: hex('#9b6b4f'), awning: hex('#6b4a3a'), awning2: hex('#f4d6b0'), hotWord: 'still steaming', hours: [[6, 21]],
     items: [
       { name: 'two cappuccini', fragile: true, hot: true },
       { name: 'a flat white', fragile: true, hot: true },
@@ -130,7 +132,7 @@ export const SHOPS: ShopType[] = [
     ],
   },
   {
-    id: 'comics', name: 'Nuvola Comics', roof: hex('#6f6ad1'), awning: hex('#ffd23f'), awning2: hex('#3d3a8f'), hotWord: 'release day',
+    id: 'comics', name: 'Nuvola Comics', roof: hex('#6f6ad1'), awning: hex('#ffd23f'), awning2: hex('#3d3a8f'), hotWord: 'release day', hours: [[10, 22.5]],
     items: [
       { name: 'a stack of manga', fragile: false },
       { name: 'a comic bundle', fragile: false },
@@ -140,7 +142,7 @@ export const SHOPS: ShopType[] = [
     ],
   },
   {
-    id: 'gelato', name: 'Gelateria Luna', roof: hex('#f7b2c4'), awning: hex('#8fd6c8'), awning2: hex('#fff4f7'), hotWord: 'melting',
+    id: 'gelato', name: 'Gelateria Luna', roof: hex('#f7b2c4'), awning: hex('#8fd6c8'), awning2: hex('#fff4f7'), hotWord: 'melting', hours: [[11, 24]],
     items: [
       { name: 'a tub of pistachio gelato', fragile: false, hot: true },
       { name: 'four gelato cones', fragile: true, hot: true },
@@ -149,7 +151,7 @@ export const SHOPS: ShopType[] = [
     ],
   },
   {
-    id: 'bakery', name: 'Forno Pesca', roof: hex('#f2b56b'), awning: hex('#e4677b'), awning2: hex('#fff6e6'), hotWord: 'fresh from the oven',
+    id: 'bakery', name: 'Forno Pesca', roof: hex('#f2b56b'), awning: hex('#e4677b'), awning2: hex('#fff6e6'), hotWord: 'fresh from the oven', hours: [[4, 19]],
     items: [
       { name: 'warm croissants', fragile: false, hot: true },
       { name: 'a sourdough loaf', fragile: false },
@@ -158,7 +160,7 @@ export const SHOPS: ShopType[] = [
     ],
   },
   {
-    id: 'florist', name: 'Petali Fiori', roof: hex('#f3a6bd'), awning: hex('#5fa68a'), awning2: hex('#eaf7ef'), hotWord: 'freshly cut',
+    id: 'florist', name: 'Petali Fiori', roof: hex('#f3a6bd'), awning: hex('#5fa68a'), awning2: hex('#eaf7ef'), hotWord: 'freshly cut', hours: [[8, 19.5]],
     items: [
       { name: 'a bunch of tulips', fragile: false },
       { name: 'a potted fern', fragile: true },
@@ -167,7 +169,7 @@ export const SHOPS: ShopType[] = [
     ],
   },
   {
-    id: 'records', name: 'Side B Records', roof: hex('#4b4a7a'), awning: hex('#f4c063'), awning2: hex('#2e2a46'), hotWord: 'just pressed',
+    id: 'records', name: 'Side B Records', roof: hex('#4b4a7a'), awning: hex('#f4c063'), awning2: hex('#2e2a46'), hotWord: 'just pressed', hours: [[10, 27]],
     items: [
       { name: 'vinyl records', fragile: true },
       { name: 'a cassette box', fragile: false },
@@ -175,7 +177,7 @@ export const SHOPS: ShopType[] = [
     ],
   },
   {
-    id: 'books', name: 'Dog-ear Books', roof: hex('#4f9a8a'), awning: hex('#2f6b5f'), awning2: hex('#f3e0b5'), hotWord: 'hot off the press',
+    id: 'books', name: 'Dog-ear Books', roof: hex('#4f9a8a'), awning: hex('#2f6b5f'), awning2: hex('#f3e0b5'), hotWord: 'hot off the press', hours: [[9, 21]],
     items: [
       { name: 'a stack of novels', fragile: false },
       { name: 'a poetry book', fragile: false },
@@ -183,3 +185,16 @@ export const SHOPS: ShopType[] = [
     ],
   },
 ];
+
+export function isOpen(shop: ShopType, hour: number): boolean {
+  return shop.hours.some(([o, c]) => (hour >= o && hour < c) || (hour + 24 >= o && hour + 24 < c));
+}
+
+export function hoursLabel(shop: ShopType): string {
+  const f = (h: number) => {
+    const hh = Math.floor(h % 24);
+    const mm = Math.round((h - Math.floor(h)) * 60);
+    return `${hh}${mm ? ':' + String(mm).padStart(2, '0') : ''}`;
+  };
+  return shop.hours.map(([o, c]) => `${f(o)}–${f(c)}`).join(', ');
+}

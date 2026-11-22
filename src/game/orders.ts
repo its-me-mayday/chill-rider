@@ -1,6 +1,7 @@
 import type { Building, GameMap } from './map';
 import { rng } from './math';
 import type { BikeStats } from './profile';
+import { isOpen } from './themes';
 import type { BumpEvent, Rider } from './rider';
 
 export type OrderKind = 'normal' | 'rush' | 'vip';
@@ -122,8 +123,26 @@ export class Orders {
     return this.hold / HOLD;
   }
 
+  /** current clock hour, set by the game every frame */
+  hour = 9;
+
+  isOpen(shop: Building) {
+    return isOpen(shop.shop!, this.hour);
+  }
+
   update(dt: number, rider: Rider, time: number, bumps: BumpEvent[], out: OrderEvent[]) {
     if (this.done) return;
+
+    // opening hours: closed shops drop their waiting order, open ones get one soon
+    for (const s of this.shops) {
+      const open = this.isOpen(s);
+      if (!open) {
+        if (this.waiting.get(s.id)) this.waiting.set(s.id, null);
+        this.restock.delete(s.id);
+      } else if (!this.waiting.get(s.id) && !this.restock.has(s.id)) {
+        this.restock.set(s.id, time + this.R.range(1.5, 4));
+      }
+    }
 
     for (const [id, t] of this.restock) {
       if (time >= t) {
@@ -178,7 +197,9 @@ export class Orders {
         o.color = GUIDE_COLORS.find((c) => !used.has(c)) ?? GUIDE_COLORS[o.id % GUIDE_COLORS.length];
         this.carried.push(o);
         this.waiting.set(s.id, null);
-        const fast = this.opt.level >= 5 ? 0.6 : 1;
+        // late-night pizza is the busiest thing in town
+        const nightRush = s.shop!.id === 'pizza' && (this.hour >= 19 || this.hour < 2) ? 0.55 : 1;
+        const fast = (this.opt.level >= 5 ? 0.6 : 1) * nightRush;
         this.restock.set(s.id, time + this.R.range(4, 9) * fast);
         out.push({ type: 'pickup', order: o });
       });

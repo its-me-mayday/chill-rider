@@ -37,7 +37,11 @@ generative lo-fi radio plays.
   butterflies, drifting cloud shadows and rainy days with puddles.
 - **Animations** — parcels tossed to the door, customers popping out to wave, floating tips, tyre tracks on grass,
   leaning into turns, screen shake on bumps, confetti on level-ups.
-- **Day cycle** — golden hour, pink dusk, blue night with street lamps, glowing windows, fireflies and a headlight, dawn.
+- **A real day** — dawn, day, golden hour, dusk and night on a 24 h clock shown by a dial in the HUD. Shops keep
+  opening hours (the bakery opens at 4, the pizzeria takes an afternoon break and runs late, the gelateria closes at
+  midnight) and pull down their shutters when closed; traffic peaks at rush hour and the streets empty out at night.
+- **Secrets** — every town hides a treasure chest and a lost kitten under the trees, a gnome behind a house and a
+  stargazer who only comes out at night. Some secrets unlock special styles.
 - **Chill FM** — a generative lo-fi radio built with Tone.js, plus wind, freewheel clicks, bumps and a bike bell.
 - **Plays on phones** — drag anywhere to ride (floating joystick), brake and bell buttons.
 

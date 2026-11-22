@@ -9,6 +9,8 @@ import type { Traffic, Vehicle } from '../game/traffic';
 import type { Rider as RiderT } from '../game/rider';
 import { drawRider, type Cargo, type RiderStyle } from './riderDraw';
 import { drawShop, type Painter } from './shops';
+import { isOpen } from '../game/themes';
+import type { Secret } from '../game/map';
 
 interface Particle {
   kind: 'petal' | 'dust' | 'sparkle' | 'firefly' | 'leaf' | 'butterfly' | 'confetti';
@@ -49,6 +51,7 @@ export interface Scene {
   rain: boolean;
   headlight: number;
   traffic: Traffic | null;
+  secrets: (Secret & { got: boolean })[];
 }
 
 interface Floater { text: string; x: number; y: number; t: number; color: string; big: boolean }
@@ -204,6 +207,7 @@ export class Renderer {
 
     const view = this.view();
     this.night = light.night;
+    this.hour = light.hour;
     this.lastTime = time;
     this.drawTiles(map, view, time);
     this.drawStreetDetails(map, view);
@@ -214,6 +218,7 @@ export class Renderer {
     this.drawShadows(map, view, light);
     this.drawMarkers(orders, target, time);
     this.drawPostcards(sc.postcards, time, view);
+    this.drawSecrets(sc.secrets, r, light, time, view);
     if (sc.critters) this.drawDucks(sc.critters, time);
     if (sc.critters) this.drawCats(sc.critters, time, view);
     this.drawRiderSprite(r, orders, time, sc.style);
@@ -775,8 +780,19 @@ export class Renderer {
     };
   }
 
+  hour = 9;
+
   private shop(b: Building, orders: Orders | null, time: number) {
-    drawShop(this.painter(), b, time, this.night, !!orders && !!orders.waiting.get(b.id));
+    const st = b.shop!;
+    const open = isOpen(st, this.hour);
+    let opens = '';
+    if (!open) {
+      // next opening time
+      const starts = st.hours.map(([o]) => o % 24).sort((a, c) => ((a - this.hour + 24) % 24) - ((c - this.hour + 24) % 24));
+      const h = starts[0];
+      opens = `${Math.floor(h)}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}`;
+    }
+    drawShop(this.painter(), b, time, this.night, !!orders && !!orders.waiting.get(b.id), open, opens);
   }
 
   // ------------------------------------------------------------- trees
@@ -1060,7 +1076,7 @@ export class Renderer {
       glow(r.x, r.y, 4, 0.4 * n, '255,240,220');
       if (traffic) {
         for (const c of traffic.vehicles) {
-          if (!this.inView(c.x, c.y, 12, v)) continue;
+          if (!c.active || !this.inView(c.x, c.y, 12, v)) continue;
           const ax = Math.cos(c.heading);
           const ay = Math.sin(c.heading);
           if (c.kind === 'rider') glow(c.x + ax * 3, c.y + ay * 3, 3.5, 0.4 * n, '255,246,220');
@@ -1384,7 +1400,7 @@ export class Renderer {
   private drawVehicles(t: Traffic, time: number, v: View) {
     const { ctx, ppm } = this;
     for (const c of t.vehicles) {
-      if (!this.inView(c.x, c.y, 4, v)) continue;
+      if (!c.active || !this.inView(c.x, c.y, 4, v)) continue;
       if (c.kind === 'rider') {
         this.npcRider(c, time);
         continue;
@@ -1784,6 +1800,121 @@ export class Renderer {
     }
   }
 
+  // ------------------------------------------------------------ secrets
+  private drawSecrets(list: (Secret & { got: boolean })[], r: Rider, light: Light, time: number, v: View) {
+    const { ctx, ppm } = this;
+    for (const s of list) {
+      if (s.got || !this.inView(s.x, s.y, 3, v)) continue;
+      if (s.night && light.night < 0.6) continue;
+      const x = this.sx(s.x);
+      const y = this.sy(s.y);
+      const near = Math.hypot(r.x - s.x, r.y - s.y);
+      // a faint twinkle when you're getting close
+      if (near < 12) {
+        const tw = (time * 1.2 + s.x) % 1;
+        ctx.fillStyle = `rgba(255,250,220,${0.8 * (1 - tw) * (1 - near / 12)})`;
+        for (let k = 0; k < 3; k++) {
+          const a = time * 1.5 + (k / 3) * Math.PI * 2;
+          const rr = Math.max(2, ppm * 0.14);
+          ctx.fillRect(x + Math.cos(a) * ppm * 1.1 - rr / 2, y + Math.sin(a) * ppm * 0.8 - rr / 2, rr, rr);
+        }
+      }
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(ppm, ppm);
+      switch (s.kind) {
+        case 'chest': {
+          ctx.fillStyle = 'rgba(50,25,50,0.25)';
+          ctx.fillRect(-0.4, -0.2, 1.0, 0.7);
+          ctx.fillStyle = '#8a5a34';
+          ctx.fillRect(-0.5, -0.35, 1.0, 0.7);
+          ctx.fillStyle = '#a86e40';
+          ctx.fillRect(-0.5, -0.35, 1.0, 0.25);
+          ctx.fillStyle = '#d9a441';
+          ctx.fillRect(-0.5, -0.12, 1.0, 0.07);
+          ctx.fillRect(-0.08, -0.2, 0.16, 0.22);
+          break;
+        }
+        case 'kitten': {
+          const wig = Math.sin(time * 6) * 0.1;
+          ctx.fillStyle = '#f0a25e';
+          ctx.beginPath();
+          ctx.ellipse(0, 0, 0.26, 0.18, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(0.24, -0.05, 0.13, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.moveTo(0.18, -0.15);
+          ctx.lineTo(0.22, -0.28);
+          ctx.lineTo(0.28, -0.16);
+          ctx.moveTo(0.28, -0.14);
+          ctx.lineTo(0.35, -0.26);
+          ctx.lineTo(0.37, -0.12);
+          ctx.fill();
+          ctx.strokeStyle = '#f0a25e';
+          ctx.lineWidth = 0.06;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(-0.25, 0);
+          ctx.quadraticCurveTo(-0.4, -0.1 + wig, -0.42, -0.25 + wig);
+          ctx.stroke();
+          break;
+        }
+        case 'gnome': {
+          ctx.fillStyle = 'rgba(50,25,50,0.25)';
+          ctx.beginPath();
+          ctx.arc(0.08, 0.08, 0.3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#4f7fbf';
+          ctx.beginPath();
+          ctx.arc(0, 0.05, 0.24, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#f6f1e4';
+          ctx.beginPath();
+          ctx.arc(0, 0.1, 0.15, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#e4344a';
+          ctx.beginPath();
+          ctx.moveTo(-0.17, -0.05);
+          ctx.lineTo(0.17, -0.05);
+          ctx.lineTo(0.02, -0.45);
+          ctx.fill();
+          break;
+        }
+        case 'stargazer': {
+          // blanket, telescope on a tripod, and its owner looking up
+          ctx.fillStyle = '#6f6ad1';
+          ctx.fillRect(-0.9, -0.6, 1.4, 1.2);
+          ctx.strokeStyle = '#d9d2e6';
+          ctx.lineWidth = 0.08;
+          ctx.beginPath();
+          ctx.moveTo(0.6, 0);
+          ctx.lineTo(1.4, -0.5);
+          ctx.stroke();
+          ctx.fillStyle = '#c9b3f2';
+          ctx.save();
+          ctx.translate(1.1, -0.3);
+          ctx.rotate(-0.55);
+          ctx.fillRect(-0.45, -0.1, 0.9, 0.2);
+          ctx.restore();
+          break;
+        }
+      }
+      ctx.restore();
+      if (s.kind === 'stargazer') {
+        this.person(s.x - 0.2, s.y, -Math.PI / 2, 0, '#c9b3f2', '#e9d3a3');
+        // a faint glow and a shooting star overhead
+        const g = ctx.createRadialGradient(x, y, 0, x, y, ppm * 3);
+        g.addColorStop(0, 'rgba(200,190,255,0.25)');
+        g.addColorStop(1, 'rgba(200,190,255,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(x - ppm * 3, y - ppm * 3, ppm * 6, ppm * 6);
+      }
+      if (s.kind === 'kitten' && near < 9 && Math.sin(time * 1.7 + s.x) > 0.7) this.bubble(s.x, s.y, '?');
+    }
+  }
+
   // ----------------------------------------------------------- critters
   private person(x: number, y: number, facing: number, phase: number, shirt: string, hair: string, wave = 0) {
     const { ctx, ppm } = this;
@@ -1840,7 +1971,7 @@ export class Renderer {
   private drawWalkers(c: Critters, time: number, v: View) {
     const { ctx, ppm } = this;
     for (const w of c.walkers) {
-      if (!this.inView(w.x, w.y, 3, v)) continue;
+      if (!w.active || !this.inView(w.x, w.y, 3, v)) continue;
       const facing = this.walkerFacing(w);
       if (w.dog) {
         // leash

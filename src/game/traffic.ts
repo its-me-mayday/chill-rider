@@ -40,6 +40,8 @@ export interface Vehicle {
   scarf: string;
   frame: string;
   parcel: boolean;
+  /** parked/off the streets at quiet hours */
+  active: boolean;
 }
 
 export type TrafficEvent = { type: 'honk'; v: Vehicle } | { type: 'ring'; v: Vehicle } | { type: 'hit'; v: Vehicle; power: number } | { type: 'wave'; v: Vehicle };
@@ -91,7 +93,7 @@ export class Traffic {
           width: isRider ? 0.6 : kind === 'van' ? 2.0 : 1.85,
           pending: null, node: 0, stopped: 0, honk: 0, wave: 0, braking: false,
           crank: R.range(0, 6), wheel: 0, steerVis: 0, lean: 0, wobble: 0,
-          beanie: R.pick(OUTFITS), scarf: R.pick(OUTFITS), frame: R.pick(OUTFITS), parcel: R.chance(0.4),
+          beanie: R.pick(OUTFITS), scarf: R.pick(OUTFITS), frame: R.pick(OUTFITS), parcel: R.chance(0.4), active: true,
         });
         return;
       }
@@ -117,14 +119,31 @@ export class Traffic {
 
   /** Solid shapes for the player's collision. */
   movers() {
-    return this.vehicles.map((v) => ({
+    return this.vehicles.filter((v) => v.active).map((v) => ({
       x: v.x, y: v.y, r: v.width / 2, len: Math.max(0, v.half - v.width / 2), angle: v.heading,
       kind: v.kind === 'rider' ? ('rider' as const) : ('car' as const), v,
     }));
   }
 
+  /**
+   * `cars` and `riders` are the share of each that should be out at this hour (0..1).
+   * Vehicles only appear or leave while out of the player's sight.
+   */
+  setDensity(cars: number, riders: number, px: number, py: number) {
+    const kinds: [Vehicle['kind'][], number][] = [[['car', 'van'], cars], [['rider'], riders]];
+    for (const [ks, frac] of kinds) {
+      const list = this.vehicles.filter((v) => ks.includes(v.kind));
+      const want = Math.max(ks[0] === 'rider' ? 1 : 1, Math.round(list.length * frac));
+      list.forEach((v, i) => {
+        const should = i < want;
+        if (v.active !== should && Math.hypot(v.x - px, v.y - py) > 38) v.active = should;
+      });
+    }
+  }
+
   update(dt: number, px: number, py: number, pspeed: number, out: TrafficEvent[]) {
     for (const v of this.vehicles) {
+      if (!v.active) continue;
       v.honk = Math.max(0, v.honk - dt);
       v.wave = Math.max(0, v.wave - dt);
       if (v.stopped > 0) {
@@ -138,7 +157,7 @@ export class Traffic {
       // ---- what's ahead in my lane?
       let limit = v.max;
       for (const o of this.vehicles) {
-        if (o === v) continue;
+        if (o === v || !o.active) continue;
         const ax = (o.x - v.x) * dx + (o.y - v.y) * dy;
         const lat = Math.abs((o.x - v.x) * -dy + (o.y - v.y) * dx);
         if (ax > 0 && ax < 14 && lat < 1.6) limit = Math.min(limit, Math.max(0, (ax - v.half - o.half - 1.5) * 1.1));

@@ -71,6 +71,14 @@ export interface Spot {
   y: number;
 }
 
+export type SecretKind = 'chest' | 'gnome' | 'kitten' | 'stargazer';
+
+export interface Secret extends Spot {
+  kind: SecretKind;
+  /** only appears at night */
+  night: boolean;
+}
+
 export interface GameMap {
   seed: number;
   theme: Theme;
@@ -93,6 +101,8 @@ export interface GameMap {
   /** pond centres (for ducks) and garden spots (for cats) */
   ponds: (Spot & { r: number })[];
   catSpots: Spot[];
+  /** hidden secrets to discover */
+  secrets: Secret[];
   /** spatial hash of tree indices, 8 m cells */
   treeGrid: Map<number, number[]>;
 }
@@ -666,6 +676,67 @@ export function generateMap(theme: Theme, seed: number): GameMap {
     if (clearSpot(x, y) && postcards.every((p) => Math.hypot(p.x - x, p.y - y) > 30)) postcards.push({ x, y });
   }
 
+  // ---- secrets: tucked under tree canopies, behind houses, in quiet corners
+  const secrets: Secret[] = [];
+  const awayFromRoads = (x: number, y: number) => !roadNear(x, y, 4);
+  // a treasure chest and a lost kitten hide under the leaves of a tree in a little grove
+  const groveTrees = trees.filter((t) => trees.filter((o) => Math.hypot(o.x - t.x, o.y - t.y) < 7).length >= 3);
+  const underTree = (avoid: Spot[]) => {
+    const pool = (groveTrees.length ? groveTrees : trees).slice().sort(() => R.next() - 0.5);
+    for (const t of pool) {
+      for (let k = 0; k < 6; k++) {
+        const a = R.range(0, Math.PI * 2);
+        const d = t.r * 0.72;
+        const x = t.x + Math.cos(a) * d;
+        const y = t.y + Math.sin(a) * d;
+        const tooClose = trees.some((o) => o !== t && Math.hypot(o.x - x, o.y - y) < o.r * 0.5 + 0.9);
+        if (tooClose || overlapsBuilding(x - 0.8, y - 0.8, 1.6, 1.6, 0.3)) continue;
+        if (get(Math.floor(x / TILE), Math.floor(y / TILE)) === T.WATER) continue;
+        if (avoid.some((p) => Math.hypot(p.x - x, p.y - y) < 30)) continue;
+        if (!awayFromRoads(x, y)) continue;
+        return { x, y };
+      }
+    }
+    return null;
+  };
+  const chest = underTree([...postcards]);
+  if (chest) secrets.push({ ...chest, kind: 'chest', night: false });
+  const kitten = underTree([...postcards, ...secrets]);
+  if (kitten) secrets.push({ ...kitten, kind: 'kitten', night: false });
+  // a garden gnome behind a house, out of sight from the street
+  const backs = buildings.filter((b) => b.kind === 'house').sort(() => R.next() - 0.5);
+  let gnomed = false;
+  for (const b of backs) {
+    if (gnomed) break;
+    const depth = b.nx === 0 ? b.h : b.w;
+    const L = b.nx === 0 ? b.w : b.h;
+    for (const u of [0, -L * 0.3, L * 0.3, -L * 0.45, L * 0.45]) {
+      for (const back of [0.8, 1.2]) {
+        const x = b.doorX - b.nx * (depth + back) - b.ny * u;
+        const y = b.doorY - b.ny * (depth + back) + b.nx * u;
+        if (get(Math.floor(x / TILE), Math.floor(y / TILE)) !== T.GRASS) continue;
+        if (overlapsBuilding(x - 0.4, y - 0.4, 0.8, 0.8, 0.1)) continue;
+        if (trees.some((o) => Math.hypot(o.x - x, o.y - y) < o.r * 0.5 + 0.9)) continue;
+        if (props.some((p) => Math.hypot(p.x - x, p.y - y) < p.r + (p.len ?? 0) + 0.9)) continue;
+        if (secrets.some((p) => Math.hypot(p.x - x, p.y - y) < 18)) continue;
+        secrets.push({ x, y, kind: 'gnome', night: false });
+        gnomed = true;
+        break;
+      }
+      if (gnomed) break;
+    }
+  }
+  // a stargazer with a telescope, only out at night, far from street lamps
+  for (let k = 0; k < 300; k++) {
+    const c = parkSpots[k % Math.max(1, parkSpots.length)] ?? { x: R.range(10, cols * TILE - 10), y: R.range(10, rows * TILE - 10) };
+    const x = c.x + R.range(-6, 6);
+    const y = c.y + R.range(-6, 6);
+    if (!clearSpot(x, y) || !awayFromRoads(x, y)) continue;
+    if (secrets.some((p) => Math.hypot(p.x - x, p.y - y) < 25)) continue;
+    secrets.push({ x, y, kind: 'stargazer', night: true });
+    break;
+  }
+
   // ---- cats nap in gardens
   const catSpots: Spot[] = [];
   for (let k = 0; k < 300 && catSpots.length < 6; k++) {
@@ -697,6 +768,6 @@ export function generateMap(theme: Theme, seed: number): GameMap {
   return {
     seed, theme, cols, rows,
     width: cols * TILE, height: rows * TILE,
-    tiles, buildings, trees, lamps, props, roadRows, roadCols, spawn, treeGrid, postcards, ponds, catSpots, potholes,
+    tiles, buildings, trees, lamps, props, roadRows, roadCols, spawn, treeGrid, postcards, ponds, catSpots, potholes, secrets,
   };
 }

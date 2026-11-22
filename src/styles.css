@@ -73,6 +73,7 @@ canvas#game { display: block; position: fixed; inset: 0; }
 .title-row { display: flex; align-items: baseline; gap: 8px; }
 .title { font-family: 'Playfair Display', serif; font-style: italic; font-size: 1.45rem; line-height: 1; white-space: nowrap; }
 .lvl-badge {
+  white-space: nowrap;
   font-size: 0.68rem; font-weight: 600; letter-spacing: 0.06em; padding: 2px 8px; border-radius: 999px;
   background: var(--accent); color: #6a3a55; text-shadow: none;
 }
@@ -145,6 +146,19 @@ canvas#game { display: block; position: fixed; inset: 0; }
 .streak { font-size: 0.74rem; font-weight: 600; color: var(--accent); }
 .streak:empty { display: none; }
 .streak.bump { animation: pulse 0.5s ease; }
+
+/* ---------- day clock ---------- */
+.clock-wrap { position: absolute; left: -22px; bottom: -22px; width: 64px; height: 64px; }
+.clock { width: 64px; height: 64px; display: block; filter: drop-shadow(0 4px 10px rgba(40, 12, 40, 0.35)); }
+.clock-time {
+  position: absolute; left: 50%; bottom: -8px; transform: translateX(-50%);
+  font-size: 0.66rem; font-weight: 600; padding: 1px 7px; border-radius: 999px;
+  background: rgba(40, 20, 45, 0.75); text-shadow: none; font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.finds { font-size: 0.72rem; color: var(--ink-soft); }
+.finds:empty { display: none; }
+.goal-mini { white-space: nowrap; display: none; font-size: 0.7rem; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: rgba(255,255,255,0.18); text-shadow: none; }
+.orders .more { display: none; }
 
 /* ---------- toast ---------- */
 .toast {
@@ -276,7 +290,8 @@ kbd {
   .player { gap: 8px; padding: 6px 10px 6px 6px; }
   .rider-card { width: 56px; height: 56px; }
   .portrait { width: 52px; height: 52px; }
-  .title { font-size: 1.1rem; }
+  .title { font-size: 0.98rem; }
+  .title-row { gap: 5px; }
   .place #phase, .place .sep { display: none; }
   .meter i { max-width: 70px; }
   .meter-label { display: none; }
@@ -284,9 +299,25 @@ kbd {
   .purse { min-width: 0; padding: 6px 10px; }
   .tips { font-size: 0.95rem; }
   .challenges { display: none; }
+  .goal-panel { display: none; }
+  .goal-mini { display: inline-block; }
+  .orders { pointer-events: auto; gap: 4px; }
+  .order.target { padding: 6px 10px 6px 8px; box-shadow: 0 0 0 2px color-mix(in srgb, var(--c, #fff1b8) 25%, transparent); }
+  .order.target .addr { font-size: 0.86rem; }
+  .order.target .what { font-size: 0.66rem; }
+  .order.target .timer { font-size: 1.05rem; }
+  .orders:not(.open) .order.small { display: none; }
   .order.small .what { display: none; }
   .order.small .sw { grid-row: auto; }
-  .order .timer { font-size: 1rem; }
+  .orders .more {
+    display: inline-flex; align-items: center; gap: 4px; align-self: flex-start;
+    font-size: 0.68rem; font-weight: 600; padding: 3px 9px; border-radius: 999px;
+    background: var(--glass); border: 1px solid var(--glass-border); text-shadow: none;
+  }
+  .orders .more i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .clock-wrap { left: 6px; bottom: 6px; width: 42px; height: 42px; }
+  .clock { width: 42px; height: 42px; }
+  .clock-time { font-size: 0.56rem; bottom: auto; top: 2px; left: calc(100% + 4px); transform: none; }
   .radio-track { max-width: 96px; }
   .pill { padding: 6px 10px; font-size: 0.72rem; }
   .toast { top: 62%; font-size: 1.2rem; }
@@ -314,6 +345,15 @@ kbd {
   .order.target .timer { font-size: 1.05rem; }
   .order.small .what { display: none; }
   .order.small .sw { grid-row: auto; }
+  .goal-panel { display: none; }
+  .goal-mini { display: inline-block; }
+  .orders { pointer-events: auto; }
+  .orders:not(.open) .order.small { display: none; }
+  .orders .more { display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; font-size: 0.66rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--glass); border: 1px solid var(--glass-border); }
+  .orders .more i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .clock-wrap { left: 5px; bottom: 5px; width: 40px; height: 40px; }
+  .clock { width: 40px; height: 40px; }
+  .clock-time { font-size: 0.56rem; bottom: auto; top: 2px; left: calc(100% + 4px); transform: none; }
   .minimap { width: 112px; }
   .purse { min-width: 0; padding: 4px 10px; }
   .tips { font-size: 0.9rem; }

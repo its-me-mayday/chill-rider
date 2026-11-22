@@ -25,7 +25,9 @@ export interface Cosmetic {
   slot: 'frame' | 'beanie' | 'scarf';
   name: string;
   color: string;
+  /** -1 = can't be bought, only unlocked by a secret */
   price: number;
+  secret?: string;
 }
 
 export const COSMETICS: Cosmetic[] = [
@@ -40,6 +42,9 @@ export const COSMETICS: Cosmetic[] = [
   { id: 'beanie-moss', slot: 'beanie', name: 'Moss', color: '#7cbf86', price: 8 },
   { id: 'beanie-ink', slot: 'beanie', name: 'Ink', color: '#4b4a7a', price: 15 },
   { id: 'beanie-snow', slot: 'beanie', name: 'Snow', color: '#f6f1e4', price: 15 },
+  { id: 'beanie-starry', slot: 'beanie', name: 'Starry', color: '#2e2a6e', price: -1, secret: 'Meet the stargazer at night' },
+  { id: 'frame-treasure', slot: 'frame', name: 'Treasure', color: '#d9a441', price: -1, secret: 'Open 3 hidden chests' },
+  { id: 'scarf-kitten', slot: 'scarf', name: 'Kitten', color: '#f0a25e', price: -1, secret: 'Find 3 lost kittens' },
   { id: 'scarf-coral', slot: 'scarf', name: 'Coral', color: '#ff8f8f', price: 0 },
   { id: 'scarf-teal', slot: 'scarf', name: 'Teal', color: '#4fb3a6', price: 8 },
   { id: 'scarf-butter', slot: 'scarf', name: 'Butter', color: '#ffe08a', price: 8 },
@@ -75,6 +80,10 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'garage', name: 'Tuned up', desc: 'Buy 5 upgrades', test: (p) => Object.values(p.upgrades).reduce((a, b) => a + b, 0) >= 5 },
   { id: 'style', name: 'Looking good', desc: 'Own 6 style items', test: (p) => p.owned.length >= 9 },
   { id: 'challenge', name: 'Overachiever', desc: 'Complete 10 town challenges', test: (p) => p.stats.challenges >= 10 },
+  { id: 'secret1', name: 'Curious', desc: 'Discover a hidden secret', test: (p) => p.stats.secrets >= 1 },
+  { id: 'secret12', name: 'Secret keeper', desc: 'Discover 12 hidden secrets', test: (p) => p.stats.secrets >= 12 },
+  { id: 'stargazer', name: 'Starstruck', desc: 'Meet the stargazer at night', test: (p) => (p.secrets.stargazer ?? 0) >= 1 },
+  { id: 'gnomes', name: 'Gnome collector', desc: 'Find 5 garden gnomes', test: (p) => (p.secrets.gnome ?? 0) >= 5 },
 ];
 
 export interface Profile {
@@ -88,6 +97,7 @@ export interface Profile {
   equipped: { frame: string; beanie: string; scarf: string };
   achievements: string[];
   album: Record<string, number>; // town theme id → postcards found (lifetime)
+  secrets: Record<string, number>; // secret kind → times found
   stats: {
     deliveries: number;
     onTime: number;
@@ -96,6 +106,7 @@ export interface Profile {
     towns: number;
     perfectTowns: number;
     postcards: number;
+    secrets: number;
     vip: number;
     rush: number;
     night: number;
@@ -120,9 +131,10 @@ export function defaultProfile(): Profile {
     equipped: { frame: 'frame-mint', beanie: 'beanie-rose', scarf: 'scarf-coral' },
     achievements: [],
     album: {},
+    secrets: {},
     stats: {
       deliveries: 0, onTime: 0, meters: 0, bestStreak: 0, towns: 0, perfectTowns: 0, postcards: 0,
-      vip: 0, rush: 0, night: 0, rain: 0, bells: 0, challenges: 0, tipsEarned: 0,
+      vip: 0, rush: 0, night: 0, rain: 0, bells: 0, challenges: 0, tipsEarned: 0, secrets: 0,
     },
   };
 }
@@ -142,6 +154,7 @@ export function loadProfile(): Profile {
       owned: Array.from(new Set([...(d.owned), ...(p.owned ?? [])])),
       achievements: p.achievements ?? [],
       album: p.album ?? {},
+      secrets: p.secrets ?? {},
     };
   } catch {
     return d;

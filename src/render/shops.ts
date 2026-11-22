@@ -23,7 +23,7 @@ function front(b: Building, u: number, v: number): [number, number] {
 
 const wallLen = (b: Building) => (b.nx === 0 ? b.w : b.h);
 
-export function drawShop(p: Painter, b: Building, time: number, night: number, waiting: boolean) {
+export function drawShop(p: Painter, b: Building, time: number, night: number, waiting: boolean, open = true, opens = '') {
   const st = b.shop!;
   const { ctx, ppm } = p;
   const x = p.sx(b.x);
@@ -58,8 +58,8 @@ export function drawShop(p: Painter, b: Building, time: number, night: number, w
   }
   ctx.restore();
 
-  // ---- street furniture on the forecourt
-  furniture(p, b, time, reach);
+  // ---- street furniture on the forecourt (stacked away when closed)
+  if (open) furniture(p, b, time, reach);
 
   // ---- door
   const [dx, dy] = front(b, 0, 0.25);
@@ -69,10 +69,23 @@ export function drawShop(p: Painter, b: Building, time: number, night: number, w
   ctx.fillStyle = css(mix(st.roof, [40, 20, 30], 0.5));
   ctx.fillRect(-ppm * 0.8, -ppm * 0.25, ppm * 1.6, ppm * 0.5);
   // shop windows either side of the door, lit at night
-  const glass = night > 0.2 ? `rgba(255,214,140,${0.55 + night * 0.4})` : 'rgba(190,225,240,0.85)';
+  const glass = !open ? '#8d8796' : night > 0.2 ? `rgba(255,214,140,${0.55 + night * 0.4})` : 'rgba(190,225,240,0.85)';
   ctx.fillStyle = glass;
   ctx.fillRect(-L * 0.42 * ppm, -ppm * 0.2, (L * 0.42 - 1.1) * ppm, ppm * 0.32);
   ctx.fillRect(ppm * 1.1, -ppm * 0.2, (L * 0.42 - 1.1) * ppm, ppm * 0.32);
+  if (!open) {
+    // roller shutters down over door and windows
+    ctx.fillStyle = '#a7a1ad';
+    ctx.fillRect(-L * 0.42 * ppm, -ppm * 0.28, L * 0.84 * ppm, ppm * 0.5);
+    ctx.strokeStyle = 'rgba(60,50,70,0.45)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let u = -L * 0.42 * ppm; u < L * 0.42 * ppm; u += ppm * 0.22) {
+      ctx.moveTo(u, -ppm * 0.28);
+      ctx.lineTo(u, ppm * 0.22);
+    }
+    ctx.stroke();
+  }
   ctx.restore();
 
   // ---- roof
@@ -112,8 +125,8 @@ export function drawShop(p: Painter, b: Building, time: number, night: number, w
     smoke(ctx, cx, cy, ppm, time + b.id, st.id === 'pizza' ? 1.2 : 0.8);
   }
 
-  // ---- awning over the front, pattern by shop
-  awning(p, b, time);
+  // ---- awning over the front, pattern by shop (rolled up when closed)
+  awning(p, b, time, open ? 1 : 0.3);
 
   // ---- sign plaque with icon
   const fs = Math.max(10, Math.round(ppm * 0.72));
@@ -124,13 +137,14 @@ export function drawShop(p: Painter, b: Building, time: number, night: number, w
   const pw = tw + icon + fs * 1.2;
   const cx = x + w / 2;
   const cy = y + h / 2;
-  if (night > 0.2) {
+  if (night > 0.2 && open) {
     const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, pw * 0.8);
     g.addColorStop(0, css(st.awning, 0.45 * night));
     g.addColorStop(1, css(st.awning, 0));
     ctx.fillStyle = g;
     ctx.fillRect(cx - pw, cy - pw, pw * 2, pw * 2);
   }
+  ctx.globalAlpha = open ? 1 : 0.7;
   ctx.fillStyle = 'rgba(255,250,240,0.96)';
   ctx.strokeStyle = css(st.awning);
   ctx.lineWidth = Math.max(1.5, ppm * 0.1);
@@ -143,9 +157,24 @@ export function drawShop(p: Painter, b: Building, time: number, night: number, w
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
   ctx.fillText(label, cx - pw / 2 + fs * 0.6 + icon, cy + 1);
+  ctx.globalAlpha = 1;
+  if (!open) {
+    // little "closed · opens at" tag hanging under the sign
+    const tag = opens ? `CLOSED · opens ${opens}` : 'CLOSED';
+    const ts = Math.max(9, Math.round(fs * 0.7));
+    ctx.font = `700 ${ts}px Outfit, system-ui, sans-serif`;
+    const w2 = ctx.measureText(tag).width + ts;
+    ctx.fillStyle = '#d83a46';
+    ctx.beginPath();
+    ctx.roundRect(cx - w2 / 2, cy + fs * 1.1, w2, ts * 1.6, ts * 0.4);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.fillText(tag, cx, cy + fs * 1.1 + ts * 0.82);
+  }
 
   // ---- shopkeeper waits at the door with the parcel when an order is ready
-  if (waiting) {
+  if (waiting && open) {
     const [kx, ky] = front(b, 1.3, 1.5);
     p.person(kx, ky, Math.atan2(b.ny, b.nx), 0, css(st.awning), '#4a3428', Math.sin(time * 0.8) > 0.6 ? time : 0);
     const [px2, py2] = front(b, 1.3, 1.95);
@@ -167,11 +196,11 @@ function smoke(ctx: CanvasRenderingContext2D, x: number, y: number, ppm: number,
   }
 }
 
-function awning(p: Painter, b: Building, time: number) {
+function awning(p: Painter, b: Building, time: number, extend: number) {
   const { ctx, ppm } = p;
   const st = b.shop!;
   const L = wallLen(b) * 0.86;
-  const depth = 1.0;
+  const depth = 1.0 * extend;
   ctx.save();
   const [ox, oy] = front(b, 0, 0);
   ctx.translate(p.sx(ox), p.sy(oy));

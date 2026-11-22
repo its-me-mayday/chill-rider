@@ -21,6 +21,7 @@ export interface Walker {
   shirt: string;
   hair: string;
   dog: { x: number; y: number; color: string; wag: number } | null;
+  active: boolean;
 }
 
 export interface Cat {
@@ -79,6 +80,7 @@ export class Critters {
         speed: R.range(0.9, 1.4), phase: R.range(0, 6), pause: 0, aside: 0, offset: 0, bumped: 0, happy: 0,
         shirt: R.pick(SHIRTS), hair: R.pick(HAIR),
         dog: hasDog ? { x, y, color: R.pick(DOGS), wag: R.range(0, 6) } : null,
+        active: true,
       });
     }
     for (const s of map.catSpots) {
@@ -96,6 +98,7 @@ export class Critters {
   bell(x: number, y: number): number {
     let n = 0;
     for (const w of this.walkers) {
+      if (!w.active) continue;
       if (Math.hypot(w.x - x, w.y - y) < 14 && w.aside <= 0) {
         w.aside = 4;
         w.happy = 1.5;
@@ -105,9 +108,19 @@ export class Critters {
     return n;
   }
 
+  /** share of townsfolk out on the street (0..1); people only come and go out of sight */
+  setDensity(frac: number, px: number, py: number) {
+    const want = Math.max(2, Math.round(this.walkers.length * frac));
+    this.walkers.forEach((w, i) => {
+      const should = i < want;
+      if (w.active !== should && Math.hypot(w.x - px, w.y - py) > 30) w.active = should;
+    });
+  }
+
   update(dt: number, riderX: number, riderY: number, riderSpeed: number) {
     const m = this.map;
     for (const w of this.walkers) {
+      if (!w.active) continue;
       w.bumped = Math.max(0, w.bumped - dt);
       w.happy = Math.max(0, w.happy - dt);
       w.aside = Math.max(0, w.aside - dt);
@@ -173,7 +186,7 @@ export class Critters {
   obstacles(): { x: number; y: number; r: number; w: Walker }[] {
     const out: { x: number; y: number; r: number; w: Walker }[] = [];
     for (const w of this.walkers) {
-      if (w.offset > 0.6) continue;
+      if (!w.active || w.offset > 0.6) continue;
       out.push({ x: w.x, y: w.y, r: WALKER_R, w });
       if (w.dog) out.push({ x: w.dog.x, y: w.dog.y, r: 0.35, w });
     }

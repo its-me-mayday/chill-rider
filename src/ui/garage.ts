@@ -102,10 +102,13 @@ export class Garage {
         `<div class="g-sub">${title}</div><div class="swatches">${COSMETICS.filter((c) => c.slot === s)
           .map((c) => {
             const own = p.owned.includes(c.id);
+            if (c.price < 0 && !own) {
+              return `<button class="swatch locked" disabled title="${c.secret ?? ''}"><span class="dot" style="background:repeating-linear-gradient(45deg,#ecd9cf 0 4px,#fff 4px 8px)"></span>???<small>${c.secret ?? 'secret'}</small></button>`;
+            }
             const on = p.equipped[s] === c.id;
             const bg = c.color === 'rainbow' ? 'linear-gradient(135deg,#ff8f8f,#ffd27a,#9fe3a8,#8fc8ff,#c9a3ff)' : c.color;
             return `<button class="swatch${on ? ' on' : ''}" data-cos="${c.id}" ${!own && p.wallet < c.price ? 'disabled' : ''}>
-              <span class="dot" style="background:${bg}"></span>${c.name}<small>${on ? 'wearing' : own ? 'owned' : `${c.price} €`}</small></button>`;
+              <span class="dot" style="background:${bg}"></span>${c.name}<small>${on ? 'wearing' : own ? (c.price < 0 ? 'secret ✦' : 'owned') : `${c.price} €`}</small></button>`;
           })
           .join('')}</div>`;
       this.body.innerHTML = slot('frame', 'Bike paint') + slot('beanie', 'Beanie') + slot('scarf', 'Scarf');
@@ -117,7 +120,10 @@ export class Garage {
       }).join('');
       const st = p.stats;
       const pct = st.deliveries ? Math.round((st.onTime / st.deliveries) * 100) : 0;
+      const sec = (k: string, icon: string, name: string) => `<div class="card-town"><b>${icon} ${name}</b><div style="font-size:.78rem;color:#9a7a8c">${(p.secrets[k] ?? 0) ? `found ${p.secrets[k]}×` : 'not found yet'}</div></div>`;
+      const secretsHtml = sec('chest', '🧰', 'Hidden chest') + sec('gnome', '🍄', 'Garden gnome') + sec('kitten', '🐱', 'Lost kitten') + sec('stargazer', '🔭', 'Stargazer (night)');
       this.body.innerHTML = `<div class="g-sub">Postcards</div><div class="album">${towns}</div>
+        <div class="g-sub">Secrets</div><div class="album">${secretsHtml}</div>
         <div class="g-sub">Courier record</div>
         <div class="stats">
           <div>Level <b>${p.level} · ${Math.round(p.xp)}/${xpForLevel(p.level)} xp</b></div>
@@ -130,6 +136,7 @@ export class Garage {
           <div>VIP / rush <b>${st.vip} / ${st.rush}</b></div>
           <div>Night / rain <b>${st.night} / ${st.rain}</b></div>
           <div>Challenges <b>${st.challenges}</b></div>
+          <div>Secrets <b>${st.secrets}</b></div>
         </div>`;
     } else {
       this.body.innerHTML = `<div class="g-sub">${p.achievements.length}/${ACHIEVEMENTS.length} unlocked</div><div class="badges">${ACHIEVEMENTS.map((a) => {
