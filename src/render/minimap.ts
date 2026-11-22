@@ -41,6 +41,7 @@ export class Minimap {
             : t === T.PLAZA ? th.plaza
             : t === T.PATH ? th.path
             : t === T.CLOSED ? mix(th.roadEdge, th.grass, 0.6)
+            : t === T.BIKE ? (th.city ? th.city.bike : th.road)
             : mix(th.grass, [60, 50, 70], 0.15),
         );
         g.fillRect(tx * ts, ty * ts, ts + 0.5, ts + 0.5);
@@ -54,6 +55,23 @@ export class Minimap {
     for (const b of map.buildings) {
       g.fillStyle = b.kind === 'shop' ? css(b.shop!.roof) : css(mix(th.roofs[b.style % th.roofs.length], [255, 255, 255], 0.25));
       g.fillRect(b.x * this.scale, b.y * this.scale, b.w * this.scale, b.h * this.scale);
+    }
+    // the sights, in warm stone with a golden outline
+    for (const l of map.landmarks) {
+      g.fillStyle = l.def.kind === 'belfast' ? '#8b95a1' : '#ead7ad';
+      g.strokeStyle = '#d8a63a';
+      g.lineWidth = Math.max(1, this.scale * 0.6);
+      const parts = l.solids.length ? l.solids : [{ x: l.x, y: l.y, w: l.w, h: l.h }];
+      for (const s of parts) {
+        g.fillRect(s.x * this.scale, s.y * this.scale, s.w * this.scale, s.h * this.scale);
+        g.strokeRect(s.x * this.scale, s.y * this.scale, s.w * this.scale, s.h * this.scale);
+      }
+      for (const c of l.circles) {
+        g.beginPath();
+        g.arc(c.x * this.scale, c.y * this.scale, c.r * this.scale, 0, Math.PI * 2);
+        g.fill();
+        g.stroke();
+      }
     }
   }
 

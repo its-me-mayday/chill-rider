@@ -9,6 +9,7 @@ import type { Traffic, Vehicle } from '../game/traffic';
 import type { Rider as RiderT } from '../game/rider';
 import { drawRider, type Cargo, type RiderStyle } from './riderDraw';
 import { drawShop, type Painter } from './shops';
+import { drawBridge, drawBridgeTop, drawLandmark, drawLandmarkTop, landmarkHeight } from './landmarks';
 import { isOpen } from '../game/themes';
 import type { Secret } from '../game/map';
 import { signal } from '../game/lights';
@@ -215,6 +216,9 @@ export class Renderer {
     this.hour = light.hour;
     this.lastTime = time;
     this.drawTiles(map, view, time);
+    this.drawBikeTracks(map, view);
+    for (const b of map.bridges) if (this.inView((b.c + 1) * TILE, ((b.r0 + b.r1) / 2) * TILE, 20, view)) drawBridge(this.painter(), b, time);
+    this.drawRiverName(map, view);
     this.drawStreetDetails(map, view);
     this.drawStopLines(map, view);
     this.drawPotholes(map, view, sc.rain, time);
@@ -235,8 +239,12 @@ export class Renderer {
     this.drawParticles(light, time, false);
     this.drawProps(map, view, time);
     this.drawBuildings(map, view, orders, time);
+    for (const l of map.landmarks) if (this.inView(l.x + l.w / 2, l.y + l.h / 2, Math.max(l.w, l.h) + 4, view)) drawLandmark(this.painter(), l, time, this.night, this.hour);
     this.drawCustomers(dt, time);
     this.drawTrees(map, view, time);
+    for (const b of map.bridges) if (this.inView((b.c + 1) * TILE, ((b.r0 + b.r1) / 2) * TILE, 20, view)) drawBridgeTop(this.painter(), b);
+    for (const l of map.landmarks) if (this.inView(l.x + l.w / 2, l.y, Math.max(l.w, l.h) + 20, view)) drawLandmarkTop(this.painter(), l, time, this.night);
+    this.drawLandmarkLabels(map, sc.rider, view);
     this.drawTrafficLights(map, time, view);
     this.drawTosses(dt);
     this.drawParticles(light, time, true);
@@ -289,6 +297,7 @@ export class Renderer {
           case T.PLAZA: col = mix(th.plaza, [120, 80, 60], h * 0.06); break;
           case T.PATH: col = mix(th.path, [255, 240, 220], h * 0.08); break;
           case T.CLOSED: col = mix(th.road, th.grass, 0.28); break;
+          case T.BIKE: col = th.city ? th.city.bike : [80, 130, 200]; break;
           default: col = mix(th.grass, th.grass2, h);
         }
         ctx.fillStyle = css(col);
@@ -411,6 +420,152 @@ export class Renderer {
     ctx.stroke();
   }
 
+  /** protected cycle tracks: kerbs, a dashed centre line, bike symbols and crossings over the road */
+  private drawBikeTracks(map: GameMap, v: View) {
+    if (!map.theme.city) return;
+    const { ctx, ppm } = this;
+    const tx0 = Math.max(0, Math.floor(v.x0 / TILE));
+    const ty0 = Math.max(0, Math.floor(v.y0 / TILE));
+    const tx1 = Math.min(map.cols - 1, Math.floor(v.x1 / TILE));
+    const ty1 = Math.min(map.rows - 1, Math.floor(v.y1 / TILE));
+    const at = (x: number, y: number) => (x < 0 || y < 0 || x >= map.cols || y >= map.rows ? T.GRASS : (map.tiles[y * map.cols + x] as T));
+    const ts = TILE * ppm;
+    const bike = map.theme.city.bike;
+    for (let ty = ty0; ty <= ty1; ty++)
+      for (let tx = tx0; tx <= tx1; tx++) {
+        const t = at(tx, ty);
+        const px = this.sx(tx * TILE);
+        const py = this.sy(ty * TILE);
+        if (t === T.BIKE) {
+          const horiz = at(tx - 1, ty) === T.BIKE || at(tx + 1, ty) === T.BIKE || (at(tx - 1, ty) === T.ROAD && at(tx + 1, ty) !== T.ROAD) || at(tx + 1, ty) === T.ROAD;
+          const vert = at(tx, ty - 1) === T.BIKE || at(tx, ty + 1) === T.BIKE;
+          const h = horiz && !vert;
+          // kerbs against the pavement / grass
+          ctx.fillStyle = 'rgba(235,232,226,0.95)';
+          const k = Math.max(1.5, ppm * 0.3);
+          const edge = (n: T) => n !== T.BIKE && n !== T.ROAD;
+          if (edge(at(tx, ty - 1))) ctx.fillRect(px, py, ts, k);
+          if (edge(at(tx, ty + 1))) ctx.fillRect(px, py + ts - k, ts, k);
+          if (edge(at(tx - 1, ty))) ctx.fillRect(px, py, k, ts);
+          if (edge(at(tx + 1, ty))) ctx.fillRect(px + ts - k, py, k, ts);
+          // separator island against the road
+          ctx.fillStyle = 'rgba(200,196,190,0.95)';
+          if (at(tx, ty - 1) === T.ROAD && h) ctx.fillRect(px, py, ts, k * 1.4);
+          if (at(tx, ty + 1) === T.ROAD && h) ctx.fillRect(px, py + ts - k * 1.4, ts, k * 1.4);
+          if (at(tx - 1, ty) === T.ROAD && !h) ctx.fillRect(px, py, k * 1.4, ts);
+          if (at(tx + 1, ty) === T.ROAD && !h) ctx.fillRect(px + ts - k * 1.4, py, k * 1.4, ts);
+          // dashed centre line for the two-way track
+          ctx.fillStyle = 'rgba(255,255,255,0.8)';
+          if (h) ctx.fillRect(px + ts * 0.1, py + ts / 2 - ppm * 0.06, ts * 0.4, ppm * 0.12);
+          else ctx.fillRect(px + ts / 2 - ppm * 0.06, py + ts * 0.1, ppm * 0.12, ts * 0.4);
+          // a bike symbol every few tiles
+          if ((tx + ty) % 4 === 0) this.bikeGlyph(px + ts * (h ? 0.75 : 0.25), py + ts * (h ? 0.25 : 0.75), h);
+        } else if (t === T.ROAD) {
+          // the track continues across the road: blue paint between "elephant's footprints"
+          const lr = at(tx - 1, ty) === T.BIKE || at(tx + 1, ty) === T.BIKE;
+          const ud = at(tx, ty - 1) === T.BIKE || at(tx, ty + 1) === T.BIKE;
+          const crossH = this.trackRun(at, tx, ty, 1, 0);
+          const crossV = this.trackRun(at, tx, ty, 0, 1);
+          if (!crossH && !crossV) continue;
+          ctx.fillStyle = css(bike, 0.55);
+          if (crossH) ctx.fillRect(px, py + ts * 0.08, ts, ts * 0.84);
+          if (crossV) ctx.fillRect(px + ts * 0.08, py, ts * 0.84, ts);
+          ctx.fillStyle = 'rgba(255,255,255,0.85)';
+          const sq = ppm * 0.45;
+          for (let k2 = 0; k2 < 4; k2++) {
+            const u = (k2 + 0.25) * (ts / 4);
+            if (crossH) {
+              ctx.fillRect(px + u, py + ts * 0.02, sq, sq);
+              ctx.fillRect(px + u, py + ts * 0.98 - sq, sq, sq);
+            }
+            if (crossV) {
+              ctx.fillRect(px + ts * 0.02, py + u, sq, sq);
+              ctx.fillRect(px + ts * 0.98 - sq, py + u, sq, sq);
+            }
+          }
+          void lr;
+          void ud;
+        }
+      }
+  }
+
+  /** is this road tile on a straight line between two cycle-track tiles? */
+  private trackRun(at: (x: number, y: number) => T, tx: number, ty: number, dx: number, dy: number) {
+    const look = (s: number) => {
+      for (let k = 1; k <= 3; k++) {
+        const t = at(tx + dx * k * s, ty + dy * k * s);
+        if (t === T.BIKE) return true;
+        if (t !== T.ROAD) return false;
+      }
+      return false;
+    };
+    return look(1) && look(-1);
+  }
+
+  private bikeGlyph(x: number, y: number, horiz: boolean) {
+    const { ctx, ppm } = this;
+    ctx.save();
+    ctx.translate(x, y);
+    if (!horiz) ctx.rotate(Math.PI / 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.lineWidth = Math.max(1, ppm * 0.1);
+    const r = ppm * 0.42;
+    ctx.beginPath();
+    ctx.arc(-ppm * 0.6, 0, r, 0, Math.PI * 2);
+    ctx.moveTo(ppm * 0.6 + r, 0);
+    ctx.arc(ppm * 0.6, 0, r, 0, Math.PI * 2);
+    ctx.moveTo(-ppm * 0.6, 0);
+    ctx.lineTo(-ppm * 0.1, -ppm * 0.45);
+    ctx.lineTo(ppm * 0.4, -ppm * 0.45);
+    ctx.lineTo(ppm * 0.6, 0);
+    ctx.moveTo(-ppm * 0.1, -ppm * 0.45);
+    ctx.lineTo(0, 0);
+    ctx.lineTo(ppm * 0.4, -ppm * 0.45);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  private drawRiverName(map: GameMap, v: View) {
+    if (!map.river) return;
+    const { ctx, ppm } = this;
+    const y = ((map.river.r0 + map.river.r1 + 1) / 2) * TILE;
+    const fs = Math.max(12, Math.round(ppm * 1.6));
+    ctx.font = `italic 600 ${fs}px Fraunces, Georgia, serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    const span = 70;
+    for (let x = span / 2; x < map.width; x += span) {
+      if (!this.inView(x, y, 20, v)) continue;
+      if (map.bridges.some((b) => Math.abs((b.c + 1) * TILE - x) < 16)) continue;
+      ctx.fillText(map.river.name.toUpperCase().split('').join(' '), this.sx(x), this.sy(y));
+    }
+  }
+
+  /** name plaques next to the sights, bigger when you're close */
+  private drawLandmarkLabels(map: GameMap, r: Rider, v: View) {
+    const { ctx, ppm } = this;
+    for (const l of map.landmarks) {
+      const cx = l.x + l.w / 2;
+      if (!this.inView(cx, l.y, Math.max(l.w, l.h), v)) continue;
+      const near = Math.hypot(r.x - cx, r.y - (l.y + l.h / 2)) < Math.max(l.w, l.h) / 2 + 18;
+      const fs = Math.max(10, Math.round(ppm * (near ? 1.05 : 0.85)));
+      ctx.font = `600 ${fs}px Outfit, system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const label = `📍 ${l.def.name}`;
+      const tw = ctx.measureText(label).width + fs;
+      const px = this.sx(cx);
+      const py = this.sy(l.def.kind === 'eye' ? l.y + l.h + 1.2 : l.y - 1.6);
+      ctx.fillStyle = near ? 'rgba(255,241,184,0.96)' : 'rgba(255,250,240,0.85)';
+      ctx.beginPath();
+      ctx.roundRect(px - tw / 2, py - fs * 0.75, tw, fs * 1.5, fs * 0.75);
+      ctx.fill();
+      ctx.fillStyle = '#4a2d4a';
+      ctx.fillText(label, px, py + 1);
+    }
+  }
+
   private drawShadows(map: GameMap, v: View, light: Light) {
     const { ctx, ppm } = this;
     const s = light.shadow;
@@ -432,6 +587,33 @@ export class Renderer {
       ctx.lineTo(x + w, y + h);
       ctx.closePath();
       ctx.fill();
+    }
+    for (const l of map.landmarks) {
+      const hgt = landmarkHeight(l);
+      if (!hgt || !this.inView(l.x + l.w / 2, l.y + l.h / 2, Math.max(l.w, l.h) + hgt * 2, v)) continue;
+      const ox = s * ppm * 0.9 * Math.sqrt(hgt) * 0.9;
+      const oy = s * ppm * 0.6 * Math.sqrt(hgt) * 0.9;
+      const shapes = l.def.kind === 'globe' || l.def.kind === 'gherkin' ? [] : l.solids;
+      for (const b of shapes) {
+        const x = this.sx(b.x);
+        const y = this.sy(b.y);
+        const w = b.w * ppm;
+        const h = b.h * ppm;
+        ctx.beginPath();
+        ctx.moveTo(x + w, y);
+        ctx.lineTo(x + w + ox, y + oy);
+        ctx.lineTo(x + w + ox, y + h + oy);
+        ctx.lineTo(x + ox, y + h + oy);
+        ctx.lineTo(x, y + h);
+        ctx.lineTo(x + w, y + h);
+        ctx.closePath();
+        ctx.fill();
+      }
+      for (const c of l.circles) {
+        ctx.beginPath();
+        ctx.ellipse(this.sx(c.x) + ox / 2, this.sy(c.y) + oy / 2, c.r * ppm + Math.abs(ox) / 2, c.r * ppm + Math.abs(oy) / 2, 0.55, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
     for (const t of map.trees) {
       if (!this.inView(t.x, t.y, t.r + 3, v)) continue;
@@ -1086,6 +1268,17 @@ export class Renderer {
         lctx.fillRect(px - rr, py - rr, rr * 2, rr * 2);
       };
       for (const l of map.lamps) if (this.inView(l.x, l.y, 10, v)) glow(l.x, l.y, 9, 0.55 * n * (0.95 + 0.05 * Math.sin(time * 9 + l.x)));
+      // floodlit landmarks
+      for (const l of map.landmarks) {
+        if (!this.inView(l.x + l.w / 2, l.y + l.h / 2, Math.max(l.w, l.h) + 10, v)) continue;
+        const R = Math.max(l.w, l.h) * 0.75 + 4;
+        const c = l.def.kind === 'eye' ? '150,200,255' : l.def.kind === 'shard' || l.def.kind === 'gherkin' ? '200,230,255' : '255,220,160';
+        glow(l.x + l.w / 2, l.y + l.h / 2, R, 0.5 * n, c);
+      }
+      for (const b of map.bridges) for (let yy = b.r0 * TILE + 2; yy < (b.r1 + 1) * TILE; yy += 6) {
+        glow(b.c * TILE - 0.3, yy, 4, 0.5 * n);
+        glow((b.c + 2) * TILE + 0.3, yy, 4, 0.5 * n);
+      }
       for (const b of map.buildings) {
         if (!this.inView(b.x, b.y, 12, v)) continue;
         const lit = b.kind === 'shop' ? 1 : hash(b.id * 7) < 0.7 ? 0.7 : 0;
@@ -1256,6 +1449,38 @@ export class Renderer {
         ctx.stroke();
         ctx.fillStyle = '#3a3045';
         ctx.fillRect(x - ppm * 0.04, y - ppm * 0.15, ppm * 0.08, ppm * 0.28);
+        return true;
+      }
+      case 'phonebox': {
+        sh(ppm * 0.8, ppm * 0.7);
+        ctx.fillStyle = '#c8202e';
+        ctx.beginPath();
+        ctx.roundRect(x - ppm * 0.62, y - ppm * 0.62, ppm * 1.24, ppm * 1.24, ppm * 0.18);
+        ctx.fill();
+        ctx.fillStyle = '#e23a45';
+        ctx.beginPath();
+        ctx.roundRect(x - ppm * 0.45, y - ppm * 0.45, ppm * 0.9, ppm * 0.9, ppm * 0.3);
+        ctx.fill();
+        ctx.fillStyle = '#f6e7b0';
+        ctx.fillRect(x - ppm * 0.12, y - ppm * 0.12, ppm * 0.24, ppm * 0.24);
+        if (this.night > 0.3) {
+          ctx.fillStyle = `rgba(255,240,190,${this.night * 0.7})`;
+          ctx.fillRect(x - ppm * 0.62, y - ppm * 0.08, ppm * 1.24, ppm * 0.16);
+        }
+        return true;
+      }
+      case 'postbox': {
+        sh(ppm * 0.36, ppm * 0.3);
+        ctx.fillStyle = '#b31b26';
+        ctx.beginPath();
+        ctx.arc(x, y, ppm * 0.34, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#e04a52';
+        ctx.beginPath();
+        ctx.arc(x - ppm * 0.07, y - ppm * 0.07, ppm * 0.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#f2c14e';
+        ctx.fillRect(x - ppm * 0.05, y - ppm * 0.05, ppm * 0.1, ppm * 0.1);
         return true;
       }
       case 'bin': {
@@ -1431,7 +1656,21 @@ export class Renderer {
         this.npcRider(c, time);
         continue;
       }
+      if (c.kind === 'bus') {
+        this.bus(c);
+        if (c.honk > 3.4) this.bubble(c.x, c.y - 0.5, '📯');
+        continue;
+      }
       this.carBody(c.x, c.y, c.heading, c.half, c.width, c.color, this.night > 0.3, c.braking, time);
+      if (c.kind === 'cab') {
+        // black cab: the yellow TAXI light on the roof
+        ctx.save();
+        ctx.translate(this.sx(c.x), this.sy(c.y));
+        ctx.rotate(c.heading);
+        ctx.fillStyle = this.night > 0.3 ? '#ffd23f' : '#f2c14e';
+        ctx.fillRect(-ppm * 0.15, -ppm * 0.35, ppm * 0.35, ppm * 0.7);
+        ctx.restore();
+      }
       if (c.kind === 'van') {
         // delivery van roof stripe
         ctx.save();
@@ -1442,6 +1681,53 @@ export class Renderer {
         ctx.restore();
       }
       if (c.honk > 3.4) this.bubble(c.x, c.y - 0.5, '📯');
+    }
+  }
+
+  /** a red double-decker seen from above: roof panels, vents and the route number */
+  private bus(c: Vehicle) {
+    const { ctx, ppm } = this;
+    const L = c.half * ppm;
+    const W = (c.width / 2) * ppm;
+    ctx.save();
+    ctx.translate(this.sx(c.x), this.sy(c.y));
+    ctx.rotate(c.heading);
+    ctx.fillStyle = SHADOW;
+    ctx.beginPath();
+    ctx.roundRect(-L + ppm * 0.8, -W + ppm * 0.6, L * 2, W * 2, W * 0.3);
+    ctx.fill();
+    ctx.fillStyle = c.color;
+    ctx.beginPath();
+    ctx.roundRect(-L, -W, L * 2, W * 2, W * 0.35);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(80,10,20,0.5)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    // upper-deck windows peeking at the edges
+    ctx.fillStyle = 'rgba(60,70,90,0.75)';
+    ctx.fillRect(-L * 0.9, -W, L * 1.75, ppm * 0.22);
+    ctx.fillRect(-L * 0.9, W - ppm * 0.22, L * 1.75, ppm * 0.22);
+    ctx.fillRect(L - ppm * 0.45, -W * 0.8, ppm * 0.3, W * 1.6);
+    // roof panels and vents
+    ctx.fillStyle = 'rgba(255,255,255,0.14)';
+    for (let k = 0; k < 4; k++) ctx.fillRect(-L * 0.8 + k * L * 0.42, -W * 0.6, L * 0.3, W * 1.2);
+    ctx.fillStyle = '#9a1c24';
+    ctx.fillRect(-L * 0.2, -W * 0.25, ppm * 0.6, W * 0.5);
+    // route number painted on the roof
+    ctx.rotate(Math.PI / 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    ctx.font = `700 ${Math.max(8, Math.round(ppm * 1.1))}px Outfit, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(c.color2, 0, -L * 0.55);
+    ctx.restore();
+    if (c.braking) {
+      const ax = Math.cos(c.heading);
+      const ay = Math.sin(c.heading);
+      ctx.fillStyle = '#ff4b4b';
+      ctx.beginPath();
+      ctx.arc(this.sx(c.x - ax * c.half), this.sy(c.y - ay * c.half), ppm * 0.25, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 

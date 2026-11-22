@@ -1,6 +1,7 @@
 import { rng } from './math';
 import { makeLight, type TrafficLight } from './lights';
 import { SERVICES, SHOPS, type ShopType, type Theme } from './themes';
+import type { BridgeKind, District, LandmarkDef } from './cities';
 
 /** World units are meters, x → right, y → down. The map is a grid of 4 m tiles. */
 export const TILE = 4;
@@ -14,6 +15,35 @@ export const enum T {
   PATH = 5,
   /** a closed-off stub of road behind a roadblock */
   CLOSED = 6,
+  /** protected two-way cycle track */
+  BIKE = 7,
+}
+
+export interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface Landmark {
+  def: LandmarkDef;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** solid parts the rider bumps into */
+  solids: Rect[];
+  circles: (Spot & { r: number })[];
+}
+
+export interface Bridge {
+  name: string;
+  kind: BridgeKind;
+  /** first road column (tiles) and the water rows it spans */
+  c: number;
+  r0: number;
+  r1: number;
 }
 
 export interface Building {
@@ -53,7 +83,7 @@ export interface Lamp {
 
 export type PropKind =
   | 'fountain' | 'bench' | 'boat'
-  | 'cone' | 'barrier' | 'workSign' | 'roadblock' | 'noEntry' | 'bin' | 'pcar' | 'picnic' | 'bale' | 'log' | 'umbrella' | 'sandcastle';
+  | 'cone' | 'barrier' | 'workSign' | 'roadblock' | 'noEntry' | 'bin' | 'pcar' | 'picnic' | 'bale' | 'log' | 'umbrella' | 'sandcastle' | 'phonebox' | 'postbox';
 
 export interface Prop {
   kind: PropKind;
@@ -106,6 +136,11 @@ export interface GameMap {
   secrets: Secret[];
   /** junctions controlled by traffic lights */
   lights: TrafficLight[];
+  /** big-city extras */
+  district?: District;
+  landmarks: Landmark[];
+  bridges: Bridge[];
+  river?: { r0: number; r1: number; name: string };
   /** spatial hash of tree indices, 8 m cells */
   treeGrid: Map<number, number[]>;
 }
@@ -135,8 +170,9 @@ export function nearbyTrees(m: GameMap, x: number, y: number): number[] {
 
 export function generateMap(theme: Theme, seed: number): GameMap {
   const R = rng(seed);
-  const cols = 46;
-  const rows = 38;
+  const city = theme.city;
+  const cols = city ? city.cols : 46;
+  const rows = city ? city.rows : 38;
   const tiles = new Uint8Array(cols * rows);
   const set = (tx: number, ty: number, t: T) => {
     if (tx >= 0 && ty >= 0 && tx < cols && ty < rows) tiles[ty * cols + tx] = t;
@@ -161,16 +197,48 @@ export function generateMap(theme: Theme, seed: number): GameMap {
   const roadCols: number[] = [];
   for (let c = R.int(2, 4); c < cols - 4; c += R.int(theme.roadGap[0], theme.roadGap[1])) roadCols.push(c);
   const roadRows: number[] = [];
-  for (let r = R.int(2, 4); r < usableRows - 3; r += R.int(theme.roadGap[0] - 1, theme.roadGap[1] - 1)) roadRows.push(r);
+  // a river across the city: embankment roads on both banks, bridges between them
+  let river: { r0: number; r1: number; name: string } | undefined;
+  let jN = -1;
+  let jS = -1;
+  if (city) {
+    const r0 = Math.round(rows * 0.56) + R.int(-1, 1);
+    const r1 = r0 + 4;
+    river = { r0, r1, name: city.district.river };
+    for (let r = r0 - 2; r >= 2; r -= R.int(theme.roadGap[0] - 1, theme.roadGap[1] - 1)) roadRows.unshift(r);
+    jN = roadRows.length - 1;
+    for (let r = r1 + 1; r < usableRows - 3; r += R.int(theme.roadGap[0] - 1, theme.roadGap[1] - 1)) roadRows.push(r);
+    jS = jN + 1;
+  } else {
+    for (let r = R.int(2, 4); r < usableRows - 3; r += R.int(theme.roadGap[0] - 1, theme.roadGap[1] - 1)) roadRows.push(r);
+  }
 
   // segments between neighbouring intersections
-  type Seg = { a: number; b: number; horiz: boolean; i: number; j: number; on: boolean };
+  type Seg = { a: number; b: number; horiz: boolean; i: number; j: number; on: boolean; river?: boolean };
   const node = (i: number, j: number) => j * roadCols.length + i;
   const segs: Seg[] = [];
   for (let j = 0; j < roadRows.length; j++)
     for (let i = 0; i < roadCols.length - 1; i++) segs.push({ a: node(i, j), b: node(i + 1, j), horiz: true, i, j, on: true });
   for (let i = 0; i < roadCols.length; i++)
-    for (let j = 0; j < roadRows.length - 1; j++) segs.push({ a: node(i, j), b: node(i, j + 1), horiz: false, i, j, on: true });
+    for (let j = 0; j < roadRows.length - 1; j++) segs.push({ a: node(i, j), b: node(i, j + 1), horiz: false, i, j, on: true, river: j === jN });
+  // only the bridges cross the river
+  const bridgeCols = new Map<number, { name: string; kind: BridgeKind }>();
+  if (city) {
+    for (const bd of city.district.bridges) {
+      let best = -1;
+      let bestD = Infinity;
+      roadCols.forEach((c, i) => {
+        if (bridgeCols.has(i)) return;
+        const d = Math.abs((c + 1) / cols - bd.at);
+        if (d < bestD) {
+          bestD = d;
+          best = i;
+        }
+      });
+      if (best >= 0) bridgeCols.set(best, bd);
+    }
+    for (const sg of segs) if (sg.river) sg.on = bridgeCols.has(sg.i);
+  }
 
   const nodes = roadCols.length * roadRows.length;
   const connected = () => {
@@ -200,6 +268,7 @@ export function generateMap(theme: Theme, seed: number): GameMap {
   for (const k of order) {
     if (!R.chance(theme.removeRoads)) continue;
     const sg = segs[k];
+    if (sg.river || (city && sg.horiz && (sg.j === jN || sg.j === jS))) continue;
     if (degree(sg.a) <= 2 || degree(sg.b) <= 2) continue;
     sg.on = false;
     if (!connected()) sg.on = true;
@@ -207,13 +276,14 @@ export function generateMap(theme: Theme, seed: number): GameMap {
   // safety net: re-open a road at any junction that still ended up alone
   for (let n = 0; n < nodes; n++) {
     if (degree(n) >= 2) continue;
-    const back = segs.find((sg) => !sg.on && (sg.a === n || sg.b === n));
+    const back = segs.find((sg) => !sg.on && !sg.river && (sg.a === n || sg.b === n));
     if (back) back.on = true;
   }
 
   const paint = (x0: number, y0: number, x1: number, y1: number, t: T) => {
     for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) set(tx, ty, t);
   };
+  if (river) paint(0, river.r0, cols - 1, river.r1, T.WATER);
   for (const s of segs) {
     if (!s.on) continue;
     if (s.horiz) paint(roadCols[s.i], roadRows[s.j], roadCols[s.i + 1] + 1, roadRows[s.j] + 1, T.ROAD);
@@ -224,7 +294,7 @@ export function generateMap(theme: Theme, seed: number): GameMap {
   // junction, a roadblock with a no-entry sign, and an overgrown track in between.
   const closures: Prop[] = [];
   for (const s of segs) {
-    if (s.on) continue;
+    if (s.on || s.river) continue;
     if (s.horiz) {
       const r = roadRows[s.j];
       const c0 = roadCols[s.i];
@@ -255,10 +325,47 @@ export function generateMap(theme: Theme, seed: number): GameMap {
     }
   }
 
+  const bridges: Bridge[] = [];
+  if (river) for (const [i, bd] of bridgeCols) bridges.push({ name: bd.name, kind: bd.kind, c: roadCols[i], r0: river.r0, r1: river.r1 });
+
+  // ---- protected cycle tracks: a 4 m two-way track beside a few main roads
+  // side: -1 = above / left of the road, +1 = below / right of it
+  const bikeRows = new Map<number, number>();
+  const bikeCols = new Map<number, number>();
+  if (city) {
+    const rowFull = (j: number) => segs.every((sg) => !sg.horiz || sg.j !== j || sg.on);
+    const colFull = (i: number) => segs.every((sg) => sg.horiz || sg.i !== i || sg.on || sg.river);
+    bikeRows.set(jN, -1);
+    bikeRows.set(jS, 1);
+    const inner = roadRows.map((_, j) => j).filter((j) => j !== jN && j !== jS && j > 0 && j < roadRows.length - 1 && rowFull(j));
+    if (inner.length) bikeRows.set(R.pick(inner), R.chance(0.5) ? 1 : -1);
+    const icols = roadCols.map((_, i) => i).filter((i) => i > 0 && i < roadCols.length - 1 && colFull(i)).sort(() => R.next() - 0.5);
+    // prefer a bridge so the track crosses the river
+    icols.sort((a, b) => (bridgeCols.has(b) ? 1 : 0) - (bridgeCols.has(a) ? 1 : 0));
+    for (const i of icols.slice(0, 2)) bikeCols.set(i, R.chance(0.5) ? 1 : -1);
+    const xa = roadCols[0];
+    const xb = roadCols[roadCols.length - 1] + 1;
+    const ya = roadRows[0];
+    const yb = roadRows[roadRows.length - 1] + 1;
+    for (const [j, side] of bikeRows) {
+      const tr = side < 0 ? roadRows[j] - 1 : roadRows[j] + 2;
+      for (let tx = xa; tx <= xb; tx++) if (get(tx, tr) === T.GRASS) set(tx, tr, T.BIKE);
+    }
+    for (const [i, side] of bikeCols) {
+      const tc = side < 0 ? roadCols[i] - 1 : roadCols[i] + 2;
+      for (let ty = ya; ty <= yb; ty++) if (get(tc, ty) === T.GRASS) set(tc, ty, T.BIKE);
+    }
+  }
+
   // ---- street names
   const names = [...theme.streets].sort(() => R.next() - 0.5);
   const rowName = roadRows.map((_, k) => names[k % names.length]);
   const colName = roadCols.map((_, k) => names[(k + roadRows.length) % names.length]);
+  if (city) {
+    rowName[jN] = city.district.embankments[0];
+    rowName[jS] = city.district.embankments[1];
+    for (const [i, bd] of bridgeCols) colName[i] = bd.name;
+  }
 
   // ---- blocks between roads
   const xs = [-2, ...roadCols, cols];
@@ -271,8 +378,10 @@ export function generateMap(theme: Theme, seed: number): GameMap {
   const parkSpots: Spot[] = [];
   let bid = 1;
 
+  const landmarks: Landmark[] = [];
   const overlapsBuilding = (x: number, y: number, w: number, h: number, pad: number) =>
-    buildings.some((b) => x < b.x + b.w + pad && x + w > b.x - pad && y < b.y + b.h + pad && y + h > b.y - pad);
+    buildings.some((b) => x < b.x + b.w + pad && x + w > b.x - pad && y < b.y + b.h + pad && y + h > b.y - pad) ||
+    landmarks.some((b) => x < b.x + b.w + pad && x + w > b.x - pad && y < b.y + b.h + pad && y + h > b.y - pad);
 
   const roadNear = (x: number, y: number, d: number) => {
     for (let a = 0; a < 8; a++) {
@@ -305,12 +414,74 @@ export function generateMap(theme: Theme, seed: number): GameMap {
   const segOn = (horiz: boolean, i: number, j: number) =>
     segs.some((s) => s.on && s.horiz === horiz && s.i === i && s.j === j);
 
+  /** the buildable tiles of a block, minus any cycle track along its edges */
+  const blockTiles = (bi: number, bj: number) => {
+    let tx0 = Math.max(0, xs[bi] + 2);
+    let tx1 = Math.min(cols, xs[bi + 1]);
+    let ty0 = Math.max(0, ys[bj] + 2);
+    let ty1 = Math.min(usableRows, ys[bj + 1]);
+    if (bikeRows.get(bj - 1) === 1) ty0 += 1;
+    if (bikeRows.get(bj) === -1) ty1 -= 1;
+    if (bikeCols.get(bi - 1) === 1) tx0 += 1;
+    if (bikeCols.get(bi) === -1) tx1 -= 1;
+    return { tx0, tx1, ty0, ty1 };
+  };
+  const riverBlock = (bj: number) => !!river && bj - 1 === jN;
+
+  // ---- landmarks: each goes in the block on its bank closest to where it really is
+  const lmBlocks = new Map<number, Landmark[]>();
+  if (city) {
+    const defs = city.district.landmarks.filter((d) => d.bank !== 'river');
+    for (const def of defs) {
+      const want = def.at * cols * TILE;
+      const bj0 = def.bank === 'north' ? jN - def.ring : jS + 1 + def.ring;
+      let placed = false;
+      for (const bj of [bj0, def.bank === 'north' ? bj0 - 1 : bj0 + 1, def.bank === 'north' ? bj0 + 1 : bj0 - 1]) {
+        if (placed || bj < 0 || bj >= ys.length - 1 || riverBlock(bj)) continue;
+        if (def.bank === 'north' && bj > jN) continue;
+        if (def.bank === 'south' && bj <= jS) continue;
+        const order = xs.slice(0, -1).map((_, bi) => bi).sort((a, b) => {
+          const ca = ((xs[a] + 2 + xs[a + 1]) / 2) * TILE;
+          const cb = ((xs[b] + 2 + xs[b + 1]) / 2) * TILE;
+          return Math.abs(ca - want) - Math.abs(cb - want);
+        });
+        for (const bi of order) {
+          const { tx0, tx1, ty0, ty1 } = blockTiles(bi, bj);
+          const x0 = tx0 * TILE + 1.5;
+          const x1 = tx1 * TILE - 1.5;
+          const y0 = ty0 * TILE + 1.5;
+          const y1 = ty1 * TILE - 1.5;
+          if (x1 - x0 < 12 || y1 - y0 < 12) continue;
+          const key = bj * 100 + bi;
+          const here = lmBlocks.get(key) ?? [];
+          if (def.fill && here.length) continue;
+          const w = def.fill ? x1 - x0 : Math.min(def.w, x1 - x0);
+          const h = def.fill ? y1 - y0 : Math.min(def.h, y1 - y0);
+          // towards the river for the front row, centred otherwise
+          const y = def.fill ? y0 : def.ring === 0 ? (def.bank === 'north' ? y1 - h : y0) : (y0 + y1) / 2 - h / 2;
+          let x = Math.max(x0, Math.min(x1 - w, want - w / 2));
+          const clash = (xx: number) => here.some((o) => xx < o.x + o.w + 2 && xx + w > o.x - 2 && y < o.y + o.h + 2 && y + h > o.y - 2);
+          if (clash(x)) {
+            const alt = [x0, x1 - w].sort((a, b) => Math.abs(a - want) - Math.abs(b - want)).find((xx) => !clash(xx));
+            if (alt === undefined) continue;
+            x = alt;
+          }
+          if (here.some((o) => o.def.fill)) continue;
+          const lm = makeLandmark(def, x, y, w, h);
+          here.push(lm);
+          lmBlocks.set(key, here);
+          landmarks.push(lm);
+          placed = true;
+          break;
+        }
+      }
+    }
+  }
+
   for (let bj = 0; bj < ys.length - 1; bj++) {
     for (let bi = 0; bi < xs.length - 1; bi++) {
-      const tx0 = Math.max(0, xs[bi] + 2);
-      const tx1 = Math.min(cols, xs[bi + 1]);
-      const ty0 = Math.max(0, ys[bj] + 2);
-      const ty1 = Math.min(usableRows, ys[bj + 1]);
+      if (riverBlock(bj)) continue;
+      const { tx0, tx1, ty0, ty1 } = blockTiles(bi, bj);
       if (tx1 - tx0 < 2 || ty1 - ty0 < 2) continue;
       const x0 = tx0 * TILE;
       const x1 = tx1 * TILE;
@@ -328,6 +499,21 @@ export function generateMap(theme: Theme, seed: number): GameMap {
       const inner = top || bottom || left || right;
       const w = x1 - x0;
       const h = y1 - y0;
+
+      // the grounds around a landmark: paved squares or lawns, no houses
+      const lms = lmBlocks.get(bj * 100 + bi);
+      if (lms) {
+        const paved = lms.some((l) => PAVED.has(l.def.kind));
+        if (paved) paint(tx0, ty0, tx1 - 1, ty1 - 1, T.PLAZA);
+        else parkSpots.push({ x: R.range(x0 + 3, x1 - 3), y: R.range(y0 + 3, y1 - 3) });
+        for (const l of lms) if (l.def.kind === 'trafalgar') {
+          props.push({ kind: 'fountain', x: l.x + l.w * 0.28, y: l.y + l.h * 0.68, r: 2.4, angle: 0 });
+          props.push({ kind: 'fountain', x: l.x + l.w * 0.72, y: l.y + l.h * 0.68, r: 2.4, angle: 0 });
+        }
+        // a few trees around the edge, away from the sights
+        for (let k = 0; k < (paved ? 10 : 40); k++) addTree(R.range(x0 + 1.5, x1 - 1.5), R.range(y0 + 1.5, y1 - 1.5), R.range(1.3, 2));
+        continue;
+      }
 
       // plazas in the old town, parks elsewhere
       if (inner && theme.plazas && w > 14 && h > 14 && R.chance(0.22)) {
@@ -425,6 +611,21 @@ export function generateMap(theme: Theme, seed: number): GameMap {
       // garden trees behind and between houses
       const n = Math.round(((w * h) / 110) * theme.treeDensity);
       for (let k = 0; k < n * 3 && n > 0; k++) addTree(R.range(x0 + 1, x1 - 1), R.range(y0 + 1, y1 - 1), R.range(1.2, 2));
+    }
+  }
+
+  // ---- moored in the river
+  if (city && river) {
+    for (const def of city.district.landmarks) {
+      if (def.bank !== 'river') continue;
+      const w = def.w;
+      const h = def.h;
+      const x = Math.max(4, Math.min(cols * TILE - w - 4, def.at * cols * TILE - w / 2));
+      const y = (river.r1 + 1) * TILE - h - 2;
+      // keep clear of the bridges
+      const hitsBridge = bridges.some((b) => x < (b.c + 2) * TILE + 4 && x + w > b.c * TILE - 4);
+      const xx = hitsBridge ? Math.min(cols * TILE - w - 4, x + w * 0.8) : x;
+      landmarks.push({ def, x: xx, y, w, h, solids: [], circles: [] });
     }
   }
 
@@ -554,7 +755,7 @@ export function generateMap(theme: Theme, seed: number): GameMap {
   // ---- hidden postcards: tucked away in parks and quiet corners
   const clearSpot = (x: number, y: number) => {
     const t = get(Math.floor(x / TILE), Math.floor(y / TILE));
-    if (t === T.WATER || t === T.ROAD) return false;
+    if (t === T.WATER || t === T.ROAD || t === T.BIKE) return false;
     if (x < 4 || y < 4 || x > cols * TILE - 4 || y > rows * TILE - 4) return false;
     if (overlapsBuilding(x - 1, y - 1, 2, 2, 1)) return false;
     for (const o of trees) if (Math.hypot(o.x - x, o.y - y) < o.r * 0.5 + 1.5) return false;
@@ -601,7 +802,7 @@ export function generateMap(theme: Theme, seed: number): GameMap {
 
   const free = (x: number, y: number, r: number) => {
     const t = get(Math.floor(x / TILE), Math.floor(y / TILE));
-    if (t === T.WATER || t === T.ROAD) return false;
+    if (t === T.WATER || t === T.ROAD || t === T.BIKE) return false;
     if (x < 3 || y < 3 || x > cols * TILE - 3 || y > rows * TILE - 3) return false;
     if (overlapsBuilding(x - r, y - r, r * 2, r * 2, 0.3)) return false;
     if (nearStop(x, y, r + 2.4)) return false;
@@ -634,6 +835,25 @@ export function generateMap(theme: Theme, seed: number): GameMap {
         props.push({ kind: 'pcar', x, y, r: 0.95, angle: Math.atan2(b.ny, b.nx), len: 1.15, color: R.pick(CAR_COLORS) });
       }
     }
+  }
+
+  // red phone boxes and post boxes on the pavement by junctions
+  if (city) {
+    let boxes = 0;
+    for (let j = 0; j < roadRows.length && boxes < 14; j++)
+      for (let i = 0; i < roadCols.length && boxes < 14; i++) {
+        if (degree(node(i, j)) < 2 || !R.chance(0.5)) continue;
+        const kind = R.chance(0.45) ? 'phonebox' : 'postbox';
+        const r = kind === 'phonebox' ? 0.7 : 0.35;
+        for (const [ox, oy] of [[-1.6, -1.6], [2 * TILE + 1.6, -1.6], [-1.6, 2 * TILE + 1.6], [2 * TILE + 1.6, 2 * TILE + 1.6]].sort(() => R.next() - 0.5)) {
+          const x = roadCols[i] * TILE + ox;
+          const y = roadRows[j] * TILE + oy;
+          if (!free(x, y, r) || roadNear(x, y, r + 0.3)) continue;
+          props.push({ kind, x, y, r, angle: 0 });
+          boxes++;
+          break;
+        }
+      }
   }
 
   // park furniture, woodland clutter, beach life
@@ -797,5 +1017,55 @@ export function generateMap(theme: Theme, seed: number): GameMap {
     seed, theme, cols, rows,
     width: cols * TILE, height: rows * TILE,
     tiles, buildings, trees, lamps, props, roadRows, roadCols, spawn, treeGrid, postcards, ponds, catSpots, potholes, secrets, lights,
+    district: city?.district, landmarks, bridges, river,
   };
+}
+
+const PAVED = new Set(['bigben', 'parliament', 'trafalgar', 'stpauls', 'tate', 'globe', 'gherkin', 'shard']);
+
+/** Footprint and solid parts of a landmark, in meters. */
+function makeLandmark(def: LandmarkDef, x: number, y: number, w: number, h: number): Landmark {
+  const solids: Rect[] = [];
+  const circles: (Spot & { r: number })[] = [];
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  switch (def.kind) {
+    case 'abbey':
+    case 'stpauls':
+      // a cross: long nave and a transept
+      solids.push({ x, y: y + h * 0.3, w, h: h * 0.4 });
+      solids.push({ x: x + w * 0.56, y, w: w * 0.2, h });
+      if (def.kind === 'stpauls') circles.push({ x: x + w * 0.66, y: cy, r: h * 0.34 });
+      break;
+    case 'trafalgar':
+      // the National Gallery along the top, Nelson's Column in the middle
+      solids.push({ x: x + w * 0.1, y, w: w * 0.8, h: h * 0.22 });
+      circles.push({ x: cx, y: y + h * 0.58, r: 1.6 });
+      break;
+    case 'eye':
+      // only the A-frame legs and the boarding pier touch the ground
+      solids.push({ x: cx - w * 0.3, y: y + h - 3, w: w * 0.6, h: 2.2 });
+      break;
+    case 'globe':
+    case 'gherkin':
+      circles.push({ x: cx, y: cy, r: Math.min(w, h) / 2 });
+      break;
+    case 'tower': {
+      // curtain walls with gates on the river side and the west, the White Tower in the middle
+      const t = 1.6;
+      const gate = 6;
+      solids.push({ x, y, w, h: t });
+      solids.push({ x, y: y + h - t, w: w / 2 - gate / 2, h: t });
+      solids.push({ x: x + w / 2 + gate / 2, y: y + h - t, w: w / 2 - gate / 2, h: t });
+      solids.push({ x: x + w - t, y, w: t, h });
+      solids.push({ x, y, w: t, h: h / 2 - gate / 2 });
+      solids.push({ x, y: y + h / 2 + gate / 2, w: t, h: h / 2 - gate / 2 });
+      const s = Math.min(w, h) * 0.34;
+      solids.push({ x: cx - s / 2, y: cy - s / 2, w: s, h: s });
+      break;
+    }
+    default:
+      solids.push({ x, y, w, h });
+  }
+  return { def, x, y, w, h, solids, circles };
 }

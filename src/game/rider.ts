@@ -36,6 +36,7 @@ const DEFAULT_STATS = { speedMul: 1, offroadMul: 1, grip: 1, capacity: 3, fragil
 
 const TOP: Record<number, number> = {
   [T.ROAD]: 9.5,
+  [T.BIKE]: 10.3,
   [T.CLOSED]: 8.5,
   [T.PLAZA]: 8,
   [T.PATH]: 7.5,
@@ -98,7 +99,7 @@ export class Rider {
   update(dt: number, c: Controls, map: GameMap, events: BumpEvent[], movers: Mover[] = []) {
     this.surface = tileAt(map, this.x, this.y);
     const st = this.stats;
-    const onRoad = this.surface === T.ROAD || this.surface === T.PLAZA || this.surface === T.CLOSED;
+    const onRoad = this.surface === T.ROAD || this.surface === T.PLAZA || this.surface === T.CLOSED || this.surface === T.BIKE;
     const base = TOP[this.surface] ?? 5;
     const hurtMul = this.health < 35 ? 0.85 : 1;
     const top = (onRoad ? base : Math.min(base * st.offroadMul, 9)) * st.speedMul * (this.wet ? 0.95 : 1) * hurtMul;
@@ -273,6 +274,27 @@ export class Rider {
       if (d < RIDER_R) {
         if (d > 1e-4) push(dx / d, dy / d, RIDER_R - d);
         else push(0, -1, RIDER_R);
+      }
+    }
+    // landmarks: walls, towers and the column in the square
+    for (const l of map.landmarks) {
+      if (this.x < l.x - 4 || this.x > l.x + l.w + 4 || this.y < l.y - 4 || this.y > l.y + l.h + 4) continue;
+      for (const b of l.solids) {
+        const cx = clamp(this.x, b.x, b.x + b.w);
+        const cy = clamp(this.y, b.y, b.y + b.h);
+        const dx = this.x - cx;
+        const dy = this.y - cy;
+        const d = Math.hypot(dx, dy);
+        if (d < RIDER_R) {
+          if (d > 1e-4) push(dx / d, dy / d, RIDER_R - d);
+          else push(0, -1, RIDER_R);
+        }
+      }
+      for (const c of l.circles) {
+        const dx = this.x - c.x;
+        const dy = this.y - c.y;
+        const d = Math.hypot(dx, dy);
+        if (d < c.r + RIDER_R && d > 1e-4) push(dx / d, dy / d, c.r + RIDER_R - d);
       }
     }
     // water and map edge: sample around the rider

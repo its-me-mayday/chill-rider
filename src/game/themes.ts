@@ -1,6 +1,7 @@
 import { hex, type RGB } from './math';
+import { DISTRICTS, STREETS, type District } from './cities';
 
-export type ThemeId = 'village' | 'seaside' | 'woods' | 'oldtown';
+export type ThemeId = 'village' | 'seaside' | 'woods' | 'oldtown' | `london-${string}`;
 
 export interface Theme {
   id: ThemeId;
@@ -27,6 +28,16 @@ export interface Theme {
   sea: boolean;
   plazas: boolean;
   streets: string[];
+  /** big-city extras */
+  city?: {
+    district: District;
+    cols: number;
+    rows: number;
+    /** colour of the protected cycle tracks */
+    bike: RGB;
+    /** traffic keeps left */
+    leftHand: boolean;
+  };
 }
 
 export const THEMES: Theme[] = [
@@ -87,6 +98,25 @@ export const THEMES: Theme[] = [
     streets: ['Via del Sole', 'Bell Street', 'Clocktower Lane', 'Market Row', 'Fountain Way', 'Lantern Street', 'Cobble Lane', 'Arch Road', 'Guild Street', 'Old Wall Way'],
   },
 ];
+
+/** London neighbourhoods: dense terraces, the Thames, cycle superhighways and the sights. */
+export const CITY_THEMES: Theme[] = DISTRICTS.map((d) => ({
+  id: `london-${d.id}` as ThemeId,
+  name: `${d.cityName} · ${d.name}`,
+  grass: hex('#a8c48c'), grass2: hex('#9dba80'),
+  road: hex('#5f5c66'), roadEdge: hex('#dcd6cf'), line: hex('#fff4d8'),
+  sand: hex('#e6d2a8'), water: hex('#6f9fb4'), water2: hex('#8ab6c6'),
+  plaza: hex('#d9cbb8'), path: hex('#cdb38f'),
+  tree: [hex('#6a9a62'), hex('#7fae6a'), hex('#5c8c5a')],
+  roofs: [hex('#6e7383'), hex('#8a8592'), hex('#a8604f'), hex('#5f6b7d'), hex('#b8755a')],
+  walls: [hex('#f3eee6'), hex('#c98a6a'), hex('#e8dccb')],
+  roadGap: [10, 12], removeRoads: 0.1, treeDensity: 0.32, parkChance: 0.08, houseChance: 0.97,
+  sea: false, plazas: true,
+  streets: STREETS[d.id],
+  city: { district: d, cols: 66, rows: 54, bike: hex('#3f7fd1'), leftHand: true },
+}));
+
+export const themeById = (id: string) => [...THEMES, ...CITY_THEMES].find((t) => t.id === id);
 
 export type ShopId = 'bakery' | 'florist' | 'pizza' | 'records' | 'books' | 'cafe' | 'comics' | 'gelato' | 'bikeshop' | 'boutique';
 

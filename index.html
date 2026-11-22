@@ -137,7 +137,11 @@
       <div class="card">
         <h1>Chill Rider</h1>
         <p>A lo-fi bike courier. Pick up orders at the little shops,<br />ride them to the right address before the timer runs out.</p>
-        <button id="start-btn" class="start-btn">Start riding</button>
+        <div class="row">
+          <button id="start-btn" class="start-btn">Start riding</button>
+          <button id="start-places" class="start-btn ghost">🗺 Choose where</button>
+        </div>
+        <p class="small" id="start-where"></p>
         <p class="small">Trees, ponds and walls are in the way — roads are fastest. Ring the bell at people walking by.<br />Find the hidden postcards, level up and tune your bike in the garage. Headphones recommended 🎧</p>
         <p class="small" id="start-profile"></p>
       </div>
@@ -159,8 +163,19 @@
         <ul class="complete-list" id="complete-list"></ul>
         <div class="row">
           <button id="complete-garage" class="start-btn ghost">📒 Logbook</button>
+          <button id="complete-places" class="start-btn ghost">🗺 Elsewhere</button>
           <button id="next-map" class="start-btn">Next town</button>
         </div>
+      </div>
+    </div>
+
+    <div id="places" class="overlay-card hidden">
+      <div class="places">
+        <div class="places-head">
+          <h2>Where to ride?</h2>
+          <button id="places-close" class="close" aria-label="Close">✕</button>
+        </div>
+        <div class="places-body" id="places-body"></div>
       </div>
     </div>
 

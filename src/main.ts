@@ -11,7 +11,10 @@ import {
   addXp, bikeStats, checkAchievements, cosmeticColor, LEVEL_UNLOCKS, loadProfile, saveProfile, xpForLevel,
 } from './game/profile';
 import { Rider, type BumpEvent, type Mover } from './game/rider';
-import { THEMES } from './game/themes';
+import { THEMES, themeById } from './game/themes';
+import { Places } from './ui/places';
+import { DISTRICTS } from './game/cities';
+import { T, tileAt } from './game/map';
 import { Traffic, type TrafficEvent } from './game/traffic';
 import { Minimap } from './render/minimap';
 import { Renderer } from './render/renderer';
@@ -59,6 +62,7 @@ let postcards: { x: number; y: number; got: boolean }[] = [];
 let secrets: (Secret & { got: boolean })[] = [];
 let rain = false;
 let townMeters = 0;
+const seenHere = new Set<string>();
 let started = false;
 let paused = false;
 let hudVisible = true;
@@ -72,8 +76,12 @@ function applyBike() {
   if (orders) orders.capacity = st.capacity;
 }
 
+function currentTheme() {
+  return (profile.place && themeById(profile.place)) || THEMES[profile.townIndex % THEMES.length];
+}
+
 function loadMap() {
-  const theme = THEMES[profile.townIndex % THEMES.length];
+  const theme = currentTheme();
   const seed = (Math.random() * 1e9) | 0;
   map = generateMap(theme, seed);
   rain = profile.townIndex > 0 && Math.random() < 0.3;
@@ -81,9 +89,11 @@ function loadMap() {
   orders = new Orders(map, { level: profile.level, town: profile.stats.towns, stats: st, rain });
   quests = new Quests(map, new Set());
   orders.exclude = new Set(quests.list.map((q) => q.giver.id));
-  critters = new Critters(map, 8 + Math.min(10, profile.level));
+  const big = !!theme.city;
+  critters = new Critters(map, (big ? 14 : 8) + Math.min(10, profile.level));
   const woods = theme.id === 'woods';
-  traffic = new Traffic(map, (woods ? 2 : 4) + Math.min(5, profile.stats.towns), 4 + Math.min(4, profile.level), map.spawn);
+  traffic = new Traffic(map, (woods ? 2 : big ? 9 : 4) + Math.min(5, profile.stats.towns), (big ? 7 : 4) + Math.min(4, profile.level), map.spawn);
+  seenHere.clear();
   challenges = pickChallenges(seed, profile.level);
   postcards = map.postcards.map((p) => ({ ...p, got: false }));
   secrets = map.secrets.map((p) => ({ ...p, got: false }));
@@ -347,10 +357,41 @@ function checkRedLights() {
 }
 
 document.getElementById('start-btn')!.addEventListener('click', () => void start());
+
+// ------------------------------------------------------------ destinations
+const places = new Places(profile);
+const whereLabel = () => {
+  document.getElementById('start-where')!.textContent = `📍 ${map.theme.name}`;
+};
+whereLabel();
+places.onPick = (id, townIndex) => {
+  places.close();
+  profile.place = id;
+  profile.townIndex = townIndex;
+  save();
+  completeEl.classList.add('hidden');
+  loadMap();
+  shopOpen.clear();
+  serviceNear.clear();
+  lightInside.clear();
+  upgradeHinted = false;
+  paused = false;
+  whereLabel();
+  if (!started) void start();
+  else hud.toast(map.theme.name, map.district ? map.district.blurb : 'new town, new shops', 3000);
+};
+document.getElementById('start-places')!.addEventListener('click', () => places.open());
+document.getElementById('complete-places')!.addEventListener('click', () => places.open());
 document.getElementById('resume-btn')!.addEventListener('click', () => setPaused(false));
 document.getElementById('next-map')!.addEventListener('click', () => {
   completeEl.classList.add('hidden');
-  profile.townIndex++;
+  const d = map.district;
+  if (d) {
+    // next neighbourhood in the same city
+    const list = DISTRICTS.filter((x) => x.city === d.city);
+    const next = list[(list.indexOf(d) + 1) % list.length];
+    profile.place = `london-${next.id}`;
+  } else profile.townIndex++;
   save();
   loadMap();
   shopOpen.clear();
@@ -491,7 +532,8 @@ function handle(ev: OrderEvent, nightNow: number) {
       const stars = Array.from({ length: 3 }, (_, i) => `<span class="${i < ev.stars ? '' : 'off'}">★</span>`).join('');
       document.getElementById('stars')!.innerHTML = stars;
       document.getElementById('complete-title')!.textContent = `${map.theme.name} done`;
-      document.getElementById('complete-text')!.textContent = `Next stop: ${THEMES[(profile.townIndex + 1) % THEMES.length].name}`;
+      document.getElementById('complete-text')!.textContent = `Next stop: ${nextStopName()}`;
+      document.getElementById('next-map')!.textContent = map.district ? 'Next neighbourhood' : 'Next town';
       const found = postcards.filter((p) => p.got).length;
       const lines = [
         `⏱ ${ev.onTime}/${ev.total} on time`,
@@ -508,6 +550,37 @@ function handle(ev: OrderEvent, nightNow: number) {
       }, 1400);
       break;
     }
+  }
+}
+
+function nextStopName() {
+  const d = map.district;
+  if (!d) return THEMES[(profile.townIndex + 1) % THEMES.length].name;
+  const list = DISTRICTS.filter((x) => x.city === d.city);
+  const next = list[(list.indexOf(d) + 1) % list.length];
+  return `${next.cityName} · ${next.name}`;
+}
+
+/** Riding past a famous sight: a snapshot toast, and a reward the first time ever. */
+function sightsee() {
+  for (const l of map.landmarks) {
+    const key = l.def.name;
+    if (seenHere.has(key)) continue;
+    const cx = l.x + l.w / 2;
+    const cy = l.y + l.h / 2;
+    if (Math.hypot(rider.x - cx, rider.y - cy) > Math.max(l.w, l.h) / 2 + 9) continue;
+    seenHere.add(key);
+    const first = !profile.seen.includes(key);
+    if (first) {
+      profile.seen.push(key);
+      profile.wallet = Math.round((profile.wallet + 2) * 100) / 100;
+      gainXp(12);
+      renderer.burst('sparkle', cx, cy, 24);
+      audio.collect();
+      checkBadges();
+      save();
+    }
+    hud.badge(`📸 ${l.def.name}`, `${l.def.fact}${first ? ' · +2 €' : ''}`, '📍');
   }
 }
 
@@ -697,6 +770,8 @@ function frame(now: number) {
     for (const ev of events) handle(ev, light.night);
     for (const ev of tEvents) handleTraffic(ev);
     collectPostcards();
+    sightsee();
+    if (tileAt(map, rider.x, rider.y) === T.BIKE) profile.stats.bikeLane += rider.speed * dt;
     discoverSecrets(light.night);
     quests.update(rider.x, rider.y, rider.speed, time, light.hour, qEvents);
     for (const ev of qEvents) handleQuest(ev);

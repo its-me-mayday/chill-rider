@@ -13,7 +13,7 @@ const DX = [1, 0, -1, 0];
 const DY = [0, 1, 0, -1];
 
 export interface Vehicle {
-  kind: 'car' | 'van' | 'rider';
+  kind: 'car' | 'van' | 'rider' | 'bus' | 'cab';
   x: number;
   y: number;
   dir: Dir;
@@ -52,8 +52,9 @@ const VAN_COLORS = ['#f6f1e4', '#d9e8f0', '#ffe3a8'];
 const OUTFITS = ['#ff8fab', '#7bdff2', '#b8f2a0', '#c3a6ff', '#ffd166', '#f6f1e4', '#ff9a76'];
 
 /** lane offset from the road's first tile edge, in meters (roads are 8 m wide) */
-function laneOffset(kind: Vehicle['kind'], dir: Dir) {
-  const rightSide = dir === 0 || dir === 3; // E and N drive on the high side
+function laneOffset(kind: Vehicle['kind'], dir: Dir, left = false) {
+  // keeping right, E and N drive on the high side; keeping left it's the opposite
+  const rightSide = (dir === 0 || dir === 3) !== left;
   const inset = kind === 'rider' ? 1.4 : 2.45;
   return rightSide ? 8 - inset : inset;
 }
@@ -61,9 +62,12 @@ function laneOffset(kind: Vehicle['kind'], dir: Dir) {
 export class Traffic {
   vehicles: Vehicle[] = [];
   private nodeAt = new Map<number, { c: number; r: number; id: number }>();
+  /** London keeps left */
+  readonly left: boolean;
 
   constructor(private map: GameMap, cars: number, riders: number, avoid: { x: number; y: number }) {
     const R = rng(map.seed ^ 0x7aff1c);
+    this.left = !!map.theme.city?.leftHand;
     let id = 1;
     for (const r of map.roadRows)
       for (const c of map.roadCols) {
@@ -78,20 +82,21 @@ export class Traffic {
         const line = horiz ? R.pick(map.roadRows) : R.pick(map.roadCols);
         const dir: Dir = horiz ? (R.chance(0.5) ? 0 : 2) : R.chance(0.5) ? 1 : 3;
         const along = R.range(6, (horiz ? map.width : map.height) - 6);
-        const x = horiz ? along : line * TILE + laneOffset(kind, dir);
-        const y = horiz ? line * TILE + laneOffset(kind, dir) : along;
+        const x = horiz ? along : line * TILE + laneOffset(kind, dir, this.left);
+        const y = horiz ? line * TILE + laneOffset(kind, dir, this.left) : along;
         if (this.tile(Math.floor(x / TILE), Math.floor(y / TILE)) !== T.ROAD) continue;
         if (this.nodeAt.has(Math.floor(y / TILE) * 1000 + Math.floor(x / TILE))) continue;
         if (Math.hypot(x - avoid.x, y - avoid.y) < 25) continue;
         if (this.vehicles.some((v) => Math.hypot(v.x - x, v.y - y) < 10)) continue;
         const isRider = kind === 'rider';
+        const bus = kind === 'bus';
         this.vehicles.push({
           kind, x, y, dir, line, heading: Math.atan2(DY[dir], DX[dir]),
-          speed: 0, max: isRider ? R.range(4.2, 6) : kind === 'van' ? R.range(6, 7.5) : R.range(7, 9),
-          color: kind === 'van' ? R.pick(VAN_COLORS) : R.pick(CAR_COLORS),
-          color2: R.pick(CAR_COLORS),
-          half: isRider ? 0.85 : kind === 'van' ? 2.5 : 2.1,
-          width: isRider ? 0.6 : kind === 'van' ? 2.0 : 1.85,
+          speed: 0, max: isRider ? R.range(4.2, 6) : bus ? R.range(5.5, 6.5) : kind === 'van' ? R.range(6, 7.5) : R.range(7, 9),
+          color: bus ? '#d8262e' : kind === 'cab' ? '#26262c' : kind === 'van' ? R.pick(VAN_COLORS) : R.pick(CAR_COLORS),
+          color2: bus ? String(R.pick([11, 12, 24, 53, 77, 88, 148, 159, 453])) : R.pick(CAR_COLORS),
+          half: isRider ? 0.85 : bus ? 5.2 : kind === 'van' ? 2.5 : 2.1,
+          width: isRider ? 0.6 : bus ? 2.45 : kind === 'van' ? 2.0 : 1.85,
           pending: null, node: 0, stopped: 0, honk: 0, wave: 0, braking: false,
           crank: R.range(0, 6), wheel: 0, steerVis: 0, lean: 0, wobble: 0,
           beanie: R.pick(OUTFITS), scarf: R.pick(OUTFITS), frame: R.pick(OUTFITS), parcel: R.chance(0.4), active: true,
@@ -99,7 +104,11 @@ export class Traffic {
         return;
       }
     };
-    for (let i = 0; i < cars; i++) spawn(R.chance(0.25) ? 'van' : 'car');
+    const city = !!map.theme.city;
+    for (let i = 0; i < cars; i++) {
+      const u = R.next();
+      spawn(city ? (u < 0.22 ? 'bus' : u < 0.52 ? 'cab' : u < 0.65 ? 'van' : 'car') : u < 0.25 ? 'van' : 'car');
+    }
     for (let i = 0; i < riders; i++) spawn('rider');
   }
 
@@ -131,7 +140,7 @@ export class Traffic {
    * Vehicles only appear or leave while out of the player's sight.
    */
   setDensity(cars: number, riders: number, px: number, py: number) {
-    const kinds: [Vehicle['kind'][], number][] = [[['car', 'van'], cars], [['rider'], riders]];
+    const kinds: [Vehicle['kind'][], number][] = [[['car', 'van', 'bus', 'cab'], cars], [['rider'], riders]];
     for (const [ks, frac] of kinds) {
       const list = this.vehicles.filter((v) => ks.includes(v.kind));
       const want = Math.max(ks[0] === 'rider' ? 1 : 1, Math.round(list.length * frac));
@@ -201,7 +210,7 @@ export class Traffic {
       v.x += dx * v.speed * dt;
       v.y += dy * v.speed * dt;
       // keep the lateral position on the lane centre
-      const laneCoord = v.line * TILE + laneOffset(v.kind, v.dir);
+      const laneCoord = v.line * TILE + laneOffset(v.kind, v.dir, this.left);
       if (dx !== 0) v.y += (laneCoord - v.y) * Math.min(1, dt * 3);
       else v.x += (laneCoord - v.x) * Math.min(1, dt * 3);
 
@@ -219,7 +228,7 @@ export class Traffic {
         if (nd !== v.dir) {
           // turn once we reach the new lane's line inside the junction
           const nLine = nd === 0 || nd === 2 ? node.r : node.c;
-          const at = nLine * TILE + laneOffset(v.kind, nd);
+          const at = nLine * TILE + laneOffset(v.kind, nd, this.left);
           v.pending = { dir: nd, at };
         }
       }

@@ -85,6 +85,9 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'secret1', name: 'Curious', desc: 'Discover a hidden secret', test: (p) => p.stats.secrets >= 1 },
   { id: 'secret12', name: 'Secret keeper', desc: 'Discover 12 hidden secrets', test: (p) => p.stats.secrets >= 12 },
   { id: 'stargazer', name: 'Starstruck', desc: 'Meet the stargazer at night', test: (p) => (p.secrets.stargazer ?? 0) >= 1 },
+  { id: 'tourist', name: 'Tourist', desc: 'Ride past 5 famous sights', test: (p) => p.seen.length >= 5 },
+  { id: 'londoner', name: 'Londoner', desc: 'See all 12 sights of London', test: (p) => p.seen.length >= 12 },
+  { id: 'lanes', name: 'Superhighway', desc: 'Ride 2 km on cycle tracks', test: (p) => p.stats.bikeLane >= 2000 },
   { id: 'gnomes', name: 'Gnome collector', desc: 'Find 5 garden gnomes', test: (p) => (p.secrets.gnome ?? 0) >= 5 },
 ];
 
@@ -94,6 +97,10 @@ export interface Profile {
   xp: number;
   level: number;
   townIndex: number;
+  /** a chosen destination (theme id), '' = follow the town tour */
+  place: string;
+  /** names of the famous sights ridden past */
+  seen: string[];
   upgrades: Record<UpgradeId, number>;
   owned: string[];
   equipped: { frame: string; beanie: string; scarf: string };
@@ -118,6 +125,8 @@ export interface Profile {
     bells: number;
     challenges: number;
     tipsEarned: number;
+    /** meters ridden on protected cycle tracks */
+    bikeLane: number;
   };
 }
 
@@ -130,6 +139,8 @@ export function defaultProfile(): Profile {
     xp: 0,
     level: 1,
     townIndex: 0,
+    place: '',
+    seen: [],
     upgrades: { gears: 0, tires: 0, rack: 0, suspension: 0, light: 0 },
     owned: ['frame-mint', 'beanie-rose', 'scarf-coral'],
     equipped: { frame: 'frame-mint', beanie: 'beanie-rose', scarf: 'scarf-coral' },
@@ -138,7 +149,7 @@ export function defaultProfile(): Profile {
     secrets: {},
     stats: {
       deliveries: 0, onTime: 0, meters: 0, bestStreak: 0, towns: 0, perfectTowns: 0, postcards: 0,
-      vip: 0, rush: 0, night: 0, rain: 0, bells: 0, challenges: 0, tipsEarned: 0, secrets: 0, quests: 0, redLights: 0,
+      vip: 0, rush: 0, night: 0, rain: 0, bells: 0, challenges: 0, tipsEarned: 0, secrets: 0, quests: 0, redLights: 0, bikeLane: 0,
     },
   };
 }
@@ -159,6 +170,8 @@ export function loadProfile(): Profile {
       achievements: p.achievements ?? [],
       album: p.album ?? {},
       secrets: p.secrets ?? {},
+      seen: p.seen ?? [],
+      place: p.place ?? '',
     };
   } catch {
     return d;
